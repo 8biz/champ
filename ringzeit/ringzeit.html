@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ringzeit – Countdown</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .timer {
+      background: white;
+      padding: 2rem 3rem;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+    .time {
+      font-size: 4rem;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 1.5rem;
+    }
+    button {
+      font-size: 1rem;
+      padding: 0.5rem 1.2rem;
+      margin: 0 0.5rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="timer">
+    <div class="time" id="display">3:00</div>
+    <button id="start">Start</button>
+    <button id="stop">Stopp</button>
+  </div>
+  <script>
+    const START_TIME_SECONDS = 3 * 60;
+    let remainingSeconds = START_TIME_SECONDS;
+    let intervalId = null;
+    const display = document.getElementById("display");
+    const startButton = document.getElementById("start");
+    const stopButton = document.getElementById("stop");
+    function updateDisplay() {
+      const minutes = Math.floor(remainingSeconds / 60);
+      const seconds = remainingSeconds % 60;
+      display.textContent =
+        minutes + ":" + seconds.toString().padStart(2, "0");
+    }
+    function tick() {
+      if (remainingSeconds > 0) {
+        remainingSeconds--;
+        updateDisplay();
+      } else {
+        stopTimer();
+      }
+    }
+    function startTimer() {
+      if (intervalId !== null) return;
+      intervalId = setInterval(tick, 1000);
+    }
+    function stopTimer() {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+    startButton.addEventListener("click", startTimer);
+    stopButton.addEventListener("click", stopTimer);
+    updateDisplay();
+  </script>
+</body>
+</html>
