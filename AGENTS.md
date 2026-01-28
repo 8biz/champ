@@ -6,8 +6,8 @@
 
 ## Project Structure
 
-- Frontend-only subproject: `ringzeit`
-- Offline-capable single-page application (`ringzeit.html`)
+- Frontend-only subproject: `protocol`
+- Offline-capable single-page application (`protocol.html`)
 - Automated frontend tests with Playwright (`tests/`)
 - Codespaces support (`.devcontainer/`)
 - GitHub Actions for CI (`.github/workflows/`)
@@ -22,6 +22,6 @@
 
 ## Demo Link
 
-- Live demo via githack: [Run ringzeit.html live](https://raw.githack.com/8biz/champ/main/ringzeit/ringzeit.html)
+- Live demo via githack: [Run protocol.html live](https://raw.githack.com/8biz/champ/main/protocol/protocol.html)
 
 > Note: The link works once the file is available in the `main` branch on GitHub.

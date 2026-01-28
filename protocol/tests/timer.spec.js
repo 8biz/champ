@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("Countdown startet bei 3:00 und zählt herunter", async ({ page }) => {
-  await page.goto("file://" + process.cwd() + "/ringzeit/ringzeit.html");
+  await page.goto("file://" + process.cwd() + "/protocol/protocol.html");
 
   const display = page.locator("#display");
   const startButton = page.locator("#start");

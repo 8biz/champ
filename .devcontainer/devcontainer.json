@@ -1,5 +1,5 @@
 {
-  "name": "Ringzeit Dev",
+  "name": "protocol Dev",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:18",
   "postCreateCommand": "npm install && npx playwright install --with-deps",
   "customizations": {
