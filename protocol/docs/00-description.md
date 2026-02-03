@@ -10,12 +10,9 @@ The primary users of CHAMP Protocol are wrestling specialists, who have a deep u
 The users of CHAMP protocol may not be very familiar with digital tools, so CHAMP Protocol is designed to be user-friendly and intuitive.
 
 ## What is the workflow?
-scoresheet
-wrestling style
-recorder
 
 1. The recorder opens a new scoresheet.
-    - He has to select a ruleset and a wrestling style.
+    - He has to select a ruleset and a wrestling style. See [Ruleset Format](#ruleset-format) for more information.
     - Optionally he can fill in the header section, containing
         - a description like reason for the bout like tournament, team bout or friendly bout as well as age or weight categories
         - description for each wrestler, like its name, team, nation.
@@ -32,7 +29,7 @@ recorder
 4. Ending the bout when the bout time is over or a victory condition is reached.
     - The recorder has to complete the final scoresheet by entering the kind of victory and classification points.
     - If needed, changes in header section can be made.
-    - The final scoresheet can be exported to JSON.
+    - The final scoresheet can be exported to JSON (See [Event sourcing](#event-sourcing)).
 
 
 ## How will it be used?
@@ -112,5 +109,133 @@ If an incorrect event was recorded, the user can move the cursor to the respecti
 - Escape key to cancel the current correction and move the cursor to the end of the timeline ready for next event entry.
 - The backspace key will have the same effect as the left arrow key.
 
+### Completing the Scoresheet
 
+When the bout is over, either because the bout time has expired or a victory condition has been reached, the recorder has to complete the final scoresheet. This involves entering the type of victory (e.g., fall, technical superiority, points) and assigning classification points to each wrestler based on the bout outcome.
+
+## Event sourcing
+
+CHAMP Protocol uses an event-sourcing approach to record and manage bout events. Each event is logged with its type, the wrestler involved, the absolute timestamp and the bout time at which it occurred, and any additional relevant information (e.g., points awarded, cautions). The first event is "open new scoresheet", the last event is "scoresheet completed". Even all corrections shall be logged. This structured approach allows for easy tracking of bout progression and facilitates accurate reconstruction of the bout history.
+
+See [Exported Scoresheet Format](#exported-scoresheet-format) for an example of the exported JSON file containing all recorded events.
+
+## Layout and Design considerations
+
+- The user interface should be clean and uncluttered, focusing on essential elements for recording wrestling bout events.
+- Buttons for recording events should be large and easily clickable/tappable, with clear labels and keyboard shortcuts.
+- For mouse input the buttons should be arranged more centrally on the screen for easy access.
+- For touch input the buttons should be arranged more at the left and right edges of the screen for easy thumb reach.
+- The timeline should be prominently displayed, providing a clear overview of recorded events and bout progression.
+- The design should be responsive, ensuring usability across various devices, including laptops, tablets, and smartphones.
+
+Layout suggestion:
+```
++-----------------------------------------------------+
+|                    Header Section                   |
++-----------------------------------------------------+
+|  Red Wrestler: Name/Team, Score, Injury times       |    
+| Blue Wrestler: Name/Team, Score, Injury times       |
++-----------------------------------------------------+
+|                                                     |
+|                   Timeline Section                  |
+|                                                     |
++-----------------------------------------------------+
+|                                                     |
+|                 Event Buttons Section               |
+|            Bout time, Bout release/complete         |
++-----------------------------------------------------+
+```
+
+Colors:
+- Red wrestler: #780000, #C1121F
+- Blue wrestler: #003049, #0077B6
+- Background: #FDF0D5
+- Deactivated: nuanced gray tones with touch to red/blue
+- Text: dark gray / black
+
+
+## Data Formats
+
+### Ruleset Format
+
+CHAMP Protocol supports multiple wrestling rulesets, which define the specific regulations and scoring criteria for different wrestling styles (e.g., Freestyle, Greco-Roman). The recorder must select the appropriate ruleset when creating a new scoresheet to ensure that the bout is recorded accurately according to the relevant rules.
+
+One ruleset shall be contained in CHAMP Protocol HTML file. Additional rulesets can be loaded from external JSON files if needed.
+
+Example of a ruleset JSON file:
+```json
+{
+  "name": "Active 2026",
+  "periodsInSeconds": [180, 180],
+  "boutTimeCountingDirection": "Down",
+  "boutTimeDisplay": "Bout|Period",
+  "breakSeconds": 30,
+  "breakCountingDirection": "Down",
+  "injuryTimeWithoutBloodSeconds": 120,
+  "injuryTimeWithBloodSeconds": 240,
+  "injuryTimeCountingDirection": "Up",
+  "points": [1, 2, 4, 5],
+  "maxPointDifferenceForVSU": 15,
+  "Freestyle": {
+    "activityTimeSeconds": 30,
+    "activityCountingDirection": "Down",
+    "activityTimeWithPassivityCount": 2,
+  }
+  "victoryConditions": [
+    {"Description": "Victory by Fall", "Code": "VFA", "ClassificationPointsRed": 5, "ClassificationPointsBlue": 0},
+    {"Description": "Victory by Injury", "Code": "VIN", "ClassificationPointsRed": 5, "ClassificationPointsBlue": 0},
+    {"Description": "Victory by 3 Cautions", "Code": "VCA", "ClassificationPointsRed": 5, "ClassificationPointsBlue": 0},
+    {"Description": "Victory by Technical Superiority - no opponent points", "Code": "VSU", "ClassificationPointsRed": 4, "ClassificationPointsBlue": 0},
+    {"Description": "Victory by Technical Superiority - with opponent points", "Code": "VSU1", "ClassificationPointsRed": 4, "ClassificationPointsBlue": 1},
+    {"Description": "Victory by Points - no opponent points", "Code": "VPO", "ClassificationPointsRed": 3, "ClassificationPointsBlue": 0},
+    {"Description": "Victory by Points - with opponent points", "Code": "VPO1", "ClassificationPointsRed": 3, "ClassificationPointsBlue": 1},
+    {"Description": "Victory by Forfeit", "Code": "VFO", "ClassificationPointsRed": 5, "ClassificationPointsBlue": 0},
+    {"Description": "Victory by Disqualification", "Code": "DSQ", "ClassificationPointsRed": 5, "ClassificationPointsBlue": 0},
+    {"Description": "Victory by Double Disqualification", "Code": "2DSQ", "ClassificationPointsRed": 0, "ClassificationPointsBlue": 0},
+  ]
+}
+```
+
+### Exported Scoresheet Format
+
+The exported JSON file consists of two parts:
+- First part contains the data of the shown in the scoresheet: header section, wrestler data and the timeline.
+- Second part contains all recorded events in chronological order, providing a comprehensive record of the bout that can be used for analysis, review, or archival purposes.
+
+Example of an exported scoresheet JSON file:
+```json
+{
+  "scoresheet": {
+    "ruleset": "Active 2026",
+    "wrestlingStyle": "Freestyle",
+    "header": "'Friendly Bout', 'U17', '65 kg'",
+    "redWrestler": "['John Doe', 'Team A']",
+    "blueWrestler": "['Max Mustermann', 'Team B']",
+    "timeline": [
+      {"boutTime": "0:52", "event": "R1"},
+      {"boutTime": "1:04", "event": "B1"},
+      ...
+    ],
+    "boutTime": "6:00",
+    "winner": "Red",
+    "classification": {
+        "type": "VPO1",
+        "red": 3,
+        "blue": 1
+    },
+  },
+  "events": [
+    {"seq": 0, "timestamp": "2024-06-01T10:00:00Z", "eventType": "OpenScoresheet"},
+    {"seq": 1, "timestamp": "2024-06-01T...", "boutTime": "0:00", "eventType": "BoutTimeStarted"},
+    {"seq": 2, "timestamp": "2024-06-01T...", "boutTime": "0:17", "eventType": "BoutTimeStopped"},
+    {"seq": 3, "timestamp": "2024-06-01T...", "boutTime": "0:17", "eventType": "BoutTimeStarted"},
+    {"seq": 4, "timestamp": "2024-06-01T...", "boutTime": "0:52", "eventType": "R1"},
+    {"seq": 5, "timestamp": "2024-06-01T...", "boutTime": "1:04", "eventType": "B1"},
+    ...
+    {"seq": 5, "timestamp": "2024-06-01T...", "eventType": "EventChanged", "details": {"originalSeq": 4, "newEventType": "R2"}},
+    ...
+    {"seq": N, "timestamp": "2024-06-01T...", "eventType": "ScoresheetCompleted", "details": {...}}
+  ]
+}
+```
 
