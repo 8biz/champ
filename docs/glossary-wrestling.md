@@ -443,3 +443,51 @@ Kampfverzicht
 Nichtantreten
 
 ---
+
+## Scoresheet
+
+**Description (EN):**
+A documented record of all events, points, and outcomes during a wrestling bout.
+
+**English Synonyms:**
+Bout Sheet, Match Sheet
+
+**German Term(s):**
+Punktezettel
+
+**German Synonyms:**
+Kamffprotokoll
+
+---
+
+## Wrestling style
+
+**Description (EN):**
+A specific discipline of wrestling (e.g., Freestyle, Greco-Roman) with its own rules and techniques.
+
+**English Synonyms:**
+Discipline
+
+**German Term(s):**
+Stilart
+
+**German Synonyms:**
+Disziplin
+
+---
+
+## Recorder
+
+**Description (EN):**
+An individual responsible for logging bout events, points, and outcomes on the scoresheet.
+
+**English Synonyms:**
+Timekeeper, Scorekeeper
+
+**German Term(s):**
+Protokollführer
+
+**German Synonyms:**
+Zeitnehmer, Protokollant
+
+---
