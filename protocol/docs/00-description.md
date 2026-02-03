@@ -2,16 +2,24 @@
 
 ## Purpose
 
-CHAMP Protocol is a tool that supports the recorder of a wrestling bout with recording all events that happens during a bout.
+CHAMP Protocol is used to create a digital scoresheet for wrestling bouts. It allows the recorder to log various events during the bout, such as points scored, passivity warnings, cautions, and time management. The tool ensures that all relevant data is captured accurately and can be exported in a structured format (JSON) for further analysis or record-keeping.
 
-## How will it be used?
+## Who will use it?
+
+The primary users of CHAMP Protocol are wrestling specialists, who have a deep understanding of wrestling rules and bout procedures like referees, wrestlers or other deeply interested persons. However, some users may not be very knowledgeable about wrestling, because they want to get into the subject.
+The users of CHAMP protocol may not be very familiar with digital tools, so CHAMP Protocol is designed to be user-friendly and intuitive.
+
+## What is the workflow?
+scoresheet
+wrestling style
+recorder
 
 1. The recorder opens a new scoresheet.
-    - He has to select a ruleset and a **wrestling style**.
+    - He has to select a ruleset and a wrestling style.
     - Optionally he can fill in the header section, containing
         - a description like reason for the bout like tournament, team bout or friendly bout as well as age or weight categories
         - description for each wrestler, like its name, team, nation.
-2. The recorder releases the **scoresheet**.
+2. The recorder releases the scoresheet.
     - Now the tool is enabled to record bout events.
     - The header section is now locked and can not be changed anymore.
 3. Recording the bout events
@@ -26,7 +34,83 @@ CHAMP Protocol is a tool that supports the recorder of a wrestling bout with rec
     - If needed, changes in header section can be made.
     - The final scoresheet can be exported to JSON.
 
-## Who will use it?
 
-The primary users of CHAMP Protocol are wrestling specialists, who have a deep understanding of wrestling rules and bout procedures like referees, wrestlers or other deeply interested persons. However, some users may not be very knowledgeable about wrestling, because they want to get into the subject.
-The users of CHAMP protocol may not be very familiar with digital tools, so CHAMP Protocol is designed to be user-friendly and intuitive.
+## How will it be used?
+
+Typically, CHAMP Protocol is used on a laptop with modern web browsers like Chrome, Firefox or Edge. CHAMP Protocol is designed as a self-contained, single-page, single-file HTML5 solution to provide maximum compatibility and ease of use. No installation or internet connection is required to use CHAMP Protocol after the initial download.
+
+The user has the choice to either work with mouse or touch input if available or use keyboard shortcuts for faster data entry. For that, CHAMP Protocol provides an intuitive user interface with buttons for each type of event that can occur during a wrestling bout. Each button also show the keyboard shortcut for the respective event.
+
+It should also be possible to use CHAMP Protocol on tablets or smartphones. Then the user interface can only be operated with touch input (same as mouse for laptops).
+
+### Recording Events
+
+| Event                 | Button       | Keyboard Shortcut | Description                                    |
+|-----------------------|--------------|-------------------|------------------------------------------------|
+| Start/Stop Bout Time  |⏱️ ▶️/⏸️     | Spacebar          | Starts running the stoppwatch                  |
+| Red 1                 | 🟥"1"        | R + 1             | Award 1 point to Red                           |
+| Red 2                 | 🟥"2"        | R + 2             | Award 2 points to Red                          |
+| Red 4                 | 🟥"4"        | R + 4             | Award 4 points to Red                          |
+| Blue 1                | 🟦"1"        | B + 1             | Award 1 point to Blue                          |
+| Blue 2                | 🟦"2"        | B + 2             | Award 2 points to Blue                         |
+| Blue 4                | 🟦"4"        | B + 4             | Award 4 points to Blue                         |
+| Red Passivity         | 🟥"P"        | R + P             | Record passivity for Red                       |
+| Blue Passivity        | 🟦"P"        | B + P             | Record passivity for Blue                      |
+| Red Caution Blue 1    | 🟥"0" 🟦"1"  | R + 0 + 1         | Record caution for Red, 1 Point Blue           |
+| Red Caution Blue 2    | 🟥"0" 🟦"2"  | R + 0 + 2         | Record caution for Red, 2 Points Blue          |
+| Blue Caution Red 1    | 🟦"0" 🟥"1"  | B + 0 + 1         | Record caution for Blue, 1 Point Red           |
+| Blue Caution Red 2    | 🟦"0" 🟥"2"  | B + 0 + 2         | Record caution for Blue, 2 Points Red          |
+| Start/Stop Injury Red | 🟥⏱️🚑 ▶️/⏸️| R + '+'           | Start/Stop injury time without blood for Red   |
+| Start/Stop Blood Red  | 🟥⏱️🩸 ▶️/⏸️| R + '*'           | Start/Stop injury time with blood for Red      |
+| Start/Stop Injury Blue| 🟦⏱️🚑 ▶️/⏸️| B + '+'           | Start/Stop injury time without blood for Blue  |
+| Start/Stop Blood Blue | 🟦⏱️🩸 ▶️/⏸️| B + '*'           | Start/Stop injury time with blood for Blue     |
+
+### Displaying the Events: The Timeline
+
+The timeline is divided into horizontal event slots and shows all recorded events in chronological order, along with the bout time at which they occurred. It provides a clear overview of the bout's progression and allows the recorder to verify the accuracy of the recorded data.
+
+A cursor indicates the current position in the timeline where the next event will be recorded to. The cursor is represented by a frame arround the the slot.
+Lets assume that the user now records the event "Blue 2" at bout time 2:32. Then the user will press the key "R" at first which leads to an empty blue square along with the bout time 2:32 in the slot surrounded with the cursor frame. Then the user presses "2" which fills the blue square with the number "2". Then the score of the previous slot will be deleted and the new calculated score is shown in the current slot. After that the cursor moves one slot to the right, indicating that the next event will be recorded in that slot.
+
+If a period ends, the score will not be deleted. After the last slot of the period, a thick vertical line is shown to indicate the end of the period. The next slot will then represent the first event of the next period, starting with a score of 0-0 again.
+
+**Example Timeline:**
+
+| Slot       | Sum  |   1  |   2  |   3  |   4  |   5  |   6  |B|   7  | 8(L) | 9(N) | ...  |
+|------------|------|------|------|------|------|------|------|-|------|------|------|------|
+| Score Red  |   3  |      |      |      |      |      |   1  |B|      |   2  |      |      |
+| Event Red  |      |   1  |      |      |   P  |   0  |      |B|   2  |      |      |      |
+| Time       |      | 0:52 | 1:04 | 1:09 | 1:43 | 1:57 | 2:32 |B| 3:44 | 4:12 |      |      |
+| Event Blue |      |      |   1  |   1  |      |   1  |   2  |B|      |   1  |      |      |
+| Score Blue |   6  |      |      |      |      |      |   5  |B|      |   1  |      |      |
+
+The bout is still ongoing, so the last slot (9) is reserved for the next event to be recorded (N). The second last slot (8) shows the last recorded event (L) along with the current score in the active period.
+
+- Slot 1: Red scores 1 point at 0:52
+- Slot 2: Blue scores 1 point at 1:04
+- Slot 3: Blue scores 1 point at 1:09
+- Slot 4: Red receives passivity at 1:43
+- Slot 5: Blue gets 1 point due to Red wrestler's caution at 1:57
+- Slot 6: Blue scores 2 points at 2:32. This is the last event recorded in the first period. The score of the first period 1-5 is shown in this slot. The thick vertical line (B) indicates the end of the first period.
+- Slot 7: Red scores 2 points at 3:44.
+- Slot 8: Blue scores 1 point at 4:12. This is the last event recorded at the moment (L). For this, the score of the second period 2-1 is shown in this slot.
+- Slot 9: Next event to be recorded (N).
+
+### Making corrections
+
+If an incorrect event was recorded, the user can move the cursor to the respective slot using the left and right arrow keys. Once the cursor is on the desired slot, the user can to several corrections:
+- Key "R" changes the event to a Red event
+- Key "B" changes the event to a Blue event
+- Key "1", "2", "4, "P" changes the event type respectively
+- With cautions:
+    - Key "R" changes the event to caution for Red the points awarded to Blue
+    - Key "B" changes the event to caution for Blue the points awarded to Red
+    - Key "1" or "2" after that changes the points awarded to the opponent
+- Deleting the event with "Delete" key
+- Left and Right arrow keys to move the cursor to previous respective next slot
+- Enter key to confirm the correction and move the cursor to the end of the timeline ready for next event entry.
+- Escape key to cancel the current correction and move the cursor to the end of the timeline ready for next event entry.
+- The backspace key will have the same effect as the left arrow key.
+
+
+
