@@ -35,41 +35,172 @@
 <body>
   <div class="timer">
     <div class="time" id="display">3:00</div>
-    <button id="start">Start</button>
-    <button id="stop">Stopp</button>
+    <div style="margin-top:1rem">
+      <button id="start">Start</button>
+      <button id="stop">Stopp</button>
+      <span style="margin-left:1rem">Buffer: <strong id="buffer"></strong></span>
+    </div>
+    <div style="margin-top:1rem">
+      <div><strong>Last event:</strong> <span id="lastEvent">(none)</span></div>
+      <ul id="events" style="margin-top:0.5rem; padding-left:1rem"></ul>
+    </div>
   </div>
   <script>
-    const START_TIME_SECONDS = 3 * 60;
-    let remainingSeconds = START_TIME_SECONDS;
-    let intervalId = null;
-    const display = document.getElementById("display");
-    const startButton = document.getElementById("start");
-    const stopButton = document.getElementById("stop");
-    function updateDisplay() {
-      const minutes = Math.floor(remainingSeconds / 60);
-      const seconds = remainingSeconds % 60;
-      display.textContent =
-        minutes + ":" + seconds.toString().padStart(2, "0");
-    }
-    function tick() {
-      if (remainingSeconds > 0) {
-        remainingSeconds--;
-        updateDisplay();
-      } else {
-        stopTimer();
+    // Minimal FSM port of src/keyboard-fsm.ts (plain JS)
+    class KeyboardFSM {
+      constructor() { this.buffer = [] }
+      normalizeKey(raw) {
+        if (!raw) return ''
+        if (raw === ' ' || raw === 'Spacebar' || raw === 'Space') return 'Space'
+        if (raw === 'Escape') return 'Escape'
+        if (raw === 'Enter') return 'Enter'
+        if (raw === 'Delete') return 'Delete'
+        if (raw === 'Backspace') return 'Backspace'
+        if (raw === 'ArrowLeft') return 'ArrowLeft'
+        if (raw === 'ArrowRight') return 'ArrowRight'
+        if (raw.length === 1) return raw.toUpperCase()
+        return raw.toUpperCase()
+      }
+      getBuffer() { return [...this.buffer] }
+      resetBuffer() { this.buffer = [] }
+      handleKey(rawKey, mode='normal') {
+        const key = this.normalizeKey(rawKey)
+        if (key === 'Space') { this.resetBuffer(); return { action: { type: 'ToggleBoutTime' }, buffer: this.getBuffer() } }
+        if (key === 'Escape') { this.resetBuffer(); return { action: { type: 'BufferCleared' }, buffer: this.getBuffer() } }
+        if (mode === 'correction') {
+          if (key === 'Delete') { this.resetBuffer(); return { action: { type: 'DeleteEvent' }, buffer: this.getBuffer() } }
+          if (key === 'Enter') { this.resetBuffer(); return { action: { type: 'Confirm' }, buffer: this.getBuffer() } }
+          if (key === 'Backspace' || key === 'ArrowLeft') { this.resetBuffer(); return { action: { type: 'MoveCursor', dir: 'left' }, buffer: this.getBuffer() } }
+          if (key === 'ArrowRight') { this.resetBuffer(); return { action: { type: 'MoveCursor', dir: 'right' }, buffer: this.getBuffer() } }
+        } else {
+          if (key === 'Backspace') return { action: null, buffer: this.getBuffer() }
+        }
+        const actor = this.buffer[0]
+        if (key === 'R' || key === 'B') { this.buffer = [key]; return { action: null, buffer: this.getBuffer() } }
+        if (!actor) { return { action: null, buffer: this.getBuffer() } }
+        if ((key === '1' || key === '2' || key === '4') && this.buffer.length === 1) {
+          const points = key === '1' ? 1 : key === '2' ? 2 : 4
+          const action = { type: 'Point', actor: actor, points }
+          this.resetBuffer(); return { action, buffer: this.getBuffer() }
+        }
+        if (key === 'P' && this.buffer.length === 1) { const action = { type: 'Passivity', actor }; this.resetBuffer(); return { action, buffer: this.getBuffer() } }
+        if (key === '0' && this.buffer.length === 1) { this.buffer.push('0'); return { action: null, buffer: this.getBuffer() } }
+        if ((key === '1' || key === '2') && this.buffer.length === 2 && this.buffer[1] === '0') {
+          const points = key === '1' ? 1 : 2
+          const awardedTo = actor === 'R' ? 'B' : 'R'
+          const action = { type: 'Caution', actor, awardedTo, points }
+          this.resetBuffer(); return { action, buffer: this.getBuffer() }
+        }
+        if ((key === '+' || key === '*') && this.buffer.length === 1) { const action = { type: 'InjuryToggle', actor, blood: key === '*' }; this.resetBuffer(); return { action, buffer: this.getBuffer() } }
+        return { action: null, buffer: this.getBuffer() }
       }
     }
-    function startTimer() {
-      if (intervalId !== null) return;
-      intervalId = setInterval(tick, 1000);
+
+    // Simple app wiring
+    const START_TIME_SECONDS = 3 * 60
+    let remainingSeconds = START_TIME_SECONDS
+    let intervalId = null
+    const display = document.getElementById('display')
+    const startButton = document.getElementById('start')
+    const stopButton = document.getElementById('stop')
+    const bufferEl = document.getElementById('buffer')
+    const lastEventEl = document.getElementById('lastEvent')
+    const eventsEl = document.getElementById('events')
+
+    function updateDisplay() {
+      const minutes = Math.floor(remainingSeconds / 60)
+      const seconds = remainingSeconds % 60
+      display.textContent = minutes + ':' + String(seconds).padStart(2, '0')
     }
-    function stopTimer() {
-      clearInterval(intervalId);
-      intervalId = null;
+    function tick() { if (remainingSeconds > 0) { remainingSeconds--; updateDisplay(); } else { stopTimer(); }}
+    function startTimer() { if (intervalId !== null) return; intervalId = setInterval(tick, 1000); }
+    function stopTimer() { if (intervalId === null) return; clearInterval(intervalId); intervalId = null; }
+    startButton.addEventListener('click', startTimer)
+    stopButton.addEventListener('click', stopTimer)
+    updateDisplay()
+
+    // Timeline & events model
+    const events = [] // simple array of { seq, eventCode }
+    let seq = 0
+    let mode = 'normal' // 'normal' | 'correction'
+    let cursor = null // index in events array when in correction mode
+    const fsm = new KeyboardFSM()
+
+    function renderEvents() {
+      eventsEl.innerHTML = ''
+      events.forEach((e, idx) => {
+        const li = document.createElement('li')
+        li.textContent = `${idx}: ${e.eventCode}`
+        if (mode === 'correction' && cursor === idx) li.style.fontWeight = 'bold'
+        eventsEl.appendChild(li)
+      })
+      lastEventEl.textContent = events.length ? events[events.length - 1].eventCode : '(none)'
     }
-    startButton.addEventListener("click", startTimer);
-    stopButton.addEventListener("click", stopTimer);
-    updateDisplay();
+
+    function applyAction(action) {
+      if (!action) return
+      switch (action.type) {
+        case 'ToggleBoutTime': if (intervalId === null) startTimer(); else stopTimer(); break
+        case 'Point': {
+          const code = `${action.actor}${action.points}`
+          if (mode === 'normal') { events.push({ seq: seq++, eventCode: code }) }
+          else if (mode === 'correction' && cursor != null) { events[cursor].eventCode = code }
+          renderEvents(); break
+        }
+        case 'Passivity': {
+          const code = `${action.actor}P`
+          if (mode === 'normal') { events.push({ seq: seq++, eventCode: code }) }
+          else if (mode === 'correction' && cursor != null) { events[cursor].eventCode = code }
+          renderEvents(); break
+        }
+        case 'Caution': {
+          const code = `${action.actor}0${action.points}${action.awardedTo}`
+          if (mode === 'normal') { events.push({ seq: seq++, eventCode: code }) }
+          else if (mode === 'correction' && cursor != null) { events[cursor].eventCode = code }
+          renderEvents(); break
+        }
+        case 'InjuryToggle': {
+          const code = `${action.actor}${action.blood ? '*' : '+'}`
+          if (mode === 'normal') { events.push({ seq: seq++, eventCode: code }) }
+          else if (mode === 'correction' && cursor != null) { events[cursor].eventCode = code }
+          renderEvents(); break
+        }
+        case 'BufferCleared': bufferEl.textContent = ''; break
+        case 'DeleteEvent': if (mode === 'correction' && cursor != null) { events.splice(cursor, 1); cursor = null; mode = 'normal'; renderEvents() } break
+        case 'Confirm': cursor = null; mode = 'normal'; renderEvents(); break
+        case 'MoveCursor': {
+          if (action.dir === 'left') {
+            if (cursor == null) cursor = events.length - 1
+            else cursor = Math.max(0, cursor - 1)
+            mode = 'correction'
+            renderEvents()
+          } else {
+            if (cursor == null) cursor = 0
+            else cursor = Math.min(events.length - 1, cursor + 1)
+            mode = 'correction'
+            renderEvents()
+          }
+          break
+        }
+        default: break
+      }
+    }
+
+    // Key handling - keep FSM usage in one place
+    window.addEventListener('keydown', (ev) => {
+      // First, special handling: ArrowLeft in normal mode enters correction mode selecting last slot
+      if (ev.key === 'ArrowLeft' && mode === 'normal' && events.length > 0 && fsm.getBuffer().length === 0) {
+        mode = 'correction'
+        cursor = events.length - 1
+        renderEvents()
+        return
+      }
+      const res = fsm.handleKey(ev.key, mode)
+      // Update buffer UI
+      bufferEl.textContent = res.buffer.join(' ')
+      if (res.action) applyAction(res.action)
+    })
+
   </script>
 </body>
 </html>
