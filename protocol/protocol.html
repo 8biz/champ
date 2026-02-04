@@ -18,6 +18,7 @@
       border-radius: 8px;
       text-align: center;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      width: min(980px, 92%);
     }
     .time {
       font-size: 4rem;
@@ -29,6 +30,49 @@
       padding: 0.5rem 1.2rem;
       margin: 0 0.5rem;
       cursor: pointer;
+    }
+
+    /* Timeline styles */
+    .timeline {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 8px 6px;
+      border: 1px solid #e6e6e6;
+      border-radius: 6px;
+      background: #fff9f2;
+      align-items: flex-start;
+      min-height: 86px;
+    }
+    .slot {
+      min-width: 80px;
+      flex: 0 0 auto;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px;
+      box-sizing: border-box;
+      position: relative;
+    }
+    .slot.next-slot { opacity: 0.8; background: #f4f4f4 }
+    .slot .scoreTop { font-weight: 600; color: #333; font-size: 0.9rem }
+    .slot .eventCenter { font-size: 1.2rem; margin: 6px 0; font-weight: 700 }
+    .slot .timeBottom { font-size: 0.85rem; color: #666 }
+    .slot.cursor { outline: 3px solid #0077B6; box-shadow: 0 0 0 3px rgba(0,119,182,0.12) }
+
+    .slot.red .eventCenter { color: #C1121F }
+    .slot.blue .eventCenter { color: #0077B6 }
+
+    .period-divider {
+      width: 8px;
+      background: linear-gradient(to bottom, #333, #666);
+      border-radius: 2px;
+      align-self: stretch;
+      margin-left: 2px;
+      margin-right: 2px;
     }
   </style>
 </head>
@@ -42,7 +86,9 @@
     </div>
     <div style="margin-top:1rem">
       <div><strong>Last event:</strong> <span id="lastEvent">(none)</span></div>
-      <ul id="events" style="margin-top:0.5rem; padding-left:1rem"></ul>
+      <div id="timelineContainer" style="margin-top:0.5rem">
+        <div id="timeline" class="timeline" role="list" aria-label="Timeline"></div>
+      </div>
     </div>
   </div>
   <script>
@@ -111,7 +157,7 @@
     const stopButton = document.getElementById('stop')
     const bufferEl = document.getElementById('buffer')
     const lastEventEl = document.getElementById('lastEvent')
-    const eventsEl = document.getElementById('events')
+    const timelineEl = document.getElementById('timeline')
 
     function formatSeconds(sec) {
       const minutes = Math.floor(sec / 60)
@@ -174,16 +220,39 @@
     const fsm = new KeyboardFSM()
 
     function renderEvents() {
-      eventsEl.innerHTML = ''
+      timelineEl.innerHTML = ''
       events.forEach((e, idx) => {
-        const li = document.createElement('li')
-        li.dataset.seq = String(e.seq)
-        li.dataset.timestamp = e.timestamp || ''
-        li.dataset.bouttime = String(e.boutTimeSeconds ?? '')
-        li.textContent = `${idx}: ${e.eventCode} @ ${formatSeconds(e.boutTimeSeconds ?? 0)} (p${e.periodIndex}) ${e.periodScoreRed ?? 0}-${e.periodScoreBlue ?? 0}`
-        if (mode === 'correction' && cursor === idx) li.style.fontWeight = 'bold'
-        eventsEl.appendChild(li)
+        const slot = document.createElement('div')
+        slot.className = 'slot'
+        if (e.isPeriodEnd) slot.classList.add('period-end')
+        // actor color
+        const actor = (/^[RB]/.test(e.eventCode) && e.eventCode[0]) || ''
+        if (actor === 'R') slot.classList.add('red')
+        if (actor === 'B') slot.classList.add('blue')
+        slot.dataset.seq = String(e.seq)
+        slot.dataset.timestamp = e.timestamp || ''
+        slot.dataset.bouttime = String(e.boutTimeSeconds ?? '')
+        slot.dataset.period = String(e.periodIndex ?? '')
+        slot.dataset.score = `${e.periodScoreRed ?? 0}-${e.periodScoreBlue ?? 0}`
+        slot.innerHTML = `<div class="scoreTop">${e.periodScoreRed ?? 0}-${e.periodScoreBlue ?? 0}</div><div class="eventCenter">${e.eventCode}</div><div class="timeBottom">${formatSeconds(e.boutTimeSeconds ?? 0)}</div>`
+        slot.addEventListener('click', () => { mode = 'correction'; cursor = idx; renderEvents() })
+        if (mode === 'correction' && cursor === idx) slot.classList.add('cursor')
+        timelineEl.appendChild(slot)
+        if (e.isPeriodEnd) {
+          const divider = document.createElement('div')
+          divider.className = 'period-divider'
+          timelineEl.appendChild(divider)
+        }
       })
+
+      // next placeholder
+      if (mode === 'normal') {
+        const next = document.createElement('div')
+        next.className = 'slot next-slot'
+        next.innerHTML = `<div class="scoreTop">${periodScores[periodIndex].red}-${periodScores[periodIndex].blue}</div><div class="eventCenter">N</div><div class="timeBottom">${formatSeconds(getCurrentBoutTimeSeconds())}</div>`
+        timelineEl.appendChild(next)
+      }
+
       lastEventEl.textContent = events.length ? events[events.length - 1].eventCode : '(none)'
     }
 
