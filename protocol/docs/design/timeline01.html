@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timeline</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+        .timeline {
+            overflow-x: auto; /* Enable horizontal scrolling */
+            white-space: nowrap; /* Prevent wrapping */
+            display: flex;
+            gap: 10px; /* Space between EventSlot elements */
+            border: 1px solid #ccc; /* Optional border for clarity */
+            border-radius: 0.3em;
+            padding: 5px; /* Padding around the timeline */
+            width: 100vw; /* Full viewport width */
+        }
+        .eventslot {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 0.3em;
+            width: 2em; /* Fixed width for all EventSlots */
+            padding: 5px;
+            border: 1px solid #ccc; /* Optional border for clarity */
+        }
+        .score {
+            font-weight: bold;
+        }
+        .score.red {
+            color: red;
+        }
+        .score.blue {
+            color: blue;
+        }
+        .event {
+            width: 1.5em;
+            height: 1.5em;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 2px dashed;
+            border-radius: 0.3em;
+            color: white;
+            margin: 0.3em; /* Space */
+            border-color: transparent;
+        }
+        .event.red {
+            background-color: red;
+        }
+        .event.blue {
+            background-color: blue;
+        }
+        .event.empty {
+            background-color: transparent; /* Make background transparent if empty */
+            border-color: #ccc;
+            border-width: 1px;
+        }
+        .time {
+            height: 1em;
+            color: #333333;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="timeline">
+        <div class="eventslot">
+            <div class="score red">2</div>
+            <div class="event red">2</div>
+            <div class="time">1:23</div>
+            <div class="event empty"></div>
+            <div class="score blue">0</div>
+        </div>
+
+        <div class="eventslot">
+            <div class="score red">3</div>
+            <div class="event red">1</div>
+            <div class="time">2:45</div>
+            <div class="event empty"></div>
+            <div class="score blue">0</div>
+        </div>
+        
+        <div class="eventslot">
+            <div class="score red">3</div>
+            <div class="event empty"></div>
+            <div class="time">3:12</div>
+            <div class="event blue">2</div>
+            <div class="score blue">2</div>
+        </div>
+
+        <div class="eventslot">
+            <div class="score red">3</div>
+            <div class="event empty"></div>
+            <div class="time">4:18</div>
+            <div class="event blue">2</div>
+            <div class="score blue">4</div>
+        </div>
+
+        <div class="eventslot">
+            <div class="score red">3</div>
+            <div class="event red">P</div>
+            <div class="time">4:45</div>
+            <div class="event empty"></div>
+            <div class="score blue">0</div>
+        </div>
+
+        <div class="eventslot">
+            <div class="score red">3</div>
+            <div class="event red">0</div>
+            <div class="time">5:00</div>
+            <div class="event blue">1</div>
+            <div class="score blue">5</div>
+        </div>
+
+        <div class="eventslot">
+            <div class="score red">2</div>
+            <div class="event red">2</div>
+            <div class="time">1:23</div>
+            <div class="event empty"></div>
+            <div class="score blue">0</div>
+        </div>
+
+        <div class="eventslot">
+            <div class="score red">3</div>
+            <div class="event red">1</div>
+            <div class="time">2:45</div>
+            <div class="event empty"></div>
+            <div class="score blue">0</div>
+        </div>
+        
+        <div class="eventslot">
+            <div class="score red">3</div>
+            <div class="event empty"></div>
+            <div class="time">3:12</div>
+            <div class="event blue">2</div>
+            <div class="score blue">2</div>
+        </div>
+
+        <div class="eventslot">
+            <div class="score red">3</div>
+            <div class="event empty"></div>
+            <div class="time">4:18</div>
+            <div class="event blue">2</div>
+            <div class="score blue">4</div>
+        </div>
+
+        <div class="eventslot">
+            <div class="score red">3</div>
+            <div class="event red">P</div>
+            <div class="time">4:45</div>
+            <div class="event empty"></div>
+            <div class="score blue">0</div>
+        </div>
+
+        <div class="eventslot">
+            <div class="score red">3</div>
+            <div class="event red">0</div>
+            <div class="time">5:00</div>
+            <div class="event blue">1</div>
+            <div class="score blue">5</div>
+        </div>
+
+        <div class="eventslot">
+            <div class="score red"></div>
+            <div class="event empty"></div>
+            <div class="time"></div>
+            <div class="event empty"></div>
+            <div class="score blue"></div>
+        </div>
+    </div>
+
+    <script>
+        // Scroll the timeline to the right on load
+        window.onload = function() {
+            const timeline = document.getElementById('timeline');
+            timeline.scrollLeft = timeline.scrollWidth; // Scroll to the rightmost
+        };
+    </script>
+
+</body>
+</html>
