@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Formularfelder mit ARIA und Disabled-Feld</title>
+  <style>
+    :root{
+      --border-color:#999;
+      --bg:#fff;
+      --label-bg:#fff;
+      --border-radius:6px;
+      --padding:12px;
+      --label-padding:0 6px;
+      --input-width:320px;
+    }
+
+    .fieldset-like {
+      position: relative;
+      display: inline-block;
+      width: var(--input-width);
+      padding: calc(var(--padding) + 8px) var(--padding) 12px var(--padding);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      background: var(--bg);
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      margin-bottom: 14px;
+    }
+
+    .floating-label {
+      position: absolute;
+      top: -0.7em;
+      left: 12px;
+      background: var(--label-bg);
+      padding: var(--label-padding);
+      font-size: 0.85rem;
+      color: #333;
+      pointer-events: none;
+    }
+
+    .fieldset-like input[type="text"]{
+      width: 100%;
+      border: none;
+      outline: none;
+      font-size: 1rem;
+      padding: 6px 4px;
+      box-sizing: border-box;
+      background: transparent;
+      color: #111;
+    }
+
+    .fieldset-like:focus-within{
+      border-color: #4a90e2;
+      box-shadow: 0 0 0 3px rgba(74,144,226,0.08);
+    }
+
+    .hint {
+      display:block;
+      margin-top:2px;
+      font-size:0.85rem;
+      color:#555;
+    }
+
+    /* Disabled styles */
+    .fieldset-like[aria-disabled="true"],
+    .fieldset-like input[disabled] {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .fieldset-like[aria-disabled="true"] {
+      border-color: #cfcfcf;
+      background: #fafafa;
+    }
+
+    .fieldset-like input[disabled] {
+      color: #666;
+      background: transparent;
+    }
+
+    .fieldset-like input[disabled] ~ .hint,
+    .fieldset-like .hint[aria-hidden="false"][data-disabled="true"] {
+      color: #777;
+    }
+
+    /* Layout: Stapel */
+    .form-row {
+      display:block;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <form>
+    <!-- Aktives Feld: Name -->
+    <label id="nameLabel" class="fieldset-like form-row" for="name-input">
+      <span class="floating-label">Name</span>
+      <input
+        id="name-input"
+        type="text"
+        name="name"
+        autocomplete="name"
+        aria-labelledby="nameLabel"
+        aria-describedby="nameHint"
+        aria-required="false" />
+    </label>
+    <span id="nameHint" class="hint">Vor- und Nachname</span>
+
+    <!-- Deaktiviertes Feld: Adresse -->
+    <label id="addressLabel" class="fieldset-like form-row" for="address-input" aria-disabled="true">
+      <span class="floating-label">Adresse</span>
+      <input
+        id="address-input"
+        type="text"
+        name="address"
+        autocomplete="street-address"
+        aria-labelledby="addressLabel"
+        aria-describedby="addressHint"
+        aria-required="false"
+        disabled />
+    </label>
+    <span id="addressHint" class="hint" data-disabled="true" aria-hidden="false">Straße, Hausnummer (derzeit deaktiviert)</span>
+  </form>
+</body>
+</html>
