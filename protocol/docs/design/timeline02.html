@@ -50,7 +50,7 @@
             border-radius: 0.3em;
             color: white;
             margin: 0.3em; /* Space */
-            border-color: transparent;
+            border: 1px solid #ccc;
         }
         .event.red {
             background-color: red;
@@ -58,10 +58,13 @@
         .event.blue {
             background-color: blue;
         }
-        .event.empty {
-            background-color: transparent; /* Make background transparent if empty */
-            border-color: #ccc;
-            border-width: 1px;
+        .event:not(:empty) {
+            background-color: not(transparent);
+            border-style: solid;
+        }
+        .event:empty {
+            background-color: transparent;
+            border-style: dashed;
         }
         .time {
             height: 1em;
@@ -75,23 +78,23 @@
         <div class="eventslot">
             <div class="event red">2</div>
             <div class="time">1:23</div>
-            <div class="event empty"></div>
+            <div class="event blue"></div>
         </div>
 
         <div class="eventslot">
             <div class="event red">1</div>
             <div class="time">2:45</div>
-            <div class="event empty"></div>
+            <div class="event blue"></div>
         </div>
         
         <div class="eventslot">
-            <div class="event empty"></div>
+            <div class="event red"></div>
             <div class="time">3:12</div>
             <div class="event blue">2</div>
         </div>
 
         <div class="eventslot">
-            <div class="event empty"></div>
+            <div class="event red"></div>
             <div class="time">4:18</div>
             <div class="event blue">2</div>
         </div>
@@ -99,7 +102,7 @@
         <div class="eventslot">
             <div class="event red">P</div>
             <div class="time">4:45</div>
-            <div class="event empty"></div>
+            <div class="event blue"></div>
         </div>
 
         <div class="eventslot">
@@ -111,23 +114,23 @@
         <div class="eventslot">
             <div class="event red">2</div>
             <div class="time">1:23</div>
-            <div class="event empty"></div>
+            <div class="event blue"></div>
         </div>
 
         <div class="eventslot">
             <div class="event red">1</div>
             <div class="time">2:45</div>
-            <div class="event empty"></div>
+            <div class="event blue"></div>
         </div>
         
         <div class="eventslot">
-            <div class="event empty"></div>
+            <div class="event blue"></div>
             <div class="time">3:12</div>
             <div class="event blue">2</div>
         </div>
 
         <div class="eventslot">
-            <div class="event empty"></div>
+            <div class="event red"></div>
             <div class="time">4:18</div>
             <div class="event blue">2</div>
         </div>
@@ -135,7 +138,7 @@
         <div class="eventslot">
             <div class="event red">P</div>
             <div class="time">4:45</div>
-            <div class="event empty"></div>
+            <div class="event blue"></div>
         </div>
 
         <div class="eventslot">
@@ -145,9 +148,9 @@
         </div>
 
         <div class="eventslot">
-            <div class="event empty"></div>
+            <div class="event red"> </div>
             <div class="time"></div>
-            <div class="event empty"></div>
+            <div class="event blue"></div>
         </div>
     </div>
 
