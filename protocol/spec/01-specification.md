@@ -3,31 +3,95 @@
 ## Overview ✅
 CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling bouts. It is optimized for quick keyboard entry, touch/mouse input, and produces a complete event-sourced JSON export for replay, analysis, and archival.
 
+- **Purpose:** Create a digital scoresheet that records all bout events (points, passivity, cautions, injury times, time control) and exports both presentation and authoritative event logs as JSON.
+- **Primary users:** People that have knowledge of wrestling rules and scoring. They are not necessarily tech-savvy, so the tool must be intuitive and require minimal training. The target use case is recording live bouts in competitions, where speed and accuracy are essential.
+- **Implementation constraints:** Single HTML file, no backend, offline-first, minimal dependencies. Use modern web APIs and standards for best performance and compatibility.
+
 ---
 
-## Purpose & Users 🎯
-- **Purpose:** Create a digital scoresheet that records all bout events (points, passivity, cautions, injury times, time control) and exports both presentation and authoritative event logs as JSON.
-- **Primary users:** referees and match recorders. UI must be simple for non-technical users.
+## Layout of the scoresheet
+
+- **Bout info**: free-form text field for bout info (e.g. competition, age group, weight class, ...).
+- **Wrestler Red** and **Wrestler Blue** sections, each containing:
+  - wrestler info: free-form text field for wrestler info (e.g. name, club, nation, ...).
+  - score: auto-calculated from events.
+  - injury times for both without and with blood.
+- **Release-Completion button**: button to release the scoresheet for recording and to complete the bout when finished.
+- **Bout time**: shows current bout time in "M:SS.ff" format
+- **Event buttons red** and **Event buttons blue**: buttons for awarding points, passivity, cautions for each wrestler.
+- **Timeline**: chronological list of events with time.
 
 ---
 
 ## High-level Workflow 🔁
-1. **New scoresheet:** select ruleset and style, optionally fill header (match type, weight, age, wrestler info).
-2. **Release scoresheet:** locks header and enables event recording.
-3. **Record events:** start/stop bout time, award points, record passivity/cautions, start/stop injury time, make corrections.
-4. **Complete bout:** when time or victory condition reached, enter victory type and classification points, export JSON.
-
-> The header may be unlocked only after completion for editing corrections to the metadata.
+1. User opens the HTML file in a browser (desktop or mobile). A **New scoresheet** is shown.
+2. **Prepare scoresheet:** User can do same settings before releasing the scoresheet for event recording.
+2. **Recording events:** start/stop bout time, award points, record passivity/cautions, start/stop injury time, make corrections.
+3. **Complete bout:** when time or victory condition reached, enter victory type and classification points, correct header date if needed, export JSON.
 
 ---
 
-## Keyboard Input Specification ⌨️✨
+## Preparing Scoresheet 📝
+
+The fields descriped in **User settings** are enabled for user input while preparing the scoresheet.
+The **Release-Completion button** shows "Release" and is enabled. Once the user clicks "Release", these fields are locked and event recording can begin.
+
+### User settings
+- Mandatory: User selects wrestling style **Freestyle** | **Greco-Roman**.
+- Optional: User selects ruleset from a dropdown. One ore more pre-defined rulesets are included and the first one is selected by default. Users can load custom rulesets via file input.
+- Optional: user fills bout info in a text field. See **Edit text specification** below.
+- Optional: user fills info for Red and Blue wrestlers. The first pair is always the key "Name". If not filled, name defaults to "Red" and "Blue". If the first key is not "Name", it is ignored and replaced with "Name". See **Edit text specification** below.
+
+### Edit text specification:
+- Text can be comma-separated key-value pairs.
+- Key-value separator is ':', pair separator is ';'.
+- Keys must be unique.
+- A pair with a key beginning with '$' is named an **anonymous pair**. The key is not shown in the UI, but the value.
+- A pair with a key beginning with '$$' is named a **hidden pair**. Neither the key nor the value is shown in the UI. It's intended for keeping metadata.
+- User can omit the key for any pair, in which case it defaults to "$info1", "$info2", etc.
+- Examples:
+  - "Competition: State Championship; U17 74kg": 2 pairs with the named key "Competition", and an anonymous key "$info2" with value "U17 74kg".
+  - "Name: Max Mustermann; $$id: 23; Club: KSV Ringerhimmel; $Nation: Germany" => 4 pairs with named keys "Name" and "Club", the anonymous pair "$Nation" and the hidden pair "$$id".
+  - "Friendly bout" => 1 pair with anonymous key "$info1" and value "Friendly bout".
+
+---
+
+## Recording Events 🎯
+
+
+
+## Event Codes & Types 🔤
+- **Technical points**: R1, R2, R4, R5, B1, B2, B4, B5
+- **Passivity**: RP, BP (passivity)
+- **Cautions awarding opponent points**: R0B1, R0B2, B0R1, B0R2
+- **Start/Stop injury time without blood**: InjuryNoBloodStarted_R, InjuryNoBloodStopped_R, InjuryNoBloodStarted_B, InjuryNoBloodStopped_B
+- **Start/Stop injury time with blood**: InjuryWithBloodStarted_R, InjuryWithBloodStopped_R, InjuryWithBloodStarted_B, InjuryWithBloodStopped_B
+- **Start/Stop bout time**: BoutTimeStarted, BoutTimeStopped
+- **PeriodEnd**: when a period ends (automatically recorded when bout time reaches period length).
+- **EventChanged**: when an event is changed in correction mode. Details specify the original event `seq` and the new event data.
+- **ScoresheetReleased**: when the user clicks the "Release" button to start recording events.
+- **ScoresheetCompleted**: when the bout is completed. Details specify the victory type and classification points.
+- **HeaderUpdated**: when the user updates any header field (bout info, wrestler info). The details specify which field was updated and the new value.
+
+
+Event types (for event log): OpenScoresheet, PointAwarded, PassivityRecorded, CautionRecorded, InjuryStarted, InjuryStopped, EventChanged, EventDeleted, ScoresheetCompleted, 
+
+
+### Keyboard Input Specification ⌨️✨
 General rules:
-- Input is processed by a **sequence buffer** (array of keys). No timeout. Escape clears the buffer. Invalid keys are ignored and do not mutate the buffer. Keys are case-insensitive.
-- Two modes: **Normal (recording at timeline end)** and **Correction (cursor on historical slot)**.
+- Input is processed by a **sequence buffer** (array of keys).
+  - No timeout.
+  - Escape clears the buffer.
+  - Invalid keys are ignored and do not mutate the buffer.
+  - Keys are case-insensitive.
+- Supports following modes:
+  - **Normal mode**: recording at timeline end
+  - **Correction mode**: cursor on historical slot.
+  - **Time correction mode**: entering a new time for an historical slot. Sub-mode of Correction mode.
+  - **Sequence correction mode**: Adding, deleting or moving an event in the timeline. Sub-mode of Correction mode.
 - Some keys (Space, Esc, Delete) are global.
 
-### Key sequences in _Normal mode_
+#### Key sequences in _Normal mode_
 - Space: start/stop bout time
 - R + 1 | 2 | 4 | 5  => R1, R2, R4, R5 (Red points)
 - B + 1 | 2 | 4 | 5 => B1, B2, B4, B5 (Blue points)
@@ -38,7 +102,7 @@ General rules:
 - R + + => R+ (start/stop injury without blood); R + * => R* (with blood). Same for B
 - Left arrow key: move cursor left (enter _Correction mode_)
 
-### Key sequences in _Correction mode_
+#### Key sequences in _Correction mode_
 - Enter confirms correction on the current slot and moves cursor to timeline end (enter _Normal mode_).
 - Left/Right arrow keys confirms correction on the current slot and moves cursor left/right (stay in _Correction mode_).
 - Escape resets current slot if corrections were made. Stays on current slot and stays in _Correction mode_.
@@ -62,25 +126,12 @@ Notes:
 
 ---
 
-## Mouse & Touch Input 🖱️📱
+### Mouse & Touch Input 🖱️📱
 
 Buttons for common actions (start/stop time, award points, passivity, cautions, start/stop injury times) are be provided.
 Clicking a slot in the timeline moves the cursor to that slot (entering _Correction mode_). 
 
 ### _Normal mode_
-
-
-
-## Event Codes & Types 🔤
-Use compact, self-explanatory codes for events and eventType enums.
-
-Examples of event codes:
-- R1, R2, R4, R5, B1, B2, B4, B5
-- RP, BP (passivity)
-- R0B1, R0B2, B0R1, B0R2 (cautions awarding opponent points)
-- R+, R*, B+, B* (injury start/stop toggles)
-
-Event types (for event log): OpenScoresheet, BoutTimeStarted, BoutTimeStopped, PointAwarded, PassivityRecorded, CautionRecorded, InjuryStarted, InjuryStopped, EventChanged, EventDeleted, ScoresheetCompleted, HeaderUpdated
 
 ---
 
