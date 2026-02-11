@@ -8,9 +8,7 @@ CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling 
 - **Implementation constraints:** Single HTML file, no backend, offline-first, minimal dependencies. Use modern web APIs and standards for best performance and compatibility.
 
 ---
-
-## Layout of the scoresheet
-
+## Layout of the scoresheet 📝
 - **Bout info**: free-form text field for bout info (e.g. competition, age group, weight class, ...).
 - **Wrestler Red** and **Wrestler Blue** sections, each containing:
   - wrestler info: free-form text field for wrestler info (e.g. name, club, nation, ...).
