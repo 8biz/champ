@@ -69,19 +69,40 @@ The **Release-Completion button** shows "Release" and is enabled. Once the user 
 
 ## Recording Events 🎯
 
-### Event Codes & Types 🔤
-- **T_Started**, **T_Stop**: Bout time started/stopped
-- **R1**, **R2**, **R4**, **R5**, **B1**, **B2**, **B4**, **B5**: Technical points
-- **RP**, **BP**: Passivity
-- **R0B1**, **R0B2**, **B0R1**, **B0R2**: Cautions
-- **R_IT_Started**, **R_IT_Stopped**, **B_IT_Started**, **B_IT_Stopped**: Injury time (IT) started/stopped (Injury without blood)
-- **R_BT_Started**, **R_BT_Stopped**, **B_BT_Started**, **B_BT_Stopped**: Blood time (BT) started/stopped (Injury with blood)
-- **PeriodEnd**: when a period ends (automatically recorded when bout time reaches period length).
-- **EventChanged**: when an event is changed in correction mode. Details specify the original event `seq` and the new event data.
-- **ScoresheetReleased**: when the user clicks the "Release" button to start recording events.
-- **ScoresheetCompleted**: when the bout is completed. Details specify the victory type and classification points.
-- **BoutInfoUpdated**: Only, when bout is completed and changes bout info field. The details specify the new content.
-- **R_WrestlerInfoUpdated**, **B_WrestlerInfoUpdated**: Only, when bout is completed and changes wrestler info field. The details specify the new content.
+## Modes while recording events
+- **Normal mode**: recording events when **cursor** is at timeline end.
+- **Time edit mode**: Editing the value of the bout or an injury time. Sub-mode of **Normal mode**.
+- **Correction mode**: Making corrections when **cursor** is on historical **event record**.
+- **Correction mode Time**: entering a new time for an historical **event record**. Sub-mode of **Correction mode**.
+- **Correction mode Sequence**: Adding, deleting or moving a new **event record** in the timeline. Sub-mode of **Correction mode**.
+
+### Event Specification 📊
+
+Event record schema (minimum):
+- `seq` (integer, monotonic)
+- `timestamp` (ISO 8601 UTC string)
+- `eventCode` (enum, see table below)
+- `boutTime100ms` (integer, optional when relevant)
+- `details` (object, type-specific payload, optional when relevant)
+
+
+| `eventCode` | Description |
+|---|---|
+| `ScoresheetReleased` | User clicks "Release" button to start recording events |
+| `T_Started`, `T_Stopped` | Bout time started/stopped; `boutTime100ms` keeps bout time when started/stopped |
+| `R1`, `R2`, `R4`, `R5`, `B1`, `B2`, `B4`, `B5` | Technical points; `boutTime100ms` keeps bout time when recorded. |
+| `RP`, `BP` | Passivity; `boutTime100ms` keeps bout time when recorded. |
+| `R0B1`, `R0B2`, `B0R1`, `B0R2` | Cautions; `boutTime100ms` keeps bout time when recorded. |
+| `PeriodEnd` | Automatically recorded when bout time reaches period length |
+| `EventChanged` | Event modified in correction mode; `details` keeps original `seq` and `eventCode` or `boutTime100ms` |
+| `T_Edit` | Bout time manually edited; `boutTime100ms` keeps bout time before edit. `details` keeps new bout time |
+| `R_IT_Started`, `R_IT_Stopped`, `B_IT_Started`, `B_IT_Stopped` | Injury time (IT) started/stopped (without blood); `boutTime100ms` keeps bout time when recorded. |
+| `R_BT_Started`, `R_BT_Stopped`, `B_BT_Started`, `B_BT_Stopped` | Blood time (BT) started/stopped (with blood); `boutTime100ms` keeps bout time when recorded. |
+| `R_IT_Edit`, `B_IT_Edit`, `R_BT_Edit`, `B_BT_Edit` | Injury/Blood time manually edited; `details` keeps injury time before and after edit |
+| `ScoresheetCompleted` | Bout completed; `details` keeps victory type and classification points |
+| `BoutInfoUpdated` | Bout info changed after completion; `details` keeps new content |
+| `R_WrestlerInfoUpdated`, `B_WrestlerInfoUpdated` | Wrestler info changed after completion; `details` keeps new content |
+
 
 
 ### Keyboard Input Specification ⌨️✨
