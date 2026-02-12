@@ -10,12 +10,12 @@ CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling 
 ---
 ## Layout of the scoresheet 📝
 - **Bout info**: free-form text field for bout info (e.g. competition, age group, weight class, ...).
-- **Wrestler Red** and **Wrestler Blue** sections, each containing:
+- **Wrestler red** and **Wrestler blue** sections, each containing:
   - wrestler info: free-form text field for wrestler info (e.g. name, club, nation, ...).
   - score: auto-calculated from events.
   - injury times for both without and with blood.
 - **Release-Completion button**: button to release the scoresheet for recording and to complete the bout when finished.
-- **Bout time**: shows current bout time in "M:SS.ff" format
+- **Bout time**: shows current bout time in "M:SS.f" format
 - **Event buttons red** and **Event buttons blue**: buttons for awarding points, passivity, cautions for each wrestler.
 - **Timeline**: chronological list of events with time.
 
@@ -24,15 +24,15 @@ CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling 
 ## High-level Workflow 🔁
 1. User opens the HTML file in a browser (desktop or mobile). A **New scoresheet** is shown, that is ready for **Recording Events**.
 2. **Prepare scoresheet:** User can do some settings before releasing the scoresheet for event recording.
-2. **Recording events:** start/stop bout time, award points, record passivity/cautions, start/stop injury time, make corrections.
-3. **Complete bout:** when time or victory condition reached, enter victory type and classification points, correct header date if needed, export JSON.
+3. **Recording events:** User records events as they happen in the bout. The user can also make corrections to past events if needed.
+4. **Complete bout:** When time is over or victory condition is reached, user completes the bout by entering victory type and classification points. May be, user makes some corrections like bout or wrestler info if needed. If the bout is completed, the user can export JSON.
 
 ---
 
 ## Preparing Scoresheet 📝
 
 The fields descriped in **User settings** are enabled for user input while preparing the scoresheet.
-The **Release-Completion button** shows "Release" and is enabled. Once the user clicks "Release", these fields are locked and event recording can begin.
+The **Release-Completion button** shows "Release" and is enabled. Once the user clicks "Release", these fields are locked and event recording can start.
 
 ### User settings
 - Mandatory: User selects wrestling style **Freestyle** | **Greco-Roman**.
@@ -46,33 +46,42 @@ The **Release-Completion button** shows "Release" and is enabled. Once the user 
 - Keys must be unique.
 - A pair with a key beginning with '$' is named an **anonymous pair**. The key is not shown in the UI, but the value.
 - A pair with a key beginning with '$$' is named a **hidden pair**. Neither the key nor the value is shown in the UI. It's intended for keeping metadata.
-- User can omit the key for any pair, in which case it defaults to "$info1", "$info2", etc.
-- Examples:
-  - "Competition: State Championship; U17 74kg": 2 pairs with the named key "Competition", and an anonymous key "$info2" with value "U17 74kg".
-  - "Name: Max Mustermann; $$id: 23; Club: KSV Ringerhimmel; $Nation: Germany" => 4 pairs with named keys "Name" and "Club", the anonymous pair "$Nation" and the hidden pair "$$id".
-  - "Friendly bout" => 1 pair with anonymous key "$info1" and value "Friendly bout".
+- A pair with a key that does not follow the above rules is named a **named pair**. Both, key and value are shown in the UI.
+- User can omit the key for any pair, in that case it defaults to "$anonym1", "$anonym2", etc.
+
+**Examples:**
+  - "Competition: State Championship; U17 74kg"
+    - 2 pairs
+    - First named pair has key "Competition" and value "State Championship"
+    - Second anonymous pair has key "$anonym1" with value "U17 74kg".
+  - "Name: Max Mustermann; $$id: 23; Club: KSV Ringerhimmel; $Region: Südbaden $Nation: Germany"
+    - 5 pairs
+    - First named pair with key "Name" and value "Max Mustermann"
+    - Second hidden pair with key "$$id" and value "23"
+    - Third named pair with key "Club" and value "KSV Ringerhimmel"
+    - Fourth anonymous pair with key "$anonym1" and value "Südbaden"
+    - Fifth anonymous pair with key "$anonym2" and value "Germany"
+  - "Friendly bout"
+    - 1 pair
+    - Anonymous pair with key "$anonym1" and value "Friendly bout"
 
 ---
 
 ## Recording Events 🎯
 
-
-
-## Event Codes & Types 🔤
-- **Technical points**: R1, R2, R4, R5, B1, B2, B4, B5
-- **Passivity**: RP, BP (passivity)
-- **Cautions awarding opponent points**: R0B1, R0B2, B0R1, B0R2
-- **Start/Stop injury time without blood**: InjuryNoBloodStarted_R, InjuryNoBloodStopped_R, InjuryNoBloodStarted_B, InjuryNoBloodStopped_B
-- **Start/Stop injury time with blood**: InjuryWithBloodStarted_R, InjuryWithBloodStopped_R, InjuryWithBloodStarted_B, InjuryWithBloodStopped_B
-- **Start/Stop bout time**: BoutTimeStarted, BoutTimeStopped
+### Event Codes & Types 🔤
+- **T_Started**, **T_Stop**: Bout time started/stopped
+- **R1**, **R2**, **R4**, **R5**, **B1**, **B2**, **B4**, **B5**: Technical points
+- **RP**, **BP**: Passivity
+- **R0B1**, **R0B2**, **B0R1**, **B0R2**: Cautions
+- **R_IT_Started**, **R_IT_Stopped**, **B_IT_Started**, **B_IT_Stopped**: Injury time (IT) started/stopped (Injury without blood)
+- **R_BT_Started**, **R_BT_Stopped**, **B_BT_Started**, **B_BT_Stopped**: Blood time (BT) started/stopped (Injury with blood)
 - **PeriodEnd**: when a period ends (automatically recorded when bout time reaches period length).
 - **EventChanged**: when an event is changed in correction mode. Details specify the original event `seq` and the new event data.
 - **ScoresheetReleased**: when the user clicks the "Release" button to start recording events.
 - **ScoresheetCompleted**: when the bout is completed. Details specify the victory type and classification points.
-- **HeaderUpdated**: when the user updates any header field (bout info, wrestler info). The details specify which field was updated and the new value.
-
-
-Event types (for event log): OpenScoresheet, PointAwarded, PassivityRecorded, CautionRecorded, InjuryStarted, InjuryStopped, EventChanged, EventDeleted, ScoresheetCompleted, 
+- **BoutInfoUpdated**: Only, when bout is completed and changes bout info field. The details specify the new content.
+- **R_WrestlerInfoUpdated**, **B_WrestlerInfoUpdated**: Only, when bout is completed and changes wrestler info field. The details specify the new content.
 
 
 ### Keyboard Input Specification ⌨️✨
