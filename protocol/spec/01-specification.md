@@ -1,5 +1,6 @@
 # CHAMP Protocol — Specification (concise)
 
+
 ## Overview ✅
 CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling bouts. It is optimized for quick keyboard entry, touch/mouse input, and produces a complete event-sourced JSON export for replay, analysis, and archival.
 
@@ -8,6 +9,7 @@ CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling 
 - **Implementation constraints:** Single HTML file, no backend, offline-first, minimal dependencies. Use modern web APIs and standards for best performance and compatibility.
 
 ---
+
 ## Layout of the scoresheet 📝
 - **Bout info**: free-form text field for bout info (e.g. competition, age group, weight class, ...).
 - **Wrestler red** and **Wrestler blue** sections, each containing:
@@ -34,11 +36,13 @@ CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling 
 The *info fields** are enabled for user input while preparing the scoresheet.
 The **Release-Completion button** shows "Release" and is enabled. Once the user clicks "Release", these fields are locked and event recording can start.
 
+
 ### Info fields
 - Mandatory: User selects wrestling style **Freestyle** | **Greco-Roman**.
 - Optional: User selects ruleset from a dropdown. One ore more pre-defined rulesets are included and the first one is selected by default. Users can load custom rulesets via file input.
 - Optional: user fills bout info in a text field. See **Edit text specification** below.
 - Optional: user fills info for Red and Blue wrestlers. The first pair is always the key "Name". If not filled, name defaults to "Red" and "Blue". If the first key is not "Name", it is ignored and replaced with "Name". See **Edit text specification** below.
+
 
 ### Edit text specification:
 - Text can be comma-separated key-value pairs.
@@ -69,32 +73,16 @@ The **Release-Completion button** shows "Release" and is enabled. Once the user 
 
 ## Recording Events 🎯
 
-The user can record **events** in real-time as the bout progresses.
+The user can record **events** in real-time as the bout progresses. 
 
+- Events are recorded consecutively and stored in an **event log**. This log is the source of truth for the bout history and is used to generate the timeline and calculate scores. In can only be appended to, but not modified. Corrections are made by adding new events that reference the original event.
 - Each **event** is recorded with a timestamp, event type, and relevant details (e.g., points awarded, time of the event).
 - The **timeline** reflects the sequence of events and is updated in real-time. The **cursor** indicates the current position in the timeline for recording new events or making corrections.
 - The user can record events by using the buttons in the UI or by using keyboard shortcuts. See **Mouse & Touch Input Specification** or **Keyboard Input Specification** for details.
 
-### Normal mode
-
-- Recording events when cursor is at timeline end.
-- This is the default mode after releasing the scoresheet and after confirming corrections.
-- The user can enter **Time edit mode** to edit the value of the bout or an injury time.
-  - On entering a pop-up appears, where the user can enter a new time in M:SS format.
-  - On confirmation, the new time is recorded as an event and the mode returns to Normal mode.
-  - On cancellation, the mode returns to Normal mode without recording an event
-- The user can enter **Correction mode** section to make corrections to historical events.
-  - Is entered by moving the **cursor** to a historical **event** 
-  - See **Correction mode** for details.
-- The user can complete the bout. See **Complete bout** section for details.
-
-### Correction mode
-
-- Correcting events when cursor is on a historical slot.
-
-
 
 ### Event Specification 📊
+
 
 Event record schema (minimum):
 - `seq` (integer, monotonic)
@@ -113,6 +101,9 @@ Event record schema (minimum):
 | `R0B1`, `R0B2`, `B0R1`, `B0R2` | Cautions; `boutTime100ms` keeps bout time when recorded. |
 | `PeriodEnd` | Automatically recorded when bout time reaches period length |
 | `EventChanged` | Event modified in correction mode; `details` keeps original `seq` and `eventCode` or `boutTime100ms` |
+| `EventSwapped` | Two events swapped in correction mode; `details` keeps `seq` of the two swapped events |
+| `EventDeleted` | Event deleted in correction mode; `details` keeps original `seq` |
+| `EventInserted` | Event inserted in correction mode; `boutTime100ms` keeps bout time of the event before which it was inserted; `details` keeps `seq` of the event before which it was inserted and the `eventCode` |
 | `T_Edit` | Bout time manually edited; `boutTime100ms` keeps bout time before edit. `details` keeps new bout time |
 | `T_IR_Started`, `T_IR_Stopped`, `T_IB_Started`, `T_IB_Stopped` | Injury time (T_IR/T_IB) started/stopped (without blood); `boutTime100ms` keeps bout time when recorded. |
 | `T_BR_Started`, `T_BR_Stopped`, `T_BB_Started`, `T_BB_Stopped` | Blood Time (T_BR/T_BB) started/stopped (with blood); `boutTime100ms` keeps bout time when recorded. |
@@ -120,6 +111,38 @@ Event record schema (minimum):
 | `ScoresheetCompleted` | Bout completed; `details` keeps victory type and classification points |
 | `BoutInfoUpdated` | Bout info changed after completion; `details` keeps new content |
 | `R_WrestlerInfoUpdated`, `B_WrestlerInfoUpdated` | Wrestler info changed after completion; `details` keeps new content |
+
+
+### Normal mode
+
+Recording events when cursor is at timeline end.
+
+- This is the default mode after releasing the scoresheet and after confirming corrections.
+- The user can enter **Time edit mode** to edit the value of the bout or an injury time.
+  - On entering a pop-up appears, where the user can enter a new time in M:SS format.
+  - On confirmation, the new time is recorded as an event and the mode returns to Normal mode.
+  - On cancellation, the mode returns to Normal mode without recording an event
+- The user can enter **Correction mode** section to make corrections to historical events.
+  - Is entered by moving the **cursor** to a historical **event** 
+  - See **Correction mode** for details.
+- The user can complete the bout. See **Complete bout** section for details.
+
+### Correction mode
+
+Correcting events when cursor is on a historical slot.
+
+- The user can select any historical event by moving the cursor.
+- The user can change technical point, passivity or caution `eventCode`s by inputting an other technical point, passivity or caution `eventCode` and an `EventChanged` event is recorded. 
+- The `boutTime100ms` can be changed by entering the **Time correction mode** (same as **Time edit mode** in Normal mode). On confirmation, an `EventTimeChanged` event is recorded.
+- The user can enter the **Sequence correction mode** to change the order of events in the timeline.
+  - The curser changes to its visual style to indicate that the user is in **Sequence correction mode**.
+  - The user can move the current event left or right. In the timeline, this swaps the `eventCode` but not the `boutTime100ms`. On confirmation, the `EventSwapped` event is recorded.
+  - The user can delete the current event. On confirmation, the `EventDeleted` event is recorded.
+  - The user can insert a new event prior to the current event. Then the user has to input technical point, passivity or caution event. On confirmation, the `EventInserted` event is recorded.
+  - The user can cancel the sequence correction, in that case no event is recorded and the mode returns to Correction mode.
+- The user can confirm the correction and move the cursor to timeline end, in that case the mode returns to Normal mode.
+- The user can cancel the correction and move the cursor to timeline end, in that case no event is recorded and the mode returns to Normal mode.
+
 
 
 
