@@ -87,12 +87,12 @@ The user can record **events** in real-time as the bout progresses.
 Event record schema (minimum):
 - `seq` (integer, monotonic)
 - `timestamp` (ISO 8601 UTC string)
-- `eventCode` (enum, see table below)
+- `eventType` (enum, see table below)
 - `boutTime100ms` (integer, optional when relevant)
 - `details` (object, type-specific payload, optional when relevant)
 
 
-| `eventCode` | Description |
+| `eventType` | Description |
 |---|---|
 | `ScoresheetReleased` | User clicks "Release" button to start recording events |
 | `T_Started`, `T_Stopped` | Bout time started/stopped; `boutTime100ms` keeps bout time when started/stopped |
@@ -100,10 +100,10 @@ Event record schema (minimum):
 | `RP`, `BP` | Passivity; `boutTime100ms` keeps bout time when recorded. |
 | `R0B1`, `R0B2`, `B0R1`, `B0R2` | Cautions; `boutTime100ms` keeps bout time when recorded. |
 | `PeriodEnd` | Automatically recorded when bout time reaches period length |
-| `EventChanged` | Event modified in correction mode; `details` keeps original `seq` and `eventCode` or `boutTime100ms` |
+| `EventChanged` | Event modified in correction mode; `details` keeps original `seq` and `eventType` or `boutTime100ms` |
 | `EventSwapped` | Two events swapped in correction mode; `details` keeps `seq` of the two swapped events |
 | `EventDeleted` | Event deleted in correction mode; `details` keeps original `seq` |
-| `EventInserted` | Event inserted in correction mode; `boutTime100ms` keeps bout time of the event before which it was inserted; `details` keeps `seq` of the event before which it was inserted and the `eventCode` |
+| `EventInserted` | Event inserted in correction mode; `boutTime100ms` keeps bout time of the event before which it was inserted; `details` keeps `seq` of the event before which it was inserted and the `eventType` |
 | `T_Edit` | Bout time manually edited; `boutTime100ms` keeps bout time before edit. `details` keeps new bout time |
 | `T_IR_Started`, `T_IR_Stopped`, `T_IB_Started`, `T_IB_Stopped` | Injury time (T_IR/T_IB) started/stopped (without blood); `boutTime100ms` keeps bout time when recorded. |
 | `T_BR_Started`, `T_BR_Stopped`, `T_BB_Started`, `T_BB_Stopped` | Blood Time (T_BR/T_BB) started/stopped (with blood); `boutTime100ms` keeps bout time when recorded. |
@@ -132,13 +132,13 @@ Recording events when cursor is at timeline end.
 Correcting events when cursor is on a historical slot.
 
 - The user can select any historical event by moving the cursor.
-- The user can change technical point, passivity or caution `eventCode`s by inputting an other technical point, passivity or caution `eventCode`. Then an `EventChanged` event is recorded. 
+- The user can change technical point, passivity or caution `eventType`s by inputting an other technical point, passivity or caution `eventType`. Then an `EventChanged` event is recorded. 
 - The `boutTime100ms` can be changed by entering the **Time correction mode** (same as **Time edit mode** in **Normal mode**). On confirmation, an `EventTimeChanged` event is recorded.
 - The user can delete the current event. On confirmation, the `EventDeleted` event is recorded.
 - The user can enter the **Event swap mode** to change the order of events in the timeline.
   - The curser changes its visual style to indicate the **Event swap mode**.
   - The user can move the current event left or right.
-  - In the timeline, this swaps the `eventCode` but not the `boutTime100ms`.
+  - In the timeline, this swaps the `eventType` but not the `boutTime100ms`.
   - On confirmation, the `EventSwapped` event is recorded.
   - On cancellation, no event is recorded and the mode returns to Correction mode.
 - The user can enter the **Event insert mode** to insert a new event prior to the current event.
@@ -213,7 +213,7 @@ Clicking a slot in the timeline moves the cursor to that slot (entering _Correct
   - `seq` (integer, monotonic)
   - `periodIndex` (integer, 0-based)
   - `boutTimeSeconds` (integer seconds since period start)
-  - `eventCode` (string, e.g., "B2")
+  - `eventType` (string, e.g., "B2")
   - `periodScoreRed` / `periodScoreBlue` (integers showing cumulative score in the period after this event)
   - `isPeriodEnd` (boolean)
   - optional `note` or `meta`
