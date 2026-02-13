@@ -132,18 +132,21 @@ Recording events when cursor is at timeline end.
 Correcting events when cursor is on a historical slot.
 
 - The user can select any historical event by moving the cursor.
-- The user can change technical point, passivity or caution `eventCode`s by inputting an other technical point, passivity or caution `eventCode` and an `EventChanged` event is recorded. 
-- The `boutTime100ms` can be changed by entering the **Time correction mode** (same as **Time edit mode** in Normal mode). On confirmation, an `EventTimeChanged` event is recorded.
-- The user can enter the **Sequence correction mode** to change the order of events in the timeline.
-  - The curser changes to its visual style to indicate that the user is in **Sequence correction mode**.
-  - The user can move the current event left or right. In the timeline, this swaps the `eventCode` but not the `boutTime100ms`. On confirmation, the `EventSwapped` event is recorded.
-  - The user can delete the current event. On confirmation, the `EventDeleted` event is recorded.
-  - The user can insert a new event prior to the current event. Then the user has to input technical point, passivity or caution event. On confirmation, the `EventInserted` event is recorded.
-  - The user can cancel the sequence correction, in that case no event is recorded and the mode returns to Correction mode.
-- The user can confirm the correction and move the cursor to timeline end, in that case the mode returns to Normal mode.
-- The user can cancel the correction and move the cursor to timeline end, in that case no event is recorded and the mode returns to Normal mode.
-
-
+- The user can change technical point, passivity or caution `eventCode`s by inputting an other technical point, passivity or caution `eventCode`. Then an `EventChanged` event is recorded. 
+- The `boutTime100ms` can be changed by entering the **Time correction mode** (same as **Time edit mode** in **Normal mode**). On confirmation, an `EventTimeChanged` event is recorded.
+- The user can delete the current event. On confirmation, the `EventDeleted` event is recorded.
+- The user can enter the **Event swap mode** to change the order of events in the timeline.
+  - The curser changes its visual style to indicate the **Event swap mode**.
+  - The user can move the current event left or right.
+  - In the timeline, this swaps the `eventCode` but not the `boutTime100ms`.
+  - On confirmation, the `EventSwapped` event is recorded.
+  - On cancellation, no event is recorded and the mode returns to Correction mode.
+- The user can enter the **Event insert mode** to insert a new event prior to the current event.
+  - Then the user has to input technical point, passivity or caution event.
+  - On confirmation, the `EventInserted` event is recorded.
+  - On cancellation, no event is recorded and the mode returns to Correction mode.
+- On confirmation of correction, Normal mode is entered. The cursor moves to the timeline end.
+- On cancellation of correction, the event log remains unchanged. Normal mode is entered. The cursor moves to the timeline end.
 
 
 ### Keyboard Input Specification ⌨️✨
