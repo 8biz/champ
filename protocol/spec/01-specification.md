@@ -24,7 +24,7 @@ CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling 
 ---
 
 ## High-level Workflow 🔁
-1. User opens the HTML file in a browser (desktop or mobile). A **New scoresheet** is shown, that is ready for **Recording Events**.
+1. User opens the HTML file in a browser (desktop or mobile). A **New scoresheet** is shown.
 2. **Prepare scoresheet:** User can do some settings before releasing the scoresheet for event recording.
 3. **Recording events:** User records events as they happen in the bout. The user can also make corrections to past events if needed.
 4. **Complete bout:** When time is over or victory condition is reached, user completes the bout by entering victory type and classification points. May be, user makes some corrections like bout or wrestler info if needed. If the bout is completed, the user can export JSON.
@@ -33,7 +33,7 @@ CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling 
 
 ## Preparing Scoresheet 📝
 
-The *info fields** are enabled for user input while preparing the scoresheet.
+The **info fields** are enabled for user input while preparing the scoresheet.
 The **Release-Completion button** shows "Release" and is enabled. Once the user clicks "Release", these fields are locked and event recording can start.
 
 
@@ -50,7 +50,7 @@ The **Release-Completion button** shows "Release" and is enabled. Once the user 
 - Keys must be unique.
 - A pair with a key beginning with '$' is named an **anonymous pair**. The key is not shown in the UI, but the value.
 - A pair with a key beginning with '$$' is named a **hidden pair**. Neither the key nor the value is shown in the UI. It's intended for keeping metadata.
-- A pair with a key that does not follow the above rules is named a **named pair**. Both, key and value are shown in the UI.
+- A pair with a key that does not follow the above rules is a **named pair**. Both, key and value are shown in the UI.
 - User can omit the key for any pair, in that case it defaults to "$anonym1", "$anonym2", etc.
 
 **Examples:**
@@ -75,7 +75,7 @@ The **Release-Completion button** shows "Release" and is enabled. Once the user 
 
 The user can record **events** in real-time as the bout progresses. 
 
-- Events are recorded consecutively and stored in an **event log**. This log is the source of truth for the bout history and is used to generate the timeline and calculate scores. In can only be appended to, but not modified. Corrections are made by adding new events that reference the original event.
+- Events are recorded consecutively and stored in an **event log**. This log is the source of truth for the bout history and is used to generate the timeline and calculate scores. It can only be appended to, but not modified. Corrections are made by adding new events that reference the original event.
 - Each **event** is recorded with a timestamp, event type, and relevant details (e.g., points awarded, time of the event).
 - The **timeline** reflects the sequence of events and is updated in real-time. The **cursor** indicates the current position in the timeline for recording new events or making corrections.
 - The user can record events by using the buttons in the UI or by using keyboard shortcuts. See **Mouse & Touch Input Specification** or **Keyboard Input Specification** for details.
