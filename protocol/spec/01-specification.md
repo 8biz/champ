@@ -10,7 +10,7 @@ CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling 
 
 ---
 
-## Layout of the scoresheet 📝
+## Structure of the scoresheet 📝
 - **Bout info**: free-form text field for bout info (e.g. competition, age group, weight class, ...).
 - **Wrestler red** and **Wrestler blue** sections, each containing:
   - wrestler info: free-form text field for wrestler info (e.g. name, club, nation, ...).
@@ -18,7 +18,7 @@ CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling 
   - injury times for both without and with blood.
 - **Release-Completion button**: button to release the scoresheet for recording and to complete the bout when finished.
 - **Bout time**: shows current bout time in "M:SS.f" format
-- **Event buttons red** and **Event buttons blue**: buttons for awarding points, passivity, cautions for each wrestler.
+- **Event buttons red** and **Event buttons blue**: buttons for bout events (awarding points, passivity, cautions for each wrestler).
 - **Timeline**: chronological list of events with time.
 
 ---
@@ -80,49 +80,16 @@ The user can record **events** in real-time as the bout progresses.
 - The **timeline** reflects the sequence of events and is updated in real-time. The **cursor** indicates the current position in the timeline for recording new events or making corrections.
 - The user can record events by using the buttons in the UI or by using keyboard shortcuts. See **Mouse & Touch Input Specification** or **Keyboard Input Specification** for details.
 
-
-### Event Specification 📊
-
-
-Event record schema (minimum):
-- `seq` (integer, monotonic)
-- `timestamp` (ISO 8601 UTC string)
-- `eventType` (enum, see table below)
-- `boutTime100ms` (integer, optional when relevant)
-- `details` (object, type-specific payload, optional when relevant)
-
-
-| `eventType` | Description |
-|---|---|
-| `ScoresheetReleased` | User clicks "Release" button to start recording events |
-| `T_Started`, `T_Stopped` | Bout time started/stopped; `boutTime100ms` keeps bout time when started/stopped |
-| `R1`, `R2`, `R4`, `R5`, `B1`, `B2`, `B4`, `B5` | Technical points; `boutTime100ms` keeps bout time when recorded. |
-| `RP`, `BP` | Passivity; `boutTime100ms` keeps bout time when recorded. |
-| `R0B1`, `R0B2`, `B0R1`, `B0R2` | Cautions; `boutTime100ms` keeps bout time when recorded. |
-| `PeriodEnd` | Automatically recorded when bout time reaches period length |
-| `EventChanged` | Event modified in correction mode; `details` keeps original `seq` and `eventType` or `boutTime100ms` |
-| `EventSwapped` | Two events swapped in correction mode; `details` keeps `seq` of the two swapped events |
-| `EventDeleted` | Event deleted in correction mode; `details` keeps original `seq` |
-| `EventInserted` | Event inserted in correction mode; `boutTime100ms` keeps bout time of the event before which it was inserted; `details` keeps `seq` of the event before which it was inserted and the `eventType` |
-| `T_Edit` | Bout time manually edited; `boutTime100ms` keeps bout time before edit. `details` keeps new bout time |
-| `T_IR_Started`, `T_IR_Stopped`, `T_IB_Started`, `T_IB_Stopped` | Injury time (T_IR/T_IB) started/stopped (without blood); `boutTime100ms` keeps bout time when recorded. |
-| `T_BR_Started`, `T_BR_Stopped`, `T_BB_Started`, `T_BB_Stopped` | Blood Time (T_BR/T_BB) started/stopped (with blood); `boutTime100ms` keeps bout time when recorded. |
-| `T_IR_Edit`, `T_IB_Edit`, `T_BR_Edit`, `T_BB_Edit` | Injury/Blood time manually edited; `details` keeps injury time before and after edit |
-| `ScoresheetCompleted` | Bout completed; `details` keeps victory type and classification points |
-| `BoutInfoUpdated` | Bout info changed after completion; `details` keeps new content |
-| `R_WrestlerInfoUpdated`, `B_WrestlerInfoUpdated` | Wrestler info changed after completion; `details` keeps new content |
-
-
 ### Normal mode
 
 Recording events when cursor is at timeline end.
 
 - This is the default mode after releasing the scoresheet and after confirming corrections.
-- The user can enter **Time edit mode** to edit the value of the bout or an injury time.
+- The user can edit the value of the bout or an injury time.
   - On entering a pop-up appears, where the user can enter a new time in M:SS format.
-  - On confirmation, the new time is recorded as an event and the mode returns to Normal mode.
-  - On cancellation, the mode returns to Normal mode without recording an event
-- The user can enter **Correction mode** section to make corrections to historical events.
+  - On confirmation, one of the events `T_Edit`, `T_IR_Edit`, `T_IB_Edit`, `T_BR_Edit` or `T_BB_Edit` is recorded.
+  - On cancellation, no event is recorded.
+- The user can enter **Correction mode** to make corrections to historical events.
   - Is entered by moving the **cursor** to a historical **event** 
   - See **Correction mode** for details.
 - The user can complete the bout. See **Complete bout** section for details.
@@ -148,8 +115,49 @@ Correcting events when cursor is on a historical slot.
 - On confirmation of correction, Normal mode is entered. The cursor moves to the timeline end.
 - On cancellation of correction, the event log remains unchanged. Normal mode is entered. The cursor moves to the timeline end.
 
+---
 
-### Keyboard Input Specification ⌨️✨
+## Event Specification 📊
+
+### Event record schema
+- `seq` (integer, monotonic; mandatory): unique identifier for the event, incremented for each new event.
+- `timestamp` (ISO 8601 UTC string; mandatory): time when the event was recorded.
+- `eventType` (enum, see tables below; mandatory)
+- `boutTime100ms` (integer; optional, see tables below)
+- additional fields depending on `eventType` (see tables below)
+
+### Scoresheet events
+| `eventType` | Description |
+|---|---|
+| `ScoresheetReleased` | User clicks "Release" button to start recording events |
+| `ScoresheetCompleted` |Bout completed; additional fields `victoryType` and `classificationPoints` are determined from ruleset |
+| `T_Started`, `T_Stopped` | Bout time started/stopped; `boutTime100ms` keeps bout time when started/stopped |
+| `PeriodEnd` | Automatically recorded when bout time reaches period length |
+| `T_IR_Started`, `T_IR_Stopped`, `T_IB_Started`, `T_IB_Stopped` | Injury time (T_IR/T_IB) started/stopped (without blood); `boutTime100ms` keeps bout time when recorded. |
+| `T_BR_Started`, `T_BR_Stopped`, `T_BB_Started`, `T_BB_Stopped` | Blood Time (T_BR/T_BB) started/stopped (with blood); `boutTime100ms` keeps bout time when recorded. |
+| `BoutInfoUpdated` | Bout info changed after completion; `newContent` keeps new content |
+| `RedInfoUpdated`, `BlueInfoUpdated` | Wrestler info changed after completion; `newContent` keeps new content |
+
+### Bout events
+| `eventType` | Description |
+|---|---|
+| `1R`, `2R`, `4R`, `5R`, `1B`, `2B`, `4B`, `5B` | Technical points; `boutTime100ms` keeps bout time when recorded. |
+| `PR`, `PB` | Passivity; `boutTime100ms` keeps bout time when recorded. |
+| `0R1B`, `0R2B`, `0B1R`, `0B2R` | Cautions; `boutTime100ms` keeps bout time when recorded. |
+
+### Correction events
+| `eventType` | Description |
+|---|---|
+| `EventModified` | Event modified in correction mode; additional field `refSeq` keeps the `seq` of the original event; additional field `newEventType` when event type is changed or `newBoutTime100ms` when bout time is changed |
+| `EventSwapped` | Two events swapped in correction mode; additional field `refSeq1` keeps the `seq` of the first event; additional field `refSeq2` keeps the `seq` of the second event |
+| `EventDeleted` | Event deleted in correction mode; additional field `refSeq` keeps the `seq` of the deleted event |
+| `EventInserted` | Event inserted in correction mode; additional field `boutTime100ms` keeps bout time of the event before which it was inserted; additional field `refSeq` keeps the `seq` of the event before which it was inserted; additional field `insertedEventType` keeps the `eventType` of the inserted event |
+| `T_Edit` | Bout time manually edited; `boutTime100ms` keeps bout time before edit. Additional field `newTime` keeps new bout time |
+| `T_IR_Edit`, `T_IB_Edit`, `T_BR_Edit`, `T_BB_Edit` | Injury/Blood time manually edited; `boutTime100ms` keeps bout time before edit. Additional field `newTime` keeps new bout time |
+
+---
+
+## Keyboard Input Specification ⌨️✨
 General rules:
 - Input is processed by a **sequence buffer** (array of keys).
   - No timeout.
@@ -163,7 +171,7 @@ General rules:
   - **Sequence correction mode**: Adding, deleting or moving an event in the timeline. Sub-mode of Correction mode.
 - Some keys (Space, Esc, Delete) are global.
 
-#### Key sequences in _Normal mode_
+### Key sequences in _Normal mode_
 - Space: start/stop bout time
 - R + 1 | 2 | 4 | 5  => R1, R2, R4, R5 (Red points)
 - B + 1 | 2 | 4 | 5 => B1, B2, B4, B5 (Blue points)
@@ -174,7 +182,7 @@ General rules:
 - R + + => R+ (start/stop injury without blood); R + * => R* (with blood). Same for B
 - Left arrow key: move cursor left (enter _Correction mode_)
 
-#### Key sequences in _Correction mode_
+### Key sequences in _Correction mode_
 - Enter confirms correction on the current slot and moves cursor to timeline end (enter _Normal mode_).
 - Left/Right arrow keys confirms correction on the current slot and moves cursor left/right (stay in _Correction mode_).
 - Escape resets current slot if corrections were made. Stays on current slot and stays in _Correction mode_.
@@ -198,12 +206,10 @@ Notes:
 
 ---
 
-### Mouse & Touch Input Specification🖱️📱
+## Mouse & Touch Input Specification🖱️📱
 
 Buttons for common actions (start/stop time, award points, passivity, cautions, start/stop injury times) are be provided.
 Clicking a slot in the timeline moves the cursor to that slot (entering _Correction mode_). 
-
-### _Normal mode_
 
 ---
 
