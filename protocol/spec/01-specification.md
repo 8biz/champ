@@ -6,7 +6,19 @@ CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling 
 
 - **Purpose:** Create a digital scoresheet that records all bout events (points, passivity, cautions, injury times, time control) and exports both presentation and authoritative event logs as JSON.
 - **Primary users:** People that have knowledge of wrestling rules and scoring. They are not necessarily tech-savvy, so the tool must be intuitive and require minimal training. The target use case is recording live bouts in competitions, where speed and accuracy are essential.
-- **Implementation constraints:** Single HTML file, no backend, offline-first, minimal dependencies. Use modern web APIs and standards for best performance and compatibility.
+- **Implementation constraints:** Single HTML file, no backend, offline-first, minimal dependencies. No images, if needed use inline SVG or base64-encoded images. Use modern web APIs and standards for best performance and compatibility.
+
+This document describes
+- structure of the scoresheet
+- high-level workflow
+  - Preparing the scoresheet
+  - Recording events in Normal mode and in Correction mode
+  - Completing the bout
+- event specification
+- timeline specification
+- the keyboard and mouse input specifications
+- ruleset format
+- JSON export format
 
 ---
 
@@ -19,7 +31,7 @@ CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling 
 - **Release-Completion button**: button to release the scoresheet for recording and to complete the bout when finished.
 - **Bout time**: shows current bout time in "M:SS.f" format
 - **Event buttons red** and **Event buttons blue**: buttons for bout events (awarding points, passivity, cautions for each wrestler).
-- **Timeline**: chronological list of events with time.
+- **Timeline**: chronological list of bout events with time.
 
 ---
 
@@ -76,9 +88,9 @@ The **Release-Completion button** shows "Release" and is enabled. Once the user 
 The user can record **events** in real-time as the bout progresses. 
 
 - Events are recorded consecutively and stored in an **event log**. This log is the source of truth for the bout history and is used to generate the timeline and calculate scores. It can only be appended to, but not modified. Corrections are made by adding new events that reference the original event.
-- Each **event** is recorded with a timestamp, event type, and relevant details (e.g., points awarded, time of the event).
-- The **timeline** reflects the sequence of events and is updated in real-time. The **cursor** indicates the current position in the timeline for recording new events or making corrections.
+- Each **event** is recorded at least with a unique sequence number, a timestamp and event type. See **Event Specification** for details on event types and their fields.
 - The user can record events by using the buttons in the UI or by using keyboard shortcuts. See **Mouse & Touch Input Specification** or **Keyboard Input Specification** for details.
+- The **timeline** reflects the sequence of bout events. See **Timeline Specification** for details.
 
 ### Normal mode
 
@@ -213,20 +225,14 @@ Clicking a slot in the timeline moves the cursor to that slot (entering _Correct
 
 ---
 
-## Timeline Model & Slot Structure 🕒
-- Timeline is a list of slots in chronological order; slots grow as events are recorded.
-- Each **Slot** (timeline item) contains at least:
-  - `seq` (integer, monotonic)
-  - `periodIndex` (integer, 0-based)
-  - `boutTimeSeconds` (integer seconds since period start)
-  - `eventType` (string, e.g., "B2")
-  - `periodScoreRed` / `periodScoreBlue` (integers showing cumulative score in the period after this event)
-  - `isPeriodEnd` (boolean)
-  - optional `note` or `meta`
+## Timeline Specification 📜
 
-UI behavior:
-- After period end, show a strong divider; next slot starts with 0–0 for the new period.
-- Cursor shows current input slot. Arrow keys move cursor for corrections.
+- The timeline reflects the sequence of bout events and is updated in real-time.
+- The **cursor** indicates the current position in the timeline for recording new events or making corrections.
+- The timeline supports several entry types:
+  - **Bout events**: points, passivity, cautions (e.g., 1R, 2B, PR, 0B1R, etc.) along with their bout time.
+  - **Period end**: Is automatically inserted, when a period ends. It shows the scores of red and blue at the end of the period and is visually distinct from bout events.
+
 
 ---
 
