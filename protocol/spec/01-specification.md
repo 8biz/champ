@@ -97,10 +97,7 @@ The user can record **events** in real-time as the bout progresses.
 Recording events when cursor is at timeline end.
 
 - This is the default mode after releasing the scoresheet and after confirming corrections.
-- The user can edit the value of the bout or an injury time.
-  - On entering a pop-up appears, where the user can enter a new time in M:SS format.
-  - On confirmation, one of the events `T_Edit`, `T_IR_Edit`, `T_IB_Edit`, `T_BR_Edit` or `T_BB_Edit` is recorded.
-  - On cancellation, no event is recorded.
+- The user can edit the value of the bout or an injury time (See **Time modification mode**). This leads to `T_Edit`, `T_IR_Edit`, `T_IB_Edit`, `T_BR_Edit` or `T_BB_Edit` event being recorded.
 - The user can enter **Correction mode** to make corrections to historical events.
   - Is entered by moving the **cursor** to a historical **event** 
   - See **Correction mode** for details.
@@ -108,24 +105,56 @@ Recording events when cursor is at timeline end.
 
 ### Correction mode
 
-Correcting events when cursor is on a historical slot.
+Correcting events when cursor is on a historical event.
 
-- The user can select any historical event by moving the cursor.
-- The user can change technical point, passivity or caution `eventType`s by inputting an other technical point, passivity or caution `eventType`. Then an `EventChanged` event is recorded. 
-- The `boutTime100ms` can be changed by entering the **Time correction mode** (same as **Time edit mode** in **Normal mode**). On confirmation, an `EventTimeChanged` event is recorded.
-- The user can delete the current event. On confirmation, the `EventDeleted` event is recorded.
-- The user can enter the **Event swap mode** to change the order of events in the timeline.
-  - The curser changes its visual style to indicate the **Event swap mode**.
-  - The user can move the current event left or right.
-  - In the timeline, this swaps the `eventType` but not the `boutTime100ms`.
-  - On confirmation, the `EventSwapped` event is recorded.
-  - On cancellation, no event is recorded and the mode returns to Correction mode.
-- The user can enter the **Event insert mode** to insert a new event prior to the current event.
-  - Then the user has to input technical point, passivity or caution event.
-  - On confirmation, the `EventInserted` event is recorded.
-  - On cancellation, no event is recorded and the mode returns to Correction mode.
-- On confirmation of correction, Normal mode is entered. The cursor moves to the timeline end.
+- Only on confirmation, the corresponding correction events are recorded in the event log. This allows the user to make multiple corrections and confirm them all at once. Then Normal mode is entered. The cursor moves to the timeline end.
 - On cancellation of correction, the event log remains unchanged. Normal mode is entered. The cursor moves to the timeline end.
+
+The user can
+- modify type of bout event (see Event Specification) inputting an other bout event type. Then a `EventModified` event with additional field `newEventType` is recorded. 
+- modify the bout time (see **Time modification mode**). Then a `EventModified` event with additional field `newBoutTime100ms` is recorded.
+- delete the current event. Results in a `EventDeleted` event being recorded.
+- enter the **Event swap mode** to change the order of events in the timeline.
+  - The cursor changes its visual style to indicate the **Event swap mode**.
+  - The user can move the current event left or right.
+  - In the timeline, this swaps the event types but not the bout times.
+  - Results in a `EventSwapped` event being recorded.
+- enter the **Event insert mode** to insert a new event prior to the current event.
+  - Then the user has to input a bout event type.
+  - Optionally, the user can also input a bout time for the inserted event (see **Time modification mode**). If no time is input, the time of the current event is used.
+  - Results in an `EventInserted` event being recorded with the corresponding bout time and event type.
+
+
+### Timer Behavior ⏱️
+- Store times as integers in seconds. Use ISO timestamps for absolute time.
+- `boutTimeSeconds` is seconds relative to current period start (0..periodLength).
+- Automatic actions: when period time expires, stop bout time and mark `isPeriodEnd`. If not final period, start break timer (optional, configured by ruleset).
+- Optional feature: automatic detection of victory conditions (e.g., VSU by point difference) should be governed by ruleset options (autoDetect: true/false).
+
+
+### Time modification mode
+
+When the user want to modify the bout time, one of the injury times or the bout time of an historical event, then
+  - a modal pop-up appears near to the time field which is modified. The user can enter a new time in M:SS format (for bout time 100ms are set to 0).
+  - On confirmation, the corresponding event is recorded.
+  - On cancellation, no event is recorded.
+
+---
+
+## Complete bout 🏁
+
+The bout is over, when a victory condition is reached ahead of bout time or the bout time is runs out.
+
+- The user has to start the completion process manually.
+- Then a modal pop-up appears, where the user has to select the victory type and classification points according to the ruleset.
+- On confirmation, a `ScoresheetCompleted` event is recorded with the corresponding fields.
+- The scoresheet is now locked and no more events can be recorded.
+- Changes to bout or wrestler info are still possible and recorded as mentioned in **Event Specification**.
+- The **Release-Completion button** changes to "Re-release" and is enabled.
+  - This allows the user to enter the **Correction mode** to make corrections to the bout after completion.
+  - Entering **Normal mode** is not possible after completion.
+  - Then the user has to complete the bout again.
+- If the bout is completed, the user can export the scoresheet as JSON. See **JSON Export Format** for details.
 
 ---
 
@@ -169,6 +198,17 @@ Correcting events when cursor is on a historical slot.
 
 ---
 
+## Timeline Specification 📜
+
+- The timeline reflects the sequence of bout events and is updated in real-time.
+- The **cursor** indicates the current position in the timeline for recording new events or making corrections.
+- The timeline supports several entry types:
+  - **Bout events**: points, passivity, cautions (e.g., 1R, 2B, PR, 0B1R, etc.) along with their bout time.
+  - **Period end**: Is automatically inserted, when a period ends. It shows the scores of red and blue at the end of the period and is visually distinct from bout events.
+
+
+---
+
 ## Keyboard Input Specification ⌨️✨
 General rules:
 - Input is processed by a **sequence buffer** (array of keys).
@@ -179,7 +219,7 @@ General rules:
 - Supports following modes:
   - **Normal mode**: recording at timeline end
   - **Correction mode**: cursor on historical slot.
-  - **Time correction mode**: entering a new time for an historical slot. Sub-mode of Correction mode.
+  - **Time modification mode**: entering a new time for an historical slot. Sub-mode of Correction mode.
   - **Sequence correction mode**: Adding, deleting or moving an event in the timeline. Sub-mode of Correction mode.
 - Some keys (Space, Esc, Delete) are global.
 
@@ -205,7 +245,7 @@ General rules:
 - Delete key removes the current event (recording an EventDeleted) and moves cursor to next slot in timeline (stays in _Correction mode_).
 - \# key enters _Move mode_:
   - Left/Right arrows move the current event to the previous/next slot (swapping with that event). This allows changing the order of events. Enter confirms and returns to _Correction mode_. Escape cancels and returns to _Correction mode_ without changes. 
-- T enters the _Time correction mode_:
+- T enters the _Time modification mode_:
   - The user can enter a new time in M:SS format (e.g. 1:30). The buffer accepts digits and colon.
   - On Enter, the boutTimeSeconds of the current slot is updated to the new value (converted to seconds). Returns back to _Correction mode_
   - Escape cancels time correction and returns back to _Correction mode_.
@@ -225,18 +265,11 @@ Clicking a slot in the timeline moves the cursor to that slot (entering _Correct
 
 ---
 
-## Timeline Specification 📜
-
-- The timeline reflects the sequence of bout events and is updated in real-time.
-- The **cursor** indicates the current position in the timeline for recording new events or making corrections.
-- The timeline supports several entry types:
-  - **Bout events**: points, passivity, cautions (e.g., 1R, 2B, PR, 0B1R, etc.) along with their bout time.
-  - **Period end**: Is automatically inserted, when a period ends. It shows the scores of red and blue at the end of the period and is visually distinct from bout events.
-
+## JSON Ruleset Format 📚
 
 ---
 
-## Event Sourcing & Export Format 📦
+## JSON Export Format 📦
 Export JSON contains two parts:
 1. `scoresheet` — presentation data: ruleset, style, header, wrestlers, timeline (as shown), boutTime total, winner, classification, exportedAt, appVersion
 2. `events` — authoritative event log in chronological order (every action recorded, including corrections).
@@ -281,14 +314,6 @@ Example (valid JSON snippet):
 ```
 
 Recommendation: provide a JSON Schema (draft-07 or newer) and field defaults.
-
----
-
-## Time & Timer Behavior ⏱️
-- Store times as integers in seconds. Use ISO timestamps for absolute time.
-- `boutTimeSeconds` is seconds relative to current period start (0..periodLength).
-- Automatic actions: when period time expires, stop bout time and mark `isPeriodEnd`. If not final period, start break timer (optional, configured by ruleset).
-- Optional feature: automatic detection of victory conditions (e.g., VSU by point difference) should be governed by ruleset options (autoDetect: true/false).
 
 ---
 
