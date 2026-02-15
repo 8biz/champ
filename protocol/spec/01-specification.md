@@ -233,11 +233,9 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 ## Timeline Specification 📜
 
 - The timeline reflects the sequence of bout events and is updated in real-time.
-- The **cursor** indicates the current position in the timeline for recording new events or making corrections.
 - The timeline supports several entry types:
   - **Bout events**: points, passivity, cautions (e.g., 1R, 2B, PR, 0B1R, etc.) along with their bout time.
   - **Period end**: Is automatically inserted, when a period ends. It shows the scores of red and blue at the end of the period and is visually distinct from bout events.
-
 
 ---
 
