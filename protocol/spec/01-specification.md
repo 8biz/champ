@@ -234,8 +234,13 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 
 - The timeline reflects the sequence of bout events and is updated in real-time.
 - The timeline supports several entry types:
-  - **Bout events**: points, passivity, cautions (e.g., 1R, 2B, PR, 0B1R, etc.) along with their bout time.
-  - **Period end**: Is automatically inserted, when a period ends. It shows the scores of red and blue at the end of the period and is visually distinct from bout events.
+  - **Bout event entry**: Shows bout event type (points, passivity, cautions) along with the bout time when recorded.
+  - **Bout event insert entry**: Shows an empty bout event entry, visually distinct from bout event entries, colored neutrally. On inputting an event type, it becomes a normal bout event entry.
+  - **Period end entry**: Is automatically inserted, when a period ends. It shows the scores of red and blue at the end of the period and is visually distinct from bout events entries.
+- The **Next event entry** is a special entry in Normal mode at the end of the timeline that indicates where the next event will be recorded. It is visually the same as a bout event insert entry.
+- The **cursor** highlights the entry at the current position in the timeline.
+  - In Normal mode, this is always the Next event entry.
+  - In Correction mode, this is the historical event entry that is being corrected.
 
 ---
 
@@ -288,8 +293,7 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 |---|---|---|
 | — | `Enter` | Confirm corrections and enter **Normal mode**. Key sequence buffer is ignored and cleared. |
 | — | `Escape` | If key sequence buffer is empty, cancels corrections and enter **Normal mode**. Otherwise, clears key sequence buffer. |
-| `EventModified` | `Left arrow` | Move cursor left (stay in **Correction mode**) |
-| `EventModified` | `Right arrow` | Move cursor right (stay in **Correction mode**) |
+| — | `Left arrow` / `Right arrow` | Move cursor left or right (stay in **Correction mode**) |
 | `EventModified` | `R` | Change color of current event to Red (keeps points/passivity/caution type; e.g., `1R` becomes `1B`, `0B1R` becomes `0R1B`) |
 | `EventModified` | `B` | Change color of current event to Blue (keeps points/passivity/caution type) |
 | `EventModified` | `1` | Change current event to 1 point (keeps color; cautions become points; e.g., `4R` becomes `1R`, `0R2B` becomes `R1`) |
@@ -300,16 +304,75 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 | `EventModified` | `0` + `1` | Change to caution +1 (keeps color; points/passivity become cautions; e.g., `2R` becomes `0R1B`) |
 | `EventModified` | `0` + `2` | Change to caution +2 (keeps color; points/passivity become cautions; e.g., `1B` becomes `0B2R`) |
 | `EventDeleted` | `Delete` | Remove current event |
-| `EventInserted` | `Insert` + (event key sequence for a bout event) | Insert a new event prior to the current event |
-| `EventSwapped` | `#` | Enter **Event swap mode** (use `Left arrow`/`Right arrow` to swap with adjacent events; `Enter` confirms, `Escape` cancels) |
+| `EventInserted` | `Insert` + (event key sequence for a bout event) | Insert a new event prior to the current event by showing a bout event insert entry. |
+| `EventSwapped` | `#` | Enter **Event swap mode** (use `Left arrow`/`Right arrow` to select the event to swap with; `Enter` confirms swapping, `Escape` cancels) |
 | `T_Modified` / `T_IR_Modified` / `T_IB_Modified` / `T_BR_Modified` / `T_BB_Modified` | `T` | Enter **Time modification mode** (enter new time in M:SS format; `Enter` confirms, `Escape` cancels) |
 
 ---
 
 ## Mouse & Touch Input Specification🖱️📱
 
-Buttons for common actions (start/stop time, award points, passivity, cautions, start/stop injury times) are be provided.
-Clicking a slot in the timeline moves the cursor to that slot (entering _Correction mode_). 
+### General rules
+- All button interactions map to corresponding events defined in the **Event Specification**.
+- Buttons trigger events with a single click (desktop) or tap (mobile).
+- Clicking/tapping a timeline entry moves the cursor to that entry and enters **Correction mode** in **Modify event mode**.
+- Long-pressing (touch) or right-clicking (desktop) a timeline entry shows a context menu with options to delete, insert, or swap events, and enters **Correction mode** in **Sequence correction mode**.
+
+### Button controls for scoresheet preparation
+| `eventType` | Button / Control | Action |
+|---|---|---|
+| `ScoresheetReleased` | **Release-Complete** button | Release scoresheet for recording, if not released |
+| `ScoresheetCompleted` | **Release-Complete** button | Complete bout, if scoresheet is recording |
+| `ScoresheetReleased` | **Release-Complete** button | Re-release scoresheet after completion for correction mode |
+| `BoutInfoUpdated` | **Edit Bout Info** button | Edit bout info (enter **Edit text mode**) |
+| `RedInfoUpdated` | **Edit Red Info** button | Edit Red wrestler info (enter **Edit text mode**) |
+| `BlueInfoUpdated` | **Edit Blue Info** button | Edit Blue wrestler info (enter **Edit text mode**) |
+
+### Button controls in Normal mode
+| `eventType` | Button / Control | Action |
+|---|---|---|
+| `T_Started` / `T_Stopped` | Click/tap bout time field | Start/stop period time |
+| `1R` | **1R** button | Award 1 point to Red |
+| `2R` | **2R** button | Award 2 points to Red |
+| `4R` | **4R** button | Award 4 points to Red |
+| `5R` | **5R** button | Award 5 points to Red |
+| `1B` | **1B** button | Award 1 point to Blue |
+| `2B` | **2B** button | Award 2 points to Blue |
+| `4B` | **4B** button | Award 4 points to Blue |
+| `5B` | **5B** button | Award 5 points to Blue |
+| `PR` | **PR** button | Red passivity |
+| `PB` | **PB** button | Blue passivity |
+| `0R1B` | **0R1B** button | Red caution, Blue +1 |
+| `0R2B` | **0R2B** button | Red caution, Blue +2 |
+| `0B1R` | **0B1R** button | Blue caution, Red +1 |
+| `0B2R` | **0B2R** button | Blue caution, Red +2 |
+| `T_IR_Started` / `T_IR_Stopped` | Click/tap time field | Start/stop Red injury time (without blood) |
+| `T_BR_Started` / `T_BR_Stopped` | Click/tap time field | Start/stop Red blood time |
+| `T_IB_Started` / `T_IB_Stopped` | Click/tap time field | Start/stop Blue injury time (without blood) |
+| `T_BB_Started` / `T_BB_Stopped` | Click/tap time field | Start/stop Blue blood time |
+| — | Click/tap timeline entry | Move cursor to that entry for modification (enter **Correction mode** in **Modify event mode**) |
+| — | Long-press timeline entry | Show context menu for that entry with options to delete, insert, or swap events (enter **Correction mode** in **Sequence correction mode**) | 
+
+### Button controls in Correction mode
+| `eventType` | Button / Control | Action |
+|---|---|---|
+| — | **Confirm** button | Confirm corrections and enter **Normal mode** |
+| — | **Cancel** button | Cancel corrections and enter **Normal mode** (enter Normal mode without saving changes) |
+| — | Click/tap timeline entry | Move cursor to that entry for modification (**Modify event mode**) |
+| — | Long-press/Right-click timeline entry | Show context menu for that entry with options to delete, insert, or swap events (**Sequence correction mode**) | 
+| `T_Modified` / `T_IR_Modified` / `T_IB_Modified` / `T_BR_Modified` / `T_BB_Modified` | Long-press/Right-click time field | Enter **Time modification mode** (enter new time via numeric input; **Confirm** to apply, **Cancel** to discard) |
+
+**Modify event mode**
+| `eventType` | Button / Control | Action |
+|---|---|---|
+| `EventModified` | Click any bout event button | Changes event type and color, e.g. click/tap on **2R** button changes any event to `2R` |
+
+**Sequence correction mode**
+| `eventType` | Button / Control | Action |
+|---|---|---|
+| `EventDeleted` | Click **Delete** button in context menu | Remove current event |
+| `EventInserted` | Click **Insert** button in context menu + (select bout event button) | Insert a new event prior to the current event by showing a bout event insert entry. |
+| `EventSwapped` | Click **Swap** button in context menu | Enter **Event swap mode** (use ◀/▶ buttons to swap with adjacent events; **Confirm** to apply, **Cancel** to discard) |
 
 ---
 
@@ -367,7 +430,7 @@ Recommendation: provide a JSON Schema (draft-07 or newer) and field defaults.
 
 ## Corrections & Audit 🔍
 - All corrections are events. Keep original event entries immutable in the event log and add an `EventChanged` or `EventDeleted` entry referencing the original `seq`.
-- Correction mode: cursor moves to slot, keyboard sequences update that slot (record an EventChanged). Enter confirms and moves cursor to timeline end. Esc cancels and returns the cursor to the end.
+- Correction mode: cursor moves to entry, keyboard sequences update that entry (record an EventChanged). Enter confirms and moves cursor to timeline end. Esc cancels and returns the cursor to the end.
 
 ---
 
