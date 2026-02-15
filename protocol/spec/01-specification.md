@@ -163,7 +163,7 @@ The user can
 
 When the user want to modify the period time, one of the injury times or the bout time of an historical event, then
   - a modal pop-up appears near to the time field which is modified. The user can enter a new time in M:SS format (for period time 100ms are set to 0).
-  - On confirmation, the corresponding `_Edited` event is recorded.
+  - On confirmation, the corresponding `_Modified` event is recorded.
   - On cancellation, no event is recorded.
 
 ---
@@ -225,8 +225,8 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 | `EventSwapped` | Two events swapped in correction mode; additional field `refSeq1` keeps the `seq` of the first event; additional field `refSeq2` keeps the `seq` of the second event |
 | `EventDeleted` | Event deleted in correction mode; additional field `refSeq` keeps the `seq` of the deleted event |
 | `EventInserted` | Event inserted in correction mode; additional field `boutTime100ms` keeps bout time of the event before which it was inserted; additional field `refSeq` keeps the `seq` of the event before which it was inserted; additional field `insertedEventType` keeps the `eventType` of the inserted event |
-| `T_Edited` | Bout time manually edited; `boutTime100ms` keeps bout time before edit. Additional field `newTime` keeps new bout time |
-| `T_IR_Edited`, `T_IB_Edited`, `T_BR_Edited`, `T_BB_Edited` | Injury/Blood time manually edited; `boutTime100ms` keeps bout time before edit. Additional field `newTime` keeps new bout time |
+| `T_Modified` | Bout time manually edited; `boutTime100ms` keeps bout time before edit. Additional field `newTime` keeps new bout time |
+| `T_IR_Modified`, `T_IB_Modified`, `T_BR_Modified`, `T_BB_Modified` | Injury/Blood time manually edited; `boutTime100ms` keeps bout time before edit. Additional field `newTime` keeps new bout time |
 
 ---
 
@@ -249,49 +249,49 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
   - Keys are case-insensitive.
 
 ### Key sequences in Normal mode
-| Key Sequence | Action |
-|---|---|
-| Space | Start/stop period time |
-| R + 1 | Award 1 point to Red (1R) |
-| R + 2 | Award 2 points to Red (2R) |
-| R + 4 | Award 4 points to Red (4R) |
-| R + 5 | Award 5 points to Red (5R) |
-| B + 1 | Award 1 point to Blue (1B) |
-| B + 2 | Award 2 points to Blue (2B) |
-| B + 4 | Award 4 points to Blue (4B) |
-| B + 5 | Award 5 points to Blue (5B) |
-| R + P | Red passivity (PR) |
-| B + P | Blue passivity (PB) |
-| R + 0 + 1 | Red caution, Blue +1 (0R1B) |
-| R + 0 + 2 | Red caution, Blue +2 (0R2B) |
-| B + 0 + 1 | Blue caution, Red +1 (0B1R) |
-| B + 0 + 2 | Blue caution, Red +2 (0B2R) |
-| R + + | Start/stop Red injury time without blood |
-| R + * | Start/stop Red blood time |
-| B + + | Start/stop Blue injury time without blood |
-| B + * | Start/stop Blue blood time |
-| Left arrow | Move cursor left (enter Correction mode) |
+| `eventType` | Key Sequence | Action |
+|---|---|---|
+| `T_Started` / `T_Stopped` | Space | Start/stop period time |
+| `1R` | R + 1 | Award 1 point to Red (1R) |
+| `2R` | R + 2 | Award 2 points to Red (2R) |
+| `4R` | R + 4 | Award 4 points to Red (4R) |
+| `5R` | R + 5 | Award 5 points to Red (5R) |
+| `1B` | B + 1 | Award 1 point to Blue (1B) |
+| `2B` | B + 2 | Award 2 points to Blue (2B) |
+| `4B` | B + 4 | Award 4 points to Blue (4B) |
+| `5B` | B + 5 | Award 5 points to Blue (5B) |
+| `PR` | R + P | Red passivity (PR) |
+| `PB` | B + P | Blue passivity (PB) |
+| `0R1B` | R + 0 + 1 | Red caution, Blue +1 (0R1B) |
+| `0R2B` | R + 0 + 2 | Red caution, Blue +2 (0R2B) |
+| `0B1R` | B + 0 + 1 | Blue caution, Red +1 (0B1R) |
+| `0B2R` | B + 0 + 2 | Blue caution, Red +2 (0B2R) |
+| `T_IR_Started` / `T_IR_Stopped` | R + , | Start/stop Red injury time |
+| `T_BR_Started` / `T_BR_Stopped` | R + . | Start/stop Red blood time |
+| `T_IB_Started` / `T_IB_Stopped` | B + , | Start/stop Blue injury time |
+| `T_BB_Started` / `T_BB_Stopped` | B + . | Start/stop Blue blood time |
+| — | Left arrow | Move cursor left (enter Correction mode) |
 
 
 ### Key sequences in Correction mode
-| Key Sequence | Action |
-|---|---|
-| Enter | Confirm correction on current slot, move cursor to timeline end (enter _Normal mode_) |
-| Left arrow | Confirm correction on current slot, move cursor left (stay in _Correction mode_) |
-| Right arrow | Confirm correction on current slot, move cursor right (stay in _Correction mode_) |
-| Escape | Reset current slot if corrections were made (stay on current slot, stay in _Correction mode_); if no corrections made, move cursor to timeline end (enter _Normal mode_) |
-| R | Change color to Red (keeps points/passivity/caution type; e.g., B0R1 becomes R0B1) |
-| B | Change color to Blue (keeps points/passivity/caution type; e.g., R0B1 becomes B0R1) |
-| 1 | Change to 1 point (keeps color; cautions become points; e.g., R0B2 becomes R1) |
-| 2 | Change to 2 points (keeps color; cautions become points) |
-| 4 | Change to 4 points (keeps color; cautions become points) |
-| 5 | Change to 5 points (keeps color; cautions become points) |
-| P | Change to passivity (keeps color; cautions become passivity) |
-| 0 + 1 | Change to caution +1 (keeps color; points/passivity become cautions; e.g., R2 becomes R0B1) |
-| 0 + 2 | Change to caution +2 (keeps color; points/passivity become cautions; e.g., R2 becomes R0B2, R0B1 becomes R0B2) |
-| Delete | Remove current event (record EventDeleted), move cursor to next slot (stay in _Correction mode_) |
-| # | Enter _Move mode_ (use Left/Right arrows to swap with adjacent events; Enter confirms, Escape cancels) |
-| T | Enter _Time modification mode_ (enter new time in M:SS format; Enter confirms, Escape cancels) |
+| `eventType` | Key Sequence | Action |
+|---|---|---|
+| `EventModified` | Enter | Confirm correction on current slot, move cursor to timeline end (enter _Normal mode_) |
+| `EventModified` | Left arrow | Confirm correction on current slot, move cursor left (stay in _Correction mode_) |
+| `EventModified` | Right arrow | Confirm correction on current slot, move cursor right (stay in _Correction mode_) |
+| — | Escape | Reset current slot if corrections were made (stay on current slot, stay in _Correction mode_); if no corrections made, move cursor to timeline end (enter _Normal mode_) |
+| `EventModified` | R | Change color to Red (keeps points/passivity/caution type; e.g., B0R1 becomes R0B1) |
+| `EventModified` | B | Change color to Blue (keeps points/passivity/caution type; e.g., R0B1 becomes B0R1) |
+| `EventModified` | 1 | Change to 1 point (keeps color; cautions become points; e.g., R0B2 becomes R1) |
+| `EventModified` | 2 | Change to 2 points (keeps color; cautions become points) |
+| `EventModified` | 4 | Change to 4 points (keeps color; cautions become points) |
+| `EventModified` | 5 | Change to 5 points (keeps color; cautions become points) |
+| `EventModified` | P | Change to passivity (keeps color; cautions become passivity) |
+| `EventModified` | 0 + 1 | Change to caution +1 (keeps color; points/passivity become cautions; e.g., R2 becomes R0B1) |
+| `EventModified` | 0 + 2 | Change to caution +2 (keeps color; points/passivity become cautions; e.g., R2 becomes R0B2, R0B1 becomes R0B2) |
+| `EventDeleted` | Delete | Remove current event (record EventDeleted), move cursor to next slot (stay in _Correction mode_) |
+| `EventSwapped` | # | Enter _Move mode_ (use Left/Right arrows to swap with adjacent events; Enter confirms, Escape cancels) |
+| `T_Modified` / `T_IR_Modified` / `T_IB_Modified` / `T_BR_Modified` / `T_BB_Modified` | T | Enter _Time modification mode_ (enter new time in M:SS format; Enter confirms, Escape cancels) |
 
 ### Notes
 - '+' and '*' must be accepted from main keyboard and numpad. Digit keys accept main and numpad digits.
