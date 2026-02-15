@@ -240,47 +240,60 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 ---
 
 ## Keyboard Input Specification ⌨️✨
-General rules:
+
+### General rules
 - Input is processed by a **sequence buffer** (array of keys).
   - No timeout.
   - Escape clears the buffer.
   - Invalid keys are ignored and do not mutate the buffer.
   - Keys are case-insensitive.
-- Supports following modes:
-  - **Normal mode**: recording at timeline end
-  - **Correction mode**: cursor on historical slot.
-  - **Time modification mode**: entering a new time for an historical slot. Sub-mode of Correction mode.
-  - **Sequence correction mode**: Adding, deleting or moving an event in the timeline. Sub-mode of Correction mode.
-- Some keys (Space, Esc, Delete) are global.
 
-### Key sequences in _Normal mode_
-- Space: start/stop period time
-- R + 1 | 2 | 4 | 5  => R1, R2, R4, R5 (Red points)
-- B + 1 | 2 | 4 | 5 => B1, B2, B4, B5 (Blue points)
-- R + P => RP (Red passivity); B + P => BP
-- R + 0 + 1 => R0B1 (Red caution, Blue +1)
-- R + 0 + 2 => R0B2 (Red caution, Blue +2)
-- B + 0 + 1 => B0R1; B + 0 + 2 => B0R2
-- R + + => R+ (start/stop injury without blood); R + * => R* (with blood). Same for B
-- Left arrow key: move cursor left (enter _Correction mode_)
+### Key sequences in Normal mode
+| Key Sequence | Action |
+|---|---|
+| Space | Start/stop period time |
+| R + 1 | Award 1 point to Red (1R) |
+| R + 2 | Award 2 points to Red (2R) |
+| R + 4 | Award 4 points to Red (4R) |
+| R + 5 | Award 5 points to Red (5R) |
+| B + 1 | Award 1 point to Blue (1B) |
+| B + 2 | Award 2 points to Blue (2B) |
+| B + 4 | Award 4 points to Blue (4B) |
+| B + 5 | Award 5 points to Blue (5B) |
+| R + P | Red passivity (PR) |
+| B + P | Blue passivity (PB) |
+| R + 0 + 1 | Red caution, Blue +1 (0R1B) |
+| R + 0 + 2 | Red caution, Blue +2 (0R2B) |
+| B + 0 + 1 | Blue caution, Red +1 (0B1R) |
+| B + 0 + 2 | Blue caution, Red +2 (0B2R) |
+| R + + | Start/stop Red injury time without blood |
+| R + * | Start/stop Red blood time |
+| B + + | Start/stop Blue injury time without blood |
+| B + * | Start/stop Blue blood time |
+| Left arrow | Move cursor left (enter Correction mode) |
 
-### Key sequences in _Correction mode_
-- Enter confirms correction on the current slot and moves cursor to timeline end (enter _Normal mode_).
-- Left/Right arrow keys confirms correction on the current slot and moves cursor left/right (stay in _Correction mode_).
-- Escape resets current slot if corrections were made. Stays on current slot and stays in _Correction mode_.
-- Escape moves cursor to timeline end and enters _Normal mode_ if no corrections were made on the current slot.
-- R | B changes the color of the current event, but not points, passivity or caution. A caution, for example B0R1, becomes R0B1.
-- 1 | 2 | 4 | 5 | P changes the points or passivity of the current event, but not the color. Cautions become points or passivity (e.g. R0B2 becomes R1 when 1 is pressed).
-- 0 + 1 | 0 + 2 changes to a caution, but not the color. Points or passivity become cautions (e.g. R2 becomes R0B2 if 02 is entered, R0B2 becomes R0B1 if 01 is entered).
-- Delete key removes the current event (recording an EventDeleted) and moves cursor to next slot in timeline (stays in _Correction mode_).
-- \# key enters _Move mode_:
-  - Left/Right arrows move the current event to the previous/next slot (swapping with that event). This allows changing the order of events. Enter confirms and returns to _Correction mode_. Escape cancels and returns to _Correction mode_ without changes. 
-- T enters the _Time modification mode_:
-  - The user can enter a new time in M:SS format (e.g. 1:30). The buffer accepts digits and colon.
-  - On Enter, the boutTimeSeconds of the current slot is updated to the new value (converted to seconds). Returns back to _Correction mode_
-  - Escape cancels time correction and returns back to _Correction mode_.
 
-Notes:
+### Key sequences in Correction mode
+| Key Sequence | Action |
+|---|---|
+| Enter | Confirm correction on current slot, move cursor to timeline end (enter _Normal mode_) |
+| Left arrow | Confirm correction on current slot, move cursor left (stay in _Correction mode_) |
+| Right arrow | Confirm correction on current slot, move cursor right (stay in _Correction mode_) |
+| Escape | Reset current slot if corrections were made (stay on current slot, stay in _Correction mode_); if no corrections made, move cursor to timeline end (enter _Normal mode_) |
+| R | Change color to Red (keeps points/passivity/caution type; e.g., B0R1 becomes R0B1) |
+| B | Change color to Blue (keeps points/passivity/caution type; e.g., R0B1 becomes B0R1) |
+| 1 | Change to 1 point (keeps color; cautions become points; e.g., R0B2 becomes R1) |
+| 2 | Change to 2 points (keeps color; cautions become points) |
+| 4 | Change to 4 points (keeps color; cautions become points) |
+| 5 | Change to 5 points (keeps color; cautions become points) |
+| P | Change to passivity (keeps color; cautions become passivity) |
+| 0 + 1 | Change to caution +1 (keeps color; points/passivity become cautions; e.g., R2 becomes R0B1) |
+| 0 + 2 | Change to caution +2 (keeps color; points/passivity become cautions; e.g., R2 becomes R0B2, R0B1 becomes R0B2) |
+| Delete | Remove current event (record EventDeleted), move cursor to next slot (stay in _Correction mode_) |
+| # | Enter _Move mode_ (use Left/Right arrows to swap with adjacent events; Enter confirms, Escape cancels) |
+| T | Enter _Time modification mode_ (enter new time in M:SS format; Enter confirms, Escape cancels) |
+
+### Notes
 - '+' and '*' must be accepted from main keyboard and numpad. Digit keys accept main and numpad digits.
 - Backspace acts as same as Left-Arrow.
 - After a complete sequence executes, the buffer is cleared.
