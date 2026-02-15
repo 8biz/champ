@@ -131,10 +131,10 @@ Recording events when cursor is at timeline end.
 
 ### Correction mode
 
-Correcting events when cursor is on a historical event.
+Correcting events when cursor is on a historical event. Corrections are stored in separate buffer and only recorded in the event log when the user confirms the corrections. This allows the user to make multiple corrections and confirm them all at once. 
 
-- Only on confirmation, the corresponding correction events are recorded in the event log. This allows the user to make multiple corrections and confirm them all at once. Then Normal mode is entered. The cursor moves to the timeline end.
-- On cancellation of correction, the event log remains unchanged. Normal mode is entered. The cursor moves to the timeline end.
+- On confirmation, the correction buffer is recorded in the event log. The correction buffer is then cleared. Normal mode is entered.
+- On cancellation, the event log remains unchanged. The correction buffer is cleared. Normal mode is entered.
 
 The user can
 - modify type of bout event (see Event Specification) inputting an other bout event type. Then a `EventModified` event with additional field `newEventType` is recorded. 
@@ -249,6 +249,16 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 - Invalid keys are ignored and do not mutate the buffer.
 - Keys are case-insensitive.
 
+### Key sequences for scoresheet preparation
+| `eventType` | Key Sequence | Action |
+|---|---|---|
+| `ScoresheetReleased` | `F4` | Release scoresheet for recording, if not released; Re-release scoresheet if completed |
+| `ScoresheetCompleted` | `F4` | Complete bout, if scoresheet is recording |
+| `BoutInfoUpdated` | `F5` | Edit bout info (enter **Edit text mode**) |
+| `RedInfoUpdated` | `F6` | Edit Red wrestler info (enter **Edit text mode**) |
+| `BlueInfoUpdated` | `F7` | Edit Blue wrestler info (enter **Edit text mode**) |
+
+
 ### Key sequences in Normal mode
 | `eventType` | Key Sequence | Action |
 |---|---|---|
@@ -276,22 +286,23 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 ### Key sequences in Correction mode
 | `eventType` | Key Sequence | Action |
 |---|---|---|
-| `EventModified` | `Enter` | Confirm correction on current slot, move cursor to timeline end (enter _Normal mode_) |
-| `EventModified` | `Left arrow` | Confirm correction on current slot, move cursor left (stay in _Correction mode_) |
-| `EventModified` | `Right arrow` | Confirm correction on current slot, move cursor right (stay in _Correction mode_) |
-| — | `Escape` | Reset current slot if corrections were made (stay on current slot, stay in _Correction mode_); if no corrections made, move cursor to timeline end (enter _Normal mode_) |
-| `EventModified` | `R` | Change color to Red (keeps points/passivity/caution type; e.g., B0R1 becomes R0B1) |
-| `EventModified` | `B` | Change color to Blue (keeps points/passivity/caution type; e.g., R0B1 becomes B0R1) |
-| `EventModified` | `1` | Change to 1 point (keeps color; cautions become points; e.g., R0B2 becomes R1) |
-| `EventModified` | `2` | Change to 2 points (keeps color; cautions become points) |
-| `EventModified` | `4` | Change to 4 points (keeps color; cautions become points) |
-| `EventModified` | `5` | Change to 5 points (keeps color; cautions become points) |
-| `EventModified` | `P` | Change to passivity (keeps color; cautions become passivity) |
-| `EventModified` | `0` + `1` | Change to caution +1 (keeps color; points/passivity become cautions; e.g., R2 becomes R0B1) |
-| `EventModified` | `0` + `2` | Change to caution +2 (keeps color; points/passivity become cautions; e.g., R2 becomes R0B2, R0B1 becomes R0B2) |
-| `EventDeleted` | `Delete` | Remove current event (record EventDeleted), move cursor to next slot (stay in _Correction mode_) |
-| `EventSwapped` | `#` | Enter _Move mode_ (use `Left arrow`/`Right arrow` to swap with adjacent events; `Enter` confirms, `Escape` cancels) |
-| `T_Modified` / `T_IR_Modified` / `T_IB_Modified` / `T_BR_Modified` / `T_BB_Modified` | `T` | Enter _Time modification mode_ (enter new time in M:SS format; `Enter` confirms, `Escape` cancels) |
+| — | `Enter` | Confirm corrections and enter **Normal mode**. Key sequence buffer is ignored and cleared. |
+| — | `Escape` | If key sequence buffer is empty, cancels corrections and enter **Normal mode**. Otherwise, clears key sequence buffer. |
+| `EventModified` | `Left arrow` | Move cursor left (stay in **Correction mode**) |
+| `EventModified` | `Right arrow` | Move cursor right (stay in **Correction mode**) |
+| `EventModified` | `R` | Change color of current event to Red (keeps points/passivity/caution type; e.g., `1R` becomes `1B`, `0B1R` becomes `0R1B`) |
+| `EventModified` | `B` | Change color of current event to Blue (keeps points/passivity/caution type) |
+| `EventModified` | `1` | Change current event to 1 point (keeps color; cautions become points; e.g., `4R` becomes `1R`, `0R2B` becomes `R1`) |
+| `EventModified` | `2` | Change current event to 2 points (keeps color) |
+| `EventModified` | `4` | Change current event to 4 points (keeps color) |
+| `EventModified` | `5` | Change current event to 5 points (keeps color) |
+| `EventModified` | `P` | Change to passivity (keeps color) |
+| `EventModified` | `0` + `1` | Change to caution +1 (keeps color; points/passivity become cautions; e.g., `2R` becomes `0R1B`) |
+| `EventModified` | `0` + `2` | Change to caution +2 (keeps color; points/passivity become cautions; e.g., `1B` becomes `0B2R`) |
+| `EventDeleted` | `Delete` | Remove current event |
+| `EventInserted` | `Insert` + (event key sequence for a bout event) | Insert a new event prior to the current event |
+| `EventSwapped` | `#` | Enter **Event swap mode** (use `Left arrow`/`Right arrow` to swap with adjacent events; `Enter` confirms, `Escape` cancels) |
+| `T_Modified` / `T_IR_Modified` / `T_IB_Modified` / `T_BR_Modified` / `T_BB_Modified` | `T` | Enter **Time modification mode** (enter new time in M:SS format; `Enter` confirms, `Escape` cancels) |
 
 ---
 
