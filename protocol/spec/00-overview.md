@@ -83,5 +83,5 @@ It shall be able to use the tool worldwide. Therefore, all text in the UI should
 ## Further readings 📖
 - [common specification document](01-specification.md).
 - [UI specification document](02-ui-specification.md).
-- [JSON ruleset format document](03-json-ruleset-format.md).
-- [JSON export format document](04-json-export-format.md).
+
+---
