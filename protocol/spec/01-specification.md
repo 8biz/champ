@@ -190,6 +190,7 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 - The **cursor** highlights the entry at the current position in the timeline.
   - In Normal mode, this is always the Next event entry.
   - In Correction mode, this is the historical event entry that is being corrected.
+  - The cursor skips the period end entries, as they cannot be corrected.
 
 ---
 
