@@ -5,7 +5,6 @@ The CHAMP protocol is a tool for live recording of wrestling matches in the form
 ---
 
 ## Key features of the CHAMP Protocol:
-
 - **Live recording of wrestling matches**: Record all events and corrections during a bout with timestamps in the event log for accurate tracking
 - **JSON export of the complete event log**: Export the recorded events in a structured JSON format for archiving, further processing, or analysis.
 - **Offline-capable HTML5 application**: The tool is designed as a single HTML file that can be used on both desktop and mobile devices without the need for installation.
@@ -28,7 +27,6 @@ It shall be able to use the tool worldwide. Therefore, all text in the UI should
 ---
 
 ## Terminology 📚
-
 | Term | Definition |
 |---|---|
 | **Scoresheet** | The overall HTML file that contains all bout information, timeline, and controls. |
@@ -65,7 +63,6 @@ It shall be able to use the tool worldwide. Therefore, all text in the UI should
 ---
 
 ## Implementation constraints 📌
-
 - Single HTML file, no backend, offline-first, minimal dependencies.
 - No reloading of images. Use inline SVG or base64-encoded images.
 - Use modern web APIs and standards for best performance and compatibility.
@@ -84,7 +81,6 @@ It shall be able to use the tool worldwide. Therefore, all text in the UI should
 ---
 
 ## Further readings 📖
-
 - [common specification document](01-specification.md).
 - [UI specification document](02-ui-specification.md).
 - [JSON ruleset format document](03-json-ruleset-format.md).

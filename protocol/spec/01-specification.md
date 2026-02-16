@@ -195,57 +195,16 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 
 ## Ruleset specification ⚙️
 
-A ruleset JSON defines time and scoring parameters. Key fields:
-- `name` (string), `periodsInSeconds` (array of integers), `boutTimeCountingDirection` ("Up" | "Down"), `breakSeconds`, `injuryTimeWithoutBloodSeconds`, `injuryTimeWithBloodSeconds`, `points` (array of allowed scoring increments), `maxPointDifferenceForVSU` (integer), `styles` (object), `victoryConditions` (array)
-
-Example (valid JSON snippet):
-```
-{
-  "name": "Active 2026",
-  "periodsInSeconds": [180, 180],
-  "boutTimeCountingDirection": "Down",
-  "breakSeconds": 30,
-  "injuryTimeWithoutBloodSeconds": 120,
-  "injuryTimeWithBloodSeconds": 240,
-  "points": [1,2,4],
-  "maxPointDifferenceForVSU": 15
-}
-```
-
-Recommendation: provide a JSON Schema (draft-07 or newer) and field defaults.
+| field | type | description |
+| --- | --- | --- |
+| `name` | string | Human-readable ruleset name. |
+| `periodTimesInSeconds` | array of integers | Durations of each period in seconds (e.g., `[180, 180]`). |
+| `periodTimeCountingDirection` | `Up` \| `Down` | Direction the period clock counts. |
+| `periodBreakTimeSeconds` | integer | Break duration between periods, in seconds. |
+| `injuryTimeWithoutBloodSeconds` | integer | Allowed injury stoppage without blood, in seconds. |
+| `injuryTimeWithBloodSeconds` | integer | Allowed injury stoppage with blood, in seconds. |
+| `points` | array of integers | Allowed scoring increments (e.g., `[1,2,4,5]`). |
+| `maxPointDifferenceForVSU` | integer | Point difference threshold for Victory by Superiority (VSU). |
+| `victoryConditions` | array | List of victory condition objects or identifiers (e.g., VFA - Victory by Fall, VSU, ...). |
 
 ---
-
-
-## Corrections & Audit 🔍
-- All corrections are events. Keep original event entries immutable in the event log and add an `EventChanged` or `EventDeleted` entry referencing the original `seq`.
-- Correction mode: cursor moves to entry, keyboard sequences update that entry (record an EventChanged). Enter confirms and moves cursor to timeline end. Esc cancels and returns the cursor to the end.
-
----
-
-## Validation, Accessibility & Internationalization ♿🌍
-- Validate rulesets and exports against JSON Schema.
-- Accessibility: keyboard-first design, ARIA labels, high-contrast color variants and focus-visible styles.
-- Internationalization: avoid hard-coded key labels in UI; support key remapping and local keyboard layouts (handle numpad and localized keys).
-
----
-
-## Minimal Implementation Checklist (developer-oriented) ✅
-- [ ] JSON Schemas for ruleset and export
-- [ ] Keyboard FSM for sequence buffer + unit tests
-- [ ] Event log (in-memory) + localStorage autosave + manual export
-- [ ] UI: timeline, header form, event buttons, responsive layout for touch
-- [ ] Accessibility and keyboard remapping UI
-- [ ] Optional: auto-detect victory conditions toggle
-
----
-
-## Recommendations / Next Steps 💡
-1. Add the JSON Schema files: `ruleset.schema.json`, `export.schema.json` (I can generate these for you).
-2. Implement the keyboard FSM and unit tests (I can provide FSM pseudocode or a TypeScript module).
-3. Add small demo fixtures and Playwright tests for core flows (start/stop time, record points, caution, correction, export).
-
----
-
-If you want, I can now: **A)** generate the JSON Schema files, or **B)** produce the keyboard FSM implementation (TypeScript + tests). Which do you prefer? 
-
