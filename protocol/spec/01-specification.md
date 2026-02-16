@@ -1,65 +1,15 @@
-# CHAMP Protocol — Specification (concise)
+# CHAMP Protocol — Specification
 
-
-## Overview ✅
-CHAMP Protocol is a single-file, offline-capable HTML5 tool to record wrestling bouts. It is optimized for quick keyboard entry, touch/mouse input, and produces a complete event-sourced JSON export for replay, analysis, and archival.
-
-- **Purpose:** Create a digital scoresheet that records all bout events (points, passivity, cautions, injury times, time control) and exports both presentation and authoritative event logs as JSON.
-- **Primary users:** People that have knowledge of wrestling rules and scoring. They are not necessarily tech-savvy, so the tool must be intuitive and require minimal training. The target use case is recording live bouts in competitions, where speed and accuracy are essential.
-- **Internationalization:** At first the tool appears in **German**. But the tool shall be able to be used worldwide. Therefore, all text in the UI should be easily translatable and support internationalization. Keyboard shortcuts should be designed to work across different keyboard layouts.
-- **Implementation constraints:** Single HTML file, no backend, offline-first, minimal dependencies. No images, if needed use inline SVG or base64-encoded images. Use modern web APIs and standards for best performance and compatibility.
-- The specification and implementation language is English.
-
-This document describes
-- overview and goals of the CHAMP Protocol
-  - terminology
-  - high-level workflow
-  - structure of the scoresheet
-- Preparing the scoresheet
-- Recording events in Normal mode and in Correction mode
-- Completing the bout
+This document specifies the features provided by CHAMP Protocol.
+It covers
+- preparation of the scoresheet
+- recording of events to the event log
+- completion of the bout
 - event specification
 - timeline specification
-- the keyboard and mouse input specifications
-- ruleset format
-- JSON export format
+- ruleset specification
 
----
-
-### Terminology 📚
-
-| Term | Definition |
-|---|---|
-| **Scoresheet** | The overall HTML file that contains all bout information, timeline, and controls. |
-| **Bout event** | An event that affects the score or state of the bout (e.g., awarding points, passivity, cautions). |
-| **Time control event** | An event that starts or stops a timer (e.g., period time, injury time). |
-| **Event log** | The chronological list of all events recorded during the bout, including corrections. |
-| **Timeline** | The visual representation of the bout events in chronological order, showing event types and times. |
-| **Cursor** | The current position in the timeline for recording new events or making corrections. |
-| **Period time** | The timer that counts the duration of the current period. |
-| **Bout time** | The timer that counts the total duration of the bout. Always counting up |
-| **Injury time** | The timer that counts the duration of an injury timeout. There are two types: without blood and with blood per wrestler. |
-
----
-
-### High-level Workflow 🔁
-1. User opens the HTML file in a browser (desktop or mobile). A **New scoresheet** is shown with names "Rot" and "Blau" for the wrestlers. It is ready to be released for recording.
-    - Optionally: **Prepare scoresheet:** User can do some settings before releasing the scoresheet for event recording.
-3. **Recording events:** User records events as they happen in the bout. The user can also make corrections to past events if needed.
-4. **Complete bout:** When time is over or victory condition is reached, user completes the bout by entering victory type and classification points. May be, user makes some corrections like bout or wrestler info if needed. If the bout is completed, the user can export JSON.
-
----
-
-### Structure of the scoresheet 📝
-- **Bout info**: free-form text field for bout info (e.g. competition, age group, weight class, ...).
-- **Wrestler red** and **Wrestler blue** sections, each containing:
-  - wrestler info: free-form text field for wrestler info (e.g. name, club, nation, ...).
-  - score: auto-calculated from events.
-  - injury times for both without and with blood.
-- **Release-Completion button**: button to release the scoresheet for recording and to complete the bout when finished.
-- **Period time**: shows current period time in "M:SS.f" format
-- **Event buttons red** and **Event buttons blue**: buttons for bout events (awarding points, passivity, cautions for each wrestler).
-- **Timeline**: chronological list of bout events with time.
+An overview of the CHAMP Protocol tool can be found in the [overview document](00-overview.md).
 
 ---
 
@@ -67,7 +17,6 @@ This document describes
 
 The **info fields** are enabled for user input while preparing the scoresheet.
 The **Release-Completion button** shows "Release" and is enabled. Once the user clicks "Release", these fields are locked and event recording can start.
-
 
 ### Info fields
 - Mandatory: User selects wrestling style **Freestyle** | **Greco-Roman**.
@@ -244,169 +193,8 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 
 ---
 
-## Keyboard Input Specification ⌨️✨
+## Ruleset specification ⚙️
 
-### General rules
-- Input is processed by a **sequence buffer** (array of keys) without timeout.
-- After a complete sequence executes, the buffer is cleared.
-- `Escape` clears the buffer.
-- Invalid continuation keys are ignored (e.g., after R0, only '1' or '2' are accepted; other keys are ignored).
-- Invalid keys are ignored and do not mutate the buffer.
-- Keys are case-insensitive.
-
-### Key sequences for scoresheet preparation
-| `eventType` | Key Sequence | Action |
-|---|---|---|
-| `ScoresheetReleased` | `F4` | Release scoresheet for recording, if not released; Re-release scoresheet if completed |
-| `ScoresheetCompleted` | `F4` | Complete bout, if scoresheet is recording |
-| `BoutInfoUpdated` | `F5` | Edit bout info (enter **Edit text mode**) |
-| `RedInfoUpdated` | `F6` | Edit Red wrestler info (enter **Edit text mode**) |
-| `BlueInfoUpdated` | `F7` | Edit Blue wrestler info (enter **Edit text mode**) |
-
-
-### Key sequences in Normal mode
-| `eventType` | Key Sequence | Action |
-|---|---|---|
-| `T_Started` / `T_Stopped` | `Space` | Start/stop period time |
-| `1R` | `R` + `1` / `1` + `R` | Award 1 point to Red (1R) |
-| `2R` | `R` + `2` / `2` + `R` | Award 2 points to Red (2R) |
-| `4R` | `R` + `4` / `4` + `R` | Award 4 points to Red (4R) |
-| `5R` | `R` + `5` / `5` + `R` | Award 5 points to Red (5R) |
-| `1B` | `B` + `1` / `1` + `B` | Award 1 point to Blue (1B) |
-| `2B` | `B` + `2` / `2` + `B` | Award 2 points to Blue (2B) |
-| `4B` | `B` + `4` / `4` + `B` | Award 4 points to Blue (4B) |
-| `5B` | `B` + `5` / `5` + `B` | Award 5 points to Blue (5B) |
-| `PR` | `R` + `P` / `P` + `R` | Red passivity (PR) |
-| `PB` | `B` + `P` / `P` + `B` | Blue passivity (PB) |
-| `0R1B` | `R` + `0` + `1` / `0` + `R` + `1` | Red caution, Blue +1 (0R1B) |
-| `0R2B` | `R` + `0` + `2` / `0` + `R` + `2` | Red caution, Blue +2 (0R2B) |
-| `0B1R` | `B` + `0` + `1` / `0` + `B` + `1` | Blue caution, Red +1 (0B1R) |
-| `0B2R` | `B` + `0` + `2` / `0` + `B` + `2` | Blue caution, Red +2 (0B2R) |
-| `T_IR_Started` / `T_IR_Stopped` | `R` + `,` / `,` + `R` | Start/stop Red injury time |
-| `T_BR_Started` / `T_BR_Stopped` | `R` + `.` / `.` + `R` | Start/stop Red blood time |
-| `T_IB_Started` / `T_IB_Stopped` | `B` + `,` / `,` + `B` | Start/stop Blue injury time |
-| `T_BB_Started` / `T_BB_Stopped` | `B` + `.` / `.` + `B` | Start/stop Blue blood time |
-| — | `Left arrow` or `Backspace` | Move cursor left (enter Correction mode) |
-
-### Key sequences in Correction mode
-| `eventType` | Key Sequence | Action |
-|---|---|---|
-| — | `Enter` | Confirm corrections and enter **Normal mode**. Key sequence buffer is ignored and cleared. |
-| — | `Escape` | If key sequence buffer is empty, cancels corrections and enter **Normal mode**. Otherwise, clears key sequence buffer. |
-| — | `Left arrow` / `Right arrow` | Move cursor left or right (stay in **Correction mode**) |
-| `EventModified` | `R` | Change color of current event to Red (keeps points/passivity/caution type; e.g., `1R` becomes `1B`, `0B1R` becomes `0R1B`) |
-| `EventModified` | `B` | Change color of current event to Blue (keeps points/passivity/caution type) |
-| `EventModified` | `1` | Change current event to 1 point (keeps color; cautions become points; e.g., `4R` becomes `1R`, `0R2B` becomes `R1`) |
-| `EventModified` | `2` | Change current event to 2 points (keeps color) |
-| `EventModified` | `4` | Change current event to 4 points (keeps color) |
-| `EventModified` | `5` | Change current event to 5 points (keeps color) |
-| `EventModified` | `P` | Change to passivity (keeps color) |
-| `EventModified` | `0` + `1` | Change to caution +1 (keeps color; points/passivity become cautions; e.g., `2R` becomes `0R1B`) |
-| `EventModified` | `0` + `2` | Change to caution +2 (keeps color; points/passivity become cautions; e.g., `1B` becomes `0B2R`) |
-| `EventDeleted` | `Delete` | Remove current event |
-| `EventInserted` | `Insert` + (event key sequence for a bout event) | Insert a new event prior to the current event by showing a bout event insert entry. |
-| `EventSwapped` | `#` | Enter **Event swap mode** (use `Left arrow`/`Right arrow` to select the event to swap with; `Enter` confirms swapping, `Escape` cancels) |
-| `T_Modified` / `T_IR_Modified` / `T_IB_Modified` / `T_BR_Modified` / `T_BB_Modified` | `T` | Enter **Time modification mode** (enter new time in M:SS format; `Enter` confirms, `Escape` cancels) |
-
----
-
-## Mouse & Touch Input Specification🖱️📱
-
-### General rules
-- All button interactions map to corresponding events defined in the **Event Specification**.
-- Buttons trigger events with a single click (desktop) or tap (mobile).
-- Clicking/tapping a timeline entry moves the cursor to that entry and enters **Correction mode** in **Modify event mode**.
-- Long-pressing (touch) or right-clicking (desktop) a timeline entry shows a context menu with options to delete, insert, or swap events, and enters **Correction mode** in **Sequence correction mode**.
-
-### Button controls for scoresheet preparation
-| `eventType` | Button / Control | Action |
-|---|---|---|
-| `ScoresheetReleased` | **Release-Complete** button | Release scoresheet for recording, if not released |
-| `ScoresheetCompleted` | **Release-Complete** button | Complete bout, if scoresheet is recording |
-| `ScoresheetReleased` | **Release-Complete** button | Re-release scoresheet after completion for correction mode |
-| `BoutInfoUpdated` | **Edit Bout Info** button | Edit bout info (enter **Edit text mode**) |
-| `RedInfoUpdated` | **Edit Red Info** button | Edit Red wrestler info (enter **Edit text mode**) |
-| `BlueInfoUpdated` | **Edit Blue Info** button | Edit Blue wrestler info (enter **Edit text mode**) |
-
-### Button controls in Normal mode
-| `eventType` | Button / Control | Action |
-|---|---|---|
-| `T_Started` / `T_Stopped` | Click/tap bout time field | Start/stop period time |
-| `1R` | **1R** button | Award 1 point to Red |
-| `2R` | **2R** button | Award 2 points to Red |
-| `4R` | **4R** button | Award 4 points to Red |
-| `5R` | **5R** button | Award 5 points to Red |
-| `1B` | **1B** button | Award 1 point to Blue |
-| `2B` | **2B** button | Award 2 points to Blue |
-| `4B` | **4B** button | Award 4 points to Blue |
-| `5B` | **5B** button | Award 5 points to Blue |
-| `PR` | **PR** button | Red passivity |
-| `PB` | **PB** button | Blue passivity |
-| `0R1B` | **0R1B** button | Red caution, Blue +1 |
-| `0R2B` | **0R2B** button | Red caution, Blue +2 |
-| `0B1R` | **0B1R** button | Blue caution, Red +1 |
-| `0B2R` | **0B2R** button | Blue caution, Red +2 |
-| `T_IR_Started` / `T_IR_Stopped` | Click/tap time field | Start/stop Red injury time (without blood) |
-| `T_BR_Started` / `T_BR_Stopped` | Click/tap time field | Start/stop Red blood time |
-| `T_IB_Started` / `T_IB_Stopped` | Click/tap time field | Start/stop Blue injury time (without blood) |
-| `T_BB_Started` / `T_BB_Stopped` | Click/tap time field | Start/stop Blue blood time |
-| — | Click/tap timeline entry | Move cursor to that entry for modification (enter **Correction mode** in **Modify event mode**) |
-| — | Long-press timeline entry | Show context menu for that entry with options to delete, insert, or swap events (enter **Correction mode** in **Sequence correction mode**) | 
-
-### Button controls in Correction mode
-| `eventType` | Button / Control | Action |
-|---|---|---|
-| — | **Confirm** button | Confirm corrections and enter **Normal mode** |
-| — | **Cancel** button | Cancel corrections and enter **Normal mode** (enter Normal mode without saving changes) |
-| — | Click/tap timeline entry | Move cursor to that entry for modification (**Modify event mode**) |
-| — | Long-press/Right-click timeline entry | Show context menu for that entry with options to delete, insert, or swap events (**Sequence correction mode**) | 
-| `T_Modified` / `T_IR_Modified` / `T_IB_Modified` / `T_BR_Modified` / `T_BB_Modified` | Long-press/Right-click time field | Enter **Time modification mode** (enter new time via numeric input; **Confirm** to apply, **Cancel** to discard) |
-
-**Modify event mode**
-| `eventType` | Button / Control | Action |
-|---|---|---|
-| `EventModified` | Click any bout event button | Changes event type and color, e.g. click/tap on **2R** button changes any event to `2R` |
-
-**Sequence correction mode**
-| `eventType` | Button / Control | Action |
-|---|---|---|
-| `EventDeleted` | Click **Delete** button in context menu | Remove current event |
-| `EventInserted` | Click **Insert** button in context menu + (select bout event button) | Insert a new event prior to the current event by showing a bout event insert entry. |
-| `EventSwapped` | Click **Swap** button in context menu | Enter **Event swap mode** (use ◀/▶ buttons to swap with adjacent events; **Confirm** to apply, **Cancel** to discard) |
-
----
-
-## JSON Ruleset Format 📚
-
----
-
-## JSON Export Format 📦
-Export JSON contains two parts:
-1. `scoresheet` — presentation data: ruleset, style, header, wrestlers, timeline (as shown), boutTime total, winner, classification, exportedAt, appVersion
-2. `events` — authoritative event log in chronological order (every action recorded, including corrections).
-
-Event record schema (minimum):
-- `seq` (integer)
-- `timestamp` (ISO 8601 UTC string)
-- `eventType` (enum)
-- `boutTimeSeconds` (integer, optional when relevant)
-- `details` (object, type-specific payload)
-
-Conventions:
-- Timestamps in ISO 8601 UTC. UI may display M:SS but store seconds in events and timeline.
-- Corrections must create an EventChanged/Deleted entry that references `originalSeq` in `details`.
-
-Minimal export example (conceptual):
-```
-{
-  "scoresheet": { ... },
-  "events": [ {"seq":0, "timestamp":"2024-...Z","eventType":"OpenScoresheet"}, ... ]
-}
-```
-
----
-
-## Ruleset Summary (validated structure) ⚙️
 A ruleset JSON defines time and scoring parameters. Key fields:
 - `name` (string), `periodsInSeconds` (array of integers), `boutTimeCountingDirection` ("Up" | "Down"), `breakSeconds`, `injuryTimeWithoutBloodSeconds`, `injuryTimeWithBloodSeconds`, `points` (array of allowed scoring increments), `maxPointDifferenceForVSU` (integer), `styles` (object), `victoryConditions` (array)
 
@@ -427,6 +215,7 @@ Example (valid JSON snippet):
 Recommendation: provide a JSON Schema (draft-07 or newer) and field defaults.
 
 ---
+
 
 ## Corrections & Audit 🔍
 - All corrections are events. Keep original event entries immutable in the event log and add an `EventChanged` or `EventDeleted` entry referencing the original `seq`.
