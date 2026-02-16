@@ -2,6 +2,9 @@
 
 This document specifies the user interface (UI) for the CHAMP Protocol.
 
+- [overview document](00-overview.md)
+- [specification document](01-specification.md)
+
 ## Keyboard Input Specification ⌨️✨
 
 ### General rules
