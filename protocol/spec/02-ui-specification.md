@@ -5,6 +5,43 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 - [overview document](00-overview.md)
 - [specification document](01-specification.md)
 
+
+## UI Design Principles 🎨
+- **Simplicity**: The UI should be clean and uncluttered, showing only essential information and controls for recording events during a bout. Advanced features can be accessed through secondary interactions (e.g., long-press, right-click, or a settings menu).
+- **Clarity**: Use clear labels, icons, and visual cues to indicate the purpose of each element. For example, use color coding for Red and Blue wrestlers, and distinct icons for different event types (points, passivity, cautions).
+- **Responsiveness**: The UI should be responsive and work well on different screen sizes, from desktop to mobile. Controls should be large enough for easy tapping on mobile devices.
+- **Accessibility**: Ensure that the UI is accessible to users with disabilities by following best practices for web accessibility, such as using semantic HTML, providing keyboard navigation, and ensuring sufficient color contrast.
+
+## Timeline Design Guidelines 📊
+- The timeline grows from left to right, with the most recent events on the right.
+- All blocks
+    - have the same width capable to take 2 numbers (e.g., "01", "02").
+    - have the same height, which is enough to take two rows of numbers.
+    - are horizontally and vertically centered.
+    - have a surrounding border with 2px width.
+- The spacing between events should be fixed to 2px.
+- A **bout event entry** is represented as
+    - a colored block (Red or Blue) with a character representing for event types
+        - "1", "2", "4", "5" for points,
+        - "P" for passivity,
+        - border is solid and has the same color as the block
+    - a block with a gradient from Red to Blue (50%, 50%) with "01" or "02" representing a caution for Red and points for Blue. Vice versa for Blue caution and Red points.
+        - border is solid and has the color of the cautioned wrestler (e.g., Red for Red caution)
+    - The bout time of the event is shown below the block in "M:SS" format.
+- A **bout event insert entry** like the **Next event entry** is represented as
+    - an empty, neutral, light colored block with a light neutral colored, dashed border. (with cursor on it, it is colored dark neutral, but dashed)
+    - Typing a color key (`R` or `B`) changes the block and border color to Red or Blue
+    - Typing an event type key (e.g., '1', 'P', '01') changes the characters inside the block accordingly.
+        - example1: user types `R`, then `1`: the block becomes a red with a red border at first, then "1" inside.
+        - example2: user types `P`, then `B`: the block shows "P", then it becomes blue with a blue border.
+        - example3: user types `0`, then `B`, then `2`: The block shows "0", then it becomes a gradient from blue to red with a blue border, then the block shows "02".
+        - example4: user types `R`, then `0`, then `B`, then `1`: the block becomes red with a red border, then it shows "0" and it becomes a gradient from red to blue with a red border, then `B` is ignored because it is invalid, then the block shows "01".
+- A **period end entry** is represented as
+    - a white colored block with a light neutral colored solid border
+    - the red colored score of Red wrestler
+    - the blue colored score of Blue wrestler a line below.
+- The **cursor** highlights the current entry with a dark neutral colored border, even the **Next event entry**.
+
 ## Keyboard Input Specification ⌨️✨
 
 ### General rules
@@ -14,6 +51,7 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 - Invalid continuation keys are ignored (e.g., after R0, only '1' or '2' are accepted; other keys are ignored).
 - Invalid keys are ignored and do not mutate the buffer.
 - Keys are case-insensitive.
+- Give feedback for current buffer content
 
 ### Key sequences for scoresheet preparation
 | `eventType` | Key Sequence | Action |
