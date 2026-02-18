@@ -162,9 +162,42 @@
       border-radius: 8px;
       padding: 0.5rem;
       display: grid;
-      grid-template-rows: auto auto 1fr;
+      grid-template-rows: auto auto auto 1fr;
       gap: 0.5rem;
       align-content: start;
+    }
+
+    .mode-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.35rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--neutral-1);
+      padding: 0.25rem 0.35rem;
+    }
+
+    .mode-chip {
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 0.16rem 0.45rem;
+      border: 1px solid var(--neutral-3);
+      color: var(--neutral-3);
+      background: #fff;
+    }
+
+    .mode-chip.active {
+      background: var(--neutral-3);
+      color: #fff;
+    }
+
+    .mode-hint {
+      font-size: 0.72rem;
+      color: var(--neutral-3);
+      font-weight: 600;
     }
 
     .time-label {
@@ -244,10 +277,43 @@
       color: var(--neutral-3);
     }
 
+    .entry-box.cursor {
+      border-color: var(--neutral-3);
+      box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--neutral-3);
+    }
+
     .entry-time {
       font-size: 0.72rem;
       color: var(--neutral-3);
       font-variant-numeric: tabular-nums;
+    }
+
+    .correction-bar {
+      display: flex;
+      gap: 0.3rem;
+      align-items: center;
+      flex-wrap: wrap;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.35rem;
+      background: #fff;
+    }
+
+    .correction-action {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--neutral-1);
+      color: var(--neutral-3);
+      font-size: 0.76rem;
+      font-weight: 700;
+      padding: 0.24rem 0.5rem;
+      white-space: nowrap;
+    }
+
+    .correction-action.primary {
+      background: var(--neutral-3);
+      border-color: var(--neutral-3);
+      color: #fff;
     }
 
     @media (max-width: 850px) {
@@ -311,6 +377,19 @@
           <div class="time" id="display">3:00</div>
           <div class="time-note">Tap to Start / Stop</div>
         </button>
+        <div class="mode-row" aria-label="Mode Preview">
+          <span class="mode-chip active">Correction Mode</span>
+          <span class="mode-chip">Swap</span>
+          <span class="mode-hint">Cursor on event #2</span>
+        </div>
+        <div class="correction-bar" aria-label="Correction Actions Preview">
+          <span class="correction-action primary">Confirm</span>
+          <span class="correction-action">Cancel</span>
+          <span class="correction-action">Delete</span>
+          <span class="correction-action">Insert</span>
+          <span class="correction-action">Swap</span>
+          <span class="correction-action">T: Modify Time</span>
+        </div>
       </article>
 
       <article class="side blue" aria-label="Wrestler Blue">
@@ -337,7 +416,7 @@
         <div class="entry-time">0:12</div>
       </div>
       <div class="entry">
-        <div class="entry-box blue">PB</div>
+        <div class="entry-box blue cursor">PB</div>
         <div class="entry-time">0:39</div>
       </div>
       <div class="entry">
