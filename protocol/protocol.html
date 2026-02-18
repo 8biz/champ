@@ -2,49 +2,366 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <title>Protocol – Countdown</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CHAMP Protocol – Prototype</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    :root {
+      --red: #d33131;
+      --blue: #1975d2;
+      --neutral-1: #f5f5f5;
+      --neutral-2: #9e9e9e;
+      --neutral-3: #616161;
+      --border: #c9c9c9;
+      --text: #1f1f1f;
+    }
+
+    html,
     body {
-      font-family: system-ui, sans-serif;
-      background: #f4f4f4;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
+      margin: 0;
+      min-width: 320px;
+      min-height: 320px;
+      height: 100%;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: var(--text);
+      background: var(--neutral-1);
     }
-    .timer {
-      background: white;
-      padding: 2rem 3rem;
+
+    body {
+      padding: 0.5rem;
+    }
+
+    .app {
+      height: calc(100vh - 1rem);
+      min-height: 304px;
+      border: 1px solid var(--border);
+      background: #fff;
       border-radius: 8px;
-      text-align: center;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 0.5rem;
+      padding: 0.5rem;
+      overflow: hidden;
     }
-    .time {
-      font-size: 4rem;
-      font-variant-numeric: tabular-nums;
-      margin-bottom: 1.5rem;
+
+    .top-bar {
+      display: grid;
+      grid-template-columns: minmax(120px, 1fr) auto auto auto;
+      gap: 0.5rem;
+      align-items: center;
     }
-    button {
-      font-size: 1rem;
-      padding: 0.5rem 1.2rem;
-      margin: 0 0.5rem;
+
+    .field,
+    .select,
+    .action {
+      min-height: 2.25rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      padding: 0 0.6rem;
+      font-size: 0.92rem;
+    }
+
+    .action {
+      font-weight: 600;
       cursor: pointer;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: 1fr minmax(130px, 180px) 1fr;
+      gap: 0.5rem;
+      min-height: 0;
+    }
+
+    .side {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+      display: grid;
+      grid-template-rows: auto auto auto 1fr;
+      gap: 0.45rem;
+      min-height: 0;
+    }
+
+    .side.red {
+      background: color-mix(in srgb, var(--red) 8%, white);
+    }
+
+    .side.blue {
+      background: color-mix(in srgb, var(--blue) 8%, white);
+    }
+
+    .side-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+    }
+
+    .score {
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      font-weight: 700;
+      text-align: center;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      padding: 0.2rem 0;
+    }
+
+    .injury-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.4rem;
+    }
+
+    .mini-time {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      padding: 0.35rem;
+      text-align: center;
+      font-size: 0.82rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .event-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.35rem;
+      align-content: start;
+    }
+
+    .event-btn {
+      border: 1px solid transparent;
+      border-radius: 6px;
+      min-height: 2rem;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: default;
+      color: #fff;
+    }
+
+    .red .event-btn {
+      background: var(--red);
+      border-color: var(--red);
+    }
+
+    .blue .event-btn {
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+
+    .center {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 0.5rem;
+      align-content: start;
+    }
+
+    .time-label {
+      text-align: center;
+      color: var(--neutral-3);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .bout-time {
+      border: 2px solid var(--neutral-3);
+      border-radius: 10px;
+      background: #fff;
+      padding: 0.6rem 0.3rem;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .time {
+      font-size: clamp(2.2rem, 6vw, 3rem);
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .time-note {
+      margin-top: 0.2rem;
+      font-size: 0.72rem;
+      color: var(--neutral-3);
+    }
+
+    .timeline {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.4rem;
+      display: flex;
+      gap: 0.4rem;
+      overflow-x: auto;
+      align-items: flex-start;
+    }
+
+    .entry {
+      min-width: 50px;
+      display: grid;
+      gap: 0.15rem;
+      justify-items: center;
+    }
+
+    .entry-box {
+      width: 50px;
+      height: 40px;
+      border-radius: 4px;
+      border: 2px solid;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: #fff;
+      font-size: 0.92rem;
+    }
+
+    .entry-box.red {
+      background: var(--red);
+      border-color: var(--red);
+    }
+
+    .entry-box.blue {
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+
+    .entry-box.next {
+      background: var(--neutral-1);
+      border-color: var(--neutral-3);
+      border-style: dashed;
+      color: var(--neutral-3);
+    }
+
+    .entry-time {
+      font-size: 0.72rem;
+      color: var(--neutral-3);
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (max-width: 850px) {
+      .board {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+        overflow: auto;
+      }
+
+      .center {
+        order: -1;
+      }
+    }
+
+    @media (max-height: 420px) {
+      .event-btn {
+        min-height: 1.6rem;
+      }
+
+      .score {
+        font-size: 2rem;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="timer">
-    <div class="time" id="display">3:00</div>
-    <button id="start">Start</button>
-    <button id="stop">Stopp</button>
+  <main class="app" aria-label="CHAMP Protocol Prototype">
+    <section class="top-bar" aria-label="Scoresheet Header">
+      <input class="field" type="text" value="Wettkampf: Landesmeisterschaft; U17 74kg" aria-label="Bout Info" />
+      <select class="select" aria-label="Style">
+        <option selected>Freestyle</option>
+        <option>Greco-Roman</option>
+      </select>
+      <select class="select" aria-label="Ruleset">
+        <option selected>Default Ruleset</option>
+      </select>
+      <button class="action" type="button" aria-label="Release">Release</button>
+    </section>
+
+    <section class="board" aria-label="Bout Area">
+      <article class="side red" aria-label="Wrestler Red">
+        <header class="side-head"><span>Rot</span><button class="action" type="button">Info</button></header>
+        <div class="score" aria-label="Score Red">0</div>
+        <div class="injury-grid" aria-label="Red Injury Times">
+          <button class="mini-time" type="button">IR 0:00</button>
+          <button class="mini-time" type="button">BR 0:00</button>
+        </div>
+        <div class="event-grid" aria-label="Red Event Buttons">
+          <button class="event-btn" type="button">1R</button>
+          <button class="event-btn" type="button">2R</button>
+          <button class="event-btn" type="button">4R</button>
+          <button class="event-btn" type="button">5R</button>
+          <button class="event-btn" type="button">PR</button>
+          <button class="event-btn" type="button">0R</button>
+        </div>
+      </article>
+
+      <article class="center" aria-label="Timing">
+        <div class="time-label">Bout Time</div>
+        <button class="bout-time" type="button" id="bout-time-button" aria-label="Bout Time Toggle">
+          <div class="time" id="display">3:00</div>
+          <div class="time-note">Tap to Start / Stop</div>
+        </button>
+      </article>
+
+      <article class="side blue" aria-label="Wrestler Blue">
+        <header class="side-head"><span>Blau</span><button class="action" type="button">Info</button></header>
+        <div class="score" aria-label="Score Blue">0</div>
+        <div class="injury-grid" aria-label="Blue Injury Times">
+          <button class="mini-time" type="button">IB 0:00</button>
+          <button class="mini-time" type="button">BB 0:00</button>
+        </div>
+        <div class="event-grid" aria-label="Blue Event Buttons">
+          <button class="event-btn" type="button">1B</button>
+          <button class="event-btn" type="button">2B</button>
+          <button class="event-btn" type="button">4B</button>
+          <button class="event-btn" type="button">5B</button>
+          <button class="event-btn" type="button">PB</button>
+          <button class="event-btn" type="button">0B</button>
+        </div>
+      </article>
+    </section>
+
+    <section class="timeline" aria-label="Timeline">
+      <div class="entry">
+        <div class="entry-box red">1R</div>
+        <div class="entry-time">0:12</div>
+      </div>
+      <div class="entry">
+        <div class="entry-box blue">PB</div>
+        <div class="entry-time">0:39</div>
+      </div>
+      <div class="entry">
+        <div class="entry-box next">+</div>
+        <div class="entry-time">Next</div>
+      </div>
+    </section>
+  </main>
+
+  <div hidden>
+    <button id="start" type="button">Start</button>
+    <button id="stop" type="button">Stop</button>
   </div>
+
   <script>
     const START_TIME_SECONDS = 3 * 60;
     let remainingSeconds = START_TIME_SECONDS;
     let intervalId = null;
+
     const display = document.getElementById("display");
     const startButton = document.getElementById("start");
     const stopButton = document.getElementById("stop");
+    const boutTimeButton = document.getElementById("bout-time-button");
+
     function updateDisplay() {
       const minutes = Math.floor(remainingSeconds / 60);
       const seconds = remainingSeconds % 60;
@@ -67,8 +384,18 @@
       clearInterval(intervalId);
       intervalId = null;
     }
+
+    function toggleTimer() {
+      if (intervalId === null) {
+        startTimer();
+        return;
+      }
+      stopTimer();
+    }
+
     startButton.addEventListener("click", startTimer);
     stopButton.addEventListener("click", stopTimer);
+    boutTimeButton.addEventListener("click", toggleTimer);
     updateDisplay();
   </script>
 </body>
