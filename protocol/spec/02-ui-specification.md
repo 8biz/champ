@@ -145,53 +145,11 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 
 ### Button controls in Normal mode
 
-The bout event buttons shall also use the
-keyboard input buffer to support sequences
-like cautions.
-For example, clicking/taping **0R** followed
-by **1B** button, inserts event '0R1B'.
+All buttons send the corresponding key sequences defined in the Keyboard Input Specification when clicked/tapped. The buttons send always color key first for bout event.
 
-| `eventType` | Button / Control | Action |
-|---|---|---|
-| `T_Started` / `T_Stopped` | Click/tap bout time field | Start/stop period time |
-| `1R` | **1R** button | Award 1 point to Red |
-| `2R` | **2R** button | Award 2 points to Red |
-| `4R` | **4R** button | Award 4 points to Red |
-| `5R` | **5R** button | Award 5 points to Red |
-| `1B` | **1B** button | Award 1 point to Blue |
-| `2B` | **2B** button | Award 2 points to Blue |
-| `4B` | **4B** button | Award 4 points to Blue |
-| `5B` | **5B** button | Award 5 points to Blue |
-| `PR` | **PR** button | Red passivity |
-| `PB` | **PB** button | Blue passivity |
-| `0R` | **0R** button | Red caution + button **1B** or **2B** |
-| `0B` | **0B** button | Blue caution + button **1R** or **2R** |
-| `T_IR_Started` / `T_IR_Stopped` | Click/tap time field | Start/stop Red injury time (without blood) |
-| `T_BR_Started` / `T_BR_Stopped` | Click/tap time field | Start/stop Red blood time |
-| `T_IB_Started` / `T_IB_Stopped` | Click/tap time field | Start/stop Blue injury time (without blood) |
-| `T_BB_Started` / `T_BB_Stopped` | Click/tap time field | Start/stop Blue blood time |
-| — | Click/tap timeline entry | Move cursor to that entry for modification (enter **Correction mode** in **Modify event mode**) |
-| — | Long-press timeline entry | Show context menu for that entry with options to delete, insert, or swap events (enter **Correction mode** in **Sequence correction mode**) | 
-
-### Button controls in Correction mode
-| `eventType` | Button / Control | Action |
-|---|---|---|
-| — | **Confirm** button | Confirm corrections and enter **Normal mode** |
-| — | **Cancel** button | Cancel corrections and enter **Normal mode** (enter Normal mode without saving changes) |
-| — | Click/tap timeline entry | Move cursor to that entry for modification (**Modify event mode**) |
-| — | Long-press/Right-click timeline entry | Show context menu for that entry with options to delete, insert, or swap events (**Sequence correction mode**) | 
-| `T_Modified` / `T_IR_Modified` / `T_IB_Modified` / `T_BR_Modified` / `T_BB_Modified` | Long-press/Right-click time field | Enter **Time modification mode** (enter new time via numeric input; **Confirm** to apply, **Cancel** to discard) |
-
-**Modify event mode**
-| `eventType` | Button / Control | Action |
-|---|---|---|
-| `EventModified` | Click any bout event button | Changes event type and color, e.g. click/tap on **2R** button changes any event to `2R` |
-
-**Sequence correction mode**
-| `eventType` | Button / Control | Action |
-|---|---|---|
-| `EventDeleted` | Click **Delete** button in context menu | Remove current event |
-| `EventInserted` | Click **Insert** button in context menu + (select bout event button) | Insert a new event prior to the current event by showing a bout event insert entry. |
-| `EventSwapped` | Click **Swap** button in context menu | Enter **Event swap mode** (use ◀/▶ buttons to swap with adjacent events; **Confirm** to apply, **Cancel** to discard) |
+Examples:
+- clicking/tapping the **1R** button sends `R` + `1` key sequence to award 1 point to Red.
+- clicking/tapping the **0B** button sends `B` + `0` key sequence to start a caution for Blue, and then waits for either the button **1B** or **2B** (sends `B` + `1` or `B` + `2` key sequence) to be clicked/tapped to determine the caution points.
+- clicking/tapping the time field sends `Space` key sequence to start/stop period time
 
 ---
