@@ -35,12 +35,14 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
     - are horizontally and vertically centered.
     - have a surrounding border.
 - A **bout event entry** is represented as
-    - a colored block (Red or Blue) with a character representing for event types
-        - "1", "2", "4", "5" for points,
-        - "P" for passivity,
+    - a colored block (Red or Blue) with two characters representing the event type, e.g.
+        - "1R", "2R", "4R", "5R", "1B", "2B", "4B", "5B" for points,
+        - "PR" "PB" for passivity,
         - border is solid and has the same color as the block
-    - a block with a gradient from Red to Blue (50%, 50%) with "01" or "02" representing a caution for Red and points for Blue. Vice versa for Blue caution and Red points.
-        - border is solid and has the color of the cautioned wrestler (e.g., Red for Red caution)
+    - a block with 2 rows for cautions, e.g. a caution for red wrestler:
+        - row 1: colored red displaying "0R"
+        - row 2: coloted blue displaying "1B" or "2B"
+        - vice versa for a caution for blue wrestler
     - The bout time of the event is shown below the block in "M:SS" format.
 - A **bout event insert entry** like the **Next event entry** is represented as
     - an empty, neutral, light colored block with a light neutral colored, dashed border. (with cursor on it, it is colored dark neutral, but dashed)
