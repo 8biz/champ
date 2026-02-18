@@ -144,6 +144,13 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 | `BlueInfoUpdated` | **Edit Blue Info** button | Edit Blue wrestler info (enter **Edit text mode**) |
 
 ### Button controls in Normal mode
+
+The bout event buttons shall also use the
+keyboard input buffer to support sequences
+like cautions.
+For example, clicking/taping **0R** followed
+by **1B** button, inserts event '0R1B'.
+
 | `eventType` | Button / Control | Action |
 |---|---|---|
 | `T_Started` / `T_Stopped` | Click/tap bout time field | Start/stop period time |
