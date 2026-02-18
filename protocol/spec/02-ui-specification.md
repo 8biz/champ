@@ -12,14 +12,28 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 - **Responsiveness**: The UI should be responsive and work well on different screen sizes, from desktop to mobile. Controls should be large enough for easy tapping on mobile devices.
 - **Accessibility**: Ensure that the UI is accessible to users with disabilities by following best practices for web accessibility, such as using semantic HTML, providing keyboard navigation, and ensuring sufficient color contrast.
 
+### UI Constraints 🎯
+
+- All elements must be shown in the viewport without scrolling.
+- The minimum size of the viewport shall be
+    - 700px in width and 320px in height for landscape orientation.
+    - 320px in width and 700px in height for portrait orientation.
+- The UI should adapt to different screen sizes and orientations while maintaining usability and readability.
+- Color scheme:
+    - The main colors should be dominant red and blue tones, representing the two wrestlers.
+    - Neutral tones shall be used for backgrounds, borders, and text to provide contrast and improve readability.
+    - Example:
+        - Red: #d33131, Blue: #1975d2, Neutral1: #f5f5f5, Neutral2: #9e9e9e, Neutral3: #616161; https://colorkit.co/palette/d33131-1975d2-f5f5f5-9e9e9e-616161/
+
+
 ## Timeline Design Guidelines 📊
 - The timeline grows from left to right, with the most recent events on the right.
+- The timeline is horizontally scrollable if the number of events exceeds the available width.
 - All blocks
     - have the same width capable to take 2 numbers (e.g., "01", "02").
     - have the same height, which is enough to take two rows of numbers.
     - are horizontally and vertically centered.
-    - have a surrounding border with 2px width.
-- The spacing between events should be fixed to 2px.
+    - have a surrounding border.
 - A **bout event entry** is represented as
     - a colored block (Red or Blue) with a character representing for event types
         - "1", "2", "4", "5" for points,

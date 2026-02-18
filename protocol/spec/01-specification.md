@@ -152,6 +152,9 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 | `RedInfoUpdated`, `BlueInfoUpdated` | Wrestler info changed after completion; `newContent` keeps new content |
 
 ### Bout events
+
+These events are shown in the timeline.
+
 | `eventType` | Description |
 |---|---|
 | `1R`, `2R`, `4R`, `5R`, `1B`, `2B`, `4B`, `5B` | Technical points; `boutTime100ms` keeps bout time when recorded. |
