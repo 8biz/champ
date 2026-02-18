@@ -41,7 +41,7 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
         - border is solid and has the same color as the block
     - a block with 2 rows for cautions, e.g. a caution for red wrestler:
         - row 1: colored red displaying "0R"
-        - row 2: coloted blue displaying "1B" or "2B"
+        - row 2: colored blue displaying "1B" or "2B"
         - vice versa for a caution for blue wrestler
     - The bout time of the event is shown below the block in "M:SS" format.
 - A **bout event insert entry** like the **Next event entry** is represented as
