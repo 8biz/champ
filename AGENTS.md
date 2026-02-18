@@ -1,27 +1,36 @@
-# AGENTS.md
+# AGENTS
 
-## Repository Language
+Purpose
+- Provide instructions and guidance for AI agents working in this repository.
 
-- English
+Quick CLI (implemented)
+- Install Node dependencies: `npm install`
+- Install Playwright browsers: `npx playwright install`
+- Run tests: `npm test` (runs `npx playwright test`) or `npx playwright test`
 
-## Project Structure
+How to run the demo
+- Open [protocol/protocol.html](protocol/protocol.html) in a browser.
+- Public preview: https://raw.githack.com/8biz/champ/main/protocol/protocol.html
 
-- Frontend-only subproject: `protocol`
-- Offline-capable single-page application (`protocol.html`)
-- Automated frontend tests with Playwright (`tests/`)
-- Codespaces support (`.devcontainer/`)
-- GitHub Actions for CI (`.github/workflows/`)
+Repository layout (important locations)
+- [spec](spec) — project-wide specifications and glossary.
+- [protocol](protocol) — frontend protocol tool and its tests.
+- [protocol/protocol.html](protocol/protocol.html) — single-file web app demo.
+- [protocol/tests](protocol/tests) — Playwright tests for the protocol tool.
+- [package.json](package.json) — repository scripts and devDependencies.
 
-## Current Settings
+Coding & contribution notes
+- Frontend: HTML, CSS, JavaScript. Keep changes small and browser-friendly.
+- Backend: Python is the preferred language for any backend tools.
+- Tests: Use Playwright for end-to-end testing. Always run `npx playwright install` after adding browser tests.
+- Style: Follow PEP8 for Python and a consistent JS style (Airbnb rules encouraged).
 
-- All documentation and code comments should be in English.
-- No backend components are present.
-- The project is designed for hobbyists and solo developers.
-- Open source, easy to install and maintain.
-- Ready for GitHub Codespaces and automated CI.
+Agent guidance (how AI agents should operate)
+- Run `npm install` and `npx playwright install` before running tests.
+- Run `npm test` after changes that affect the UI or tests.
+- Prefer minimal, focused edits; update specs in `spec/` when changing behavior.
+- Add or update tests in `protocol/tests` for any protocol UI changes.
+- If adding new CLI scripts, update `package.json` and this `AGENTS.md`.
 
-## Demo Link
-
-- Live demo via githack: [Run protocol.html live](https://raw.githack.com/8biz/champ/main/protocol/protocol.html)
-
-> Note: The link works once the file is available in the `main` branch on GitHub.
+Contact / next steps
+- If you want me to add script badges, CI steps, or a CONTRIBUTING guide, tell me which part to implement next.
