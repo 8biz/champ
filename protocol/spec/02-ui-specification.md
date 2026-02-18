@@ -157,10 +157,8 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 | `5B` | **5B** button | Award 5 points to Blue |
 | `PR` | **PR** button | Red passivity |
 | `PB` | **PB** button | Blue passivity |
-| `0R1B` | **0R1B** button | Red caution, Blue +1 |
-| `0R2B` | **0R2B** button | Red caution, Blue +2 |
-| `0B1R` | **0B1R** button | Blue caution, Red +1 |
-| `0B2R` | **0B2R** button | Blue caution, Red +2 |
+| `0R` | **0R** button | Red caution + button **1B** or **2B** |
+| `0B` | **0B** button | Blue caution + button **1R** or **2R** |
 | `T_IR_Started` / `T_IR_Stopped` | Click/tap time field | Start/stop Red injury time (without blood) |
 | `T_BR_Started` / `T_BR_Stopped` | Click/tap time field | Start/stop Red blood time |
 | `T_IB_Started` / `T_IB_Stopped` | Click/tap time field | Start/stop Blue injury time (without blood) |
