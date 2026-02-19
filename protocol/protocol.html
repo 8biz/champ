@@ -2,113 +2,451 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <title>Protocol – Countdown</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CHAMP Protocol – Prototype</title>
   <style>
-    :root{--blue:#1e90ff;--red:#e74c3c;--bg:#f4f4f4}
-    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);margin:0;padding:1rem}
-    .container{max-width:900px;margin:2rem auto;background:#fff;border-radius:10px;padding:1rem;box-shadow:0 10px 25px rgba(0,0,0,0.08)}
-    .layout{display:grid;grid-template-columns:1fr 320px;gap:1rem;align-items:start}
-    /* Board and timeline area */
-    .board-area{display:flex;flex-direction:column;gap:0.75rem}
-    .boards{display:flex;gap:0.5rem}
-    .board{flex:1;background:#fafafa;border-radius:8px;padding:0.6rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem}
-    .board.blue{border:2px solid var(--blue)}
-    .board.red{border:2px solid var(--red)}
-    .board .info{background:transparent;border:none;padding:0.4rem 0.6rem;border-radius:6px;cursor:pointer}
-    .board .name{font-weight:600}
-    /* Mirror red side: info on left, name right-aligned */
-    .board.red{direction:ltr}
-    .board.red .left{order:0}
-    .board.red .right{order:1;margin-left:auto;text-align:right}
+    * {
+      box-sizing: border-box;
+    }
 
-    /* Timer and controls */
-    .controls{display:flex;flex-direction:column;gap:0.75rem;align-items:stretch}
-    .timer{background:#fff;padding:1rem;border-radius:8px;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
-    .time{font-size:3rem;font-variant-numeric:tabular-nums;margin-bottom:0.5rem}
-    .btn-row{display:flex;gap:0.5rem;justify-content:center}
-    button{font-size:1rem;padding:0.5rem 1rem;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer}
-    button.primary{background:var(--blue);color:#fff;border-color:transparent}
+    :root {
+      --red: #d33131;
+      --blue: #1975d2;
+      --neutral-1: #f5f5f5;
+      --neutral-2: #9e9e9e;
+      --neutral-3: #616161;
+      --border: #c9c9c9;
+      --text: #1f1f1f;
+    }
 
-    /* Bout-time button: label inside, hint included */
-    .bout-button{display:block;width:100%;padding:0.8rem 1rem;border-radius:8px;border:2px solid #ccc;background:#fff;font-size:1rem;text-align:center;cursor:pointer}
-    .bout-button .label{display:block;font-weight:700}
-    .bout-button .hint{display:block;font-size:0.85rem;color:#666;margin-top:0.15rem}
+    html,
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 320px;
+      height: 100%;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: var(--text);
+      background: var(--neutral-1);
+    }
 
-    /* Complete button between board and timeline, full width */
-    .complete-wrapper{display:flex;justify-content:center}
-    .complete-button{width:100%;max-width:420px;padding:0.7rem;border-radius:8px;background:#2ecc71;color:#fff;border:none;cursor:pointer}
+    body {
+      padding: 0.5rem;
+    }
 
-    /* Timeline placeholder */
-    .timeline{background:#fafafa;border-radius:8px;padding:0.6rem;height:220px}
+    .app {
+      height: calc(100vh - 1rem);
+      min-height: 304px;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 8px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 0.5rem;
+      padding: 0.5rem;
+      overflow: hidden;
+    }
 
-    @media (max-width:900px){.layout{grid-template-columns:1fr;}.complete-button{max-width:100%}}
+    .top-bar {
+      display: grid;
+      grid-template-columns: minmax(120px, 1fr) auto auto auto;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .field,
+    .select,
+    .action {
+      min-height: 2.25rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      padding: 0 0.6rem;
+      font-size: 0.92rem;
+    }
+
+    .action {
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: 1fr minmax(130px, 180px) 1fr;
+      gap: 0.5rem;
+      min-height: 0;
+    }
+
+    .side {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+      display: grid;
+      grid-template-rows: auto auto auto 1fr;
+      gap: 0.45rem;
+      min-height: 0;
+    }
+
+    .side.red {
+      background: color-mix(in srgb, var(--red) 8%, white);
+    }
+
+    .side.blue {
+      background: color-mix(in srgb, var(--blue) 8%, white);
+    }
+
+    .side-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+    }
+
+    .score {
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      font-weight: 700;
+      text-align: center;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      padding: 0.2rem 0;
+    }
+
+    .injury-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.4rem;
+    }
+
+    .mini-time {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      padding: 0.35rem;
+      text-align: center;
+      font-size: 0.82rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .event-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.35rem;
+      align-content: start;
+    }
+
+    .event-btn {
+      border: 1px solid transparent;
+      border-radius: 6px;
+      min-height: 2rem;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: default;
+      color: #fff;
+    }
+
+    .red .event-btn {
+      background: var(--red);
+      border-color: var(--red);
+    }
+
+    .blue .event-btn {
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+
+    .center {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+      display: grid;
+      grid-template-rows: auto auto auto 1fr;
+      gap: 0.5rem;
+      align-content: start;
+    }
+
+    .mode-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.35rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--neutral-1);
+      padding: 0.25rem 0.35rem;
+    }
+
+    .mode-chip {
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 0.16rem 0.45rem;
+      border: 1px solid var(--neutral-3);
+      color: var(--neutral-3);
+      background: #fff;
+    }
+
+    .mode-chip.active {
+      background: var(--neutral-3);
+      color: #fff;
+    }
+
+    .mode-hint {
+      font-size: 0.72rem;
+      color: var(--neutral-3);
+      font-weight: 600;
+    }
+
+    .time-label {
+      text-align: center;
+      color: var(--neutral-3);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .bout-time {
+      border: 2px solid var(--neutral-3);
+      border-radius: 10px;
+      background: #fff;
+      padding: 0.6rem 0.3rem;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .time {
+      font-size: clamp(2.2rem, 6vw, 3rem);
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .time-note {
+      margin-top: 0.2rem;
+      font-size: 0.72rem;
+      color: var(--neutral-3);
+    }
+
+    .timeline {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.4rem;
+      display: flex;
+      gap: 0.4rem;
+      overflow-x: auto;
+      align-items: flex-start;
+    }
+
+    .entry {
+      min-width: 50px;
+      display: grid;
+      gap: 0.15rem;
+      justify-items: center;
+    }
+
+    .entry-box {
+      width: 50px;
+      height: 40px;
+      border-radius: 4px;
+      border: 2px solid;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: #fff;
+      font-size: 0.92rem;
+    }
+
+    .entry-box.red {
+      background: var(--red);
+      border-color: var(--red);
+    }
+
+    .entry-box.blue {
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+
+    .entry-box.next {
+      background: var(--neutral-1);
+      border-color: var(--neutral-3);
+      border-style: dashed;
+      color: var(--neutral-3);
+    }
+
+    .entry-box.cursor {
+      border-color: var(--neutral-3);
+      box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--neutral-3);
+    }
+
+    .entry-time {
+      font-size: 0.72rem;
+      color: var(--neutral-3);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .correction-bar {
+      display: flex;
+      gap: 0.3rem;
+      align-items: center;
+      flex-wrap: wrap;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.35rem;
+      background: #fff;
+    }
+
+    .correction-action {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--neutral-1);
+      color: var(--neutral-3);
+      font-size: 0.76rem;
+      font-weight: 700;
+      padding: 0.24rem 0.5rem;
+      white-space: nowrap;
+    }
+
+    .correction-action.primary {
+      background: var(--neutral-3);
+      border-color: var(--neutral-3);
+      color: #fff;
+    }
+
+    @media (max-width: 850px) {
+      .board {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+        overflow: auto;
+      }
+
+      .center {
+        order: -1;
+      }
+    }
+
+    @media (max-height: 420px) {
+      .event-btn {
+        min-height: 1.6rem;
+      }
+
+      .score {
+        font-size: 2rem;
+      }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="layout">
-      <div class="board-area">
-        <div class="boards">
-          <div class="board blue" aria-label="Blue board">
-            <div class="left">
-              <button class="info" aria-label="Blue info">Info</button>
-            </div>
-            <div class="right">
-              <div class="name">Blau</div>
-            </div>
-          </div>
-          <div class="board red" aria-label="Red board">
-            <div class="left">
-              <!-- For red side we intentionally put Info on the left (mirrored) -->
-              <button class="info" aria-label="Red info">Info</button>
-            </div>
-            <div class="right">
-              <div class="name">Rot</div>
-            </div>
-          </div>
-        </div>
+  <main class="app" aria-label="CHAMP Protocol Prototype">
+    <section class="top-bar" aria-label="Scoresheet Header">
+      <input class="field" type="text" value="Wettkampf: Landesmeisterschaft; U17 74kg" aria-label="Bout Info" />
+      <select class="select" aria-label="Style">
+        <option selected>Freestyle</option>
+        <option>Greco-Roman</option>
+      </select>
+      <select class="select" aria-label="Ruleset">
+        <option selected>Default Ruleset</option>
+      </select>
+      <button class="action" type="button" aria-label="Release">Release</button>
+    </section>
 
-        <!-- Complete button should appear between board area and timeline and expand to full width -->
-        <div class="complete-wrapper" style="margin-top:0.5rem">
-          <button class="complete-button" id="complete">Complete</button>
+    <section class="board" aria-label="Bout Area">
+      <article class="side red" aria-label="Wrestler Red">
+        <header class="side-head"><span>Rot</span><button class="action" type="button">Info</button></header>
+        <div class="score" aria-label="Score Red">0</div>
+        <div class="injury-grid" aria-label="Red Injury Times">
+          <button class="mini-time" type="button">IR 0:00</button>
+          <button class="mini-time" type="button">BR 0:00</button>
         </div>
-
-        <div class="timeline" aria-hidden="true">
-          <!-- Placeholder for timeline / events -->
+        <div class="event-grid" aria-label="Red Event Buttons">
+          <button class="event-btn" type="button">1R</button>
+          <button class="event-btn" type="button">2R</button>
+          <button class="event-btn" type="button">4R</button>
+          <button class="event-btn" type="button">5R</button>
+          <button class="event-btn" type="button">PR</button>
+          <button class="event-btn" type="button">0R</button>
         </div>
-      </div>
+      </article>
 
-      <div class="controls">
-        <div class="timer" role="region" aria-label="Countdown timer">
+      <article class="center" aria-label="Timing">
+        <div class="time-label">Bout Time</div>
+        <button class="bout-time" type="button" id="bout-time-button" aria-label="Bout Time Toggle">
           <div class="time" id="display">3:00</div>
-          <div class="btn-row">
-            <!-- Bout Time button with label inside and hint; this replaces separate label and shows keyboard hint (Space) -->
-            <button class="bout-button" id="boutTime" aria-pressed="false">
-              <span class="label">Bout Time</span>
-              <span class="hint">Tap to Start / Stop — press Space</span>
-            </button>
-          </div>
+          <div class="time-note">Tap to Start / Stop</div>
+        </button>
+        <div class="mode-row" aria-label="Mode Preview">
+          <span class="mode-chip active">Correction Mode</span>
+          <span class="mode-chip">Swap</span>
+          <span class="mode-hint">Cursor on event #2</span>
         </div>
+        <div class="correction-bar" aria-label="Correction Actions Preview">
+          <span class="correction-action primary">Confirm</span>
+          <span class="correction-action">Cancel</span>
+          <span class="correction-action">Delete</span>
+          <span class="correction-action">Insert</span>
+          <span class="correction-action">Swap</span>
+          <span class="correction-action">T: Modify Time</span>
+        </div>
+      </article>
+
+      <article class="side blue" aria-label="Wrestler Blue">
+        <header class="side-head"><span>Blau</span><button class="action" type="button">Info</button></header>
+        <div class="score" aria-label="Score Blue">0</div>
+        <div class="injury-grid" aria-label="Blue Injury Times">
+          <button class="mini-time" type="button">IB 0:00</button>
+          <button class="mini-time" type="button">BB 0:00</button>
+        </div>
+        <div class="event-grid" aria-label="Blue Event Buttons">
+          <button class="event-btn" type="button">1B</button>
+          <button class="event-btn" type="button">2B</button>
+          <button class="event-btn" type="button">4B</button>
+          <button class="event-btn" type="button">5B</button>
+          <button class="event-btn" type="button">PB</button>
+          <button class="event-btn" type="button">0B</button>
+        </div>
+      </article>
+    </section>
+
+    <section class="timeline" aria-label="Timeline">
+      <div class="entry">
+        <div class="entry-box red">1R</div>
+        <div class="entry-time">0:12</div>
       </div>
-    </div>
+      <div class="entry">
+        <div class="entry-box blue cursor">PB</div>
+        <div class="entry-time">0:39</div>
+      </div>
+      <div class="entry">
+        <div class="entry-box next">+</div>
+        <div class="entry-time">Next</div>
+      </div>
+    </section>
+  </main>
+
+  <div hidden>
+    <button id="start" type="button">Start</button>
+    <button id="stop" type="button">Stop</button>
   </div>
 
   <script>
-    // Timer logic preserved from original file. Bout-time button toggles start/stop.
     const START_TIME_SECONDS = 3 * 60;
     let remainingSeconds = START_TIME_SECONDS;
     let intervalId = null;
+
     const display = document.getElementById("display");
-    const boutButton = document.getElementById("boutTime");
-    const completeButton = document.getElementById("complete");
+    const startButton = document.getElementById("start");
+    const stopButton = document.getElementById("stop");
+    const boutTimeButton = document.getElementById("bout-time-button");
 
     function updateDisplay() {
       const minutes = Math.floor(remainingSeconds / 60);
       const seconds = remainingSeconds % 60;
-      display.textContent = minutes + ":" + seconds.toString().padStart(2, "0");
+      display.textContent =
+        minutes + ":" + seconds.toString().padStart(2, "0");
     }
-
     function tick() {
       if (remainingSeconds > 0) {
         remainingSeconds--;
@@ -117,44 +455,26 @@
         stopTimer();
       }
     }
-
     function startTimer() {
       if (intervalId !== null) return;
       intervalId = setInterval(tick, 1000);
-      boutButton.setAttribute('aria-pressed','true');
     }
-
     function stopTimer() {
       clearInterval(intervalId);
       intervalId = null;
-      boutButton.setAttribute('aria-pressed','false');
     }
 
     function toggleTimer() {
-      if (intervalId === null) startTimer(); else stopTimer();
+      if (intervalId === null) {
+        startTimer();
+        return;
+      }
+      stopTimer();
     }
 
-    // Click on bout button toggles timer
-    boutButton.addEventListener('click', toggleTimer);
-
-    // Keyboard: Space key toggles timer when focused on body (makes test automation via Playwright easier)
-    window.addEventListener('keydown', function(e){
-      // If user focuses on an input or textarea, ignore to avoid interfering with typing
-      const tag = (document.activeElement && document.activeElement.tagName) || '';
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      if (e.code === 'Space' || e.key === ' ') {
-        e.preventDefault();
-        toggleTimer();
-      }
-    })
-
-    // Complete button: emit a simple event (placeholder for app logic)
-    completeButton.addEventListener('click', function(){
-      // This is a UI-only prototype change. In the full app this would finalize the bout.
-      completeButton.disabled = true;
-      completeButton.textContent = 'Completed';
-    });
-
+    startButton.addEventListener("click", startTimer);
+    stopButton.addEventListener("click", stopTimer);
+    boutTimeButton.addEventListener("click", toggleTimer);
     updateDisplay();
   </script>
 </body>
