@@ -169,6 +169,14 @@ Changes merged to `main` branch are immediately visible here.
 3. Record events during bout (points, passivity, cautions, time events)
 4. Complete bout (enter victory type, export JSON)
 
+## Pull Requests
+
+- When creating a pull request, include a preview link to the branch-hosted single-file app in the PR description.
+- Use this preview link template (replace [source_branch] with your branch name):
+  `https://raw.githack.com/8biz/champ/[source_branch]/protocol/protocol.html`
+- Example: `https://raw.githack.com/8biz/champ/feature/timer-fix/protocol/protocol.html`
+- Run `npm test` before opening the PR and mention any relevant test or UI changes in the PR summary.
+
 ## Trust These Instructions
 
 The commands and information in this file have been validated by running them in a clean environment. If you encounter issues not documented here, investigate and update this file with your findings. Only search the codebase if these instructions are incomplete or incorrect.
