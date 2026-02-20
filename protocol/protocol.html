@@ -70,6 +70,13 @@
       cursor: pointer;
     }
 
+    /* Mirror the pencil glyph for the blue side's header action button */
+    .side.blue .side-head .action {
+      display: inline-block;
+      transform: scaleX(-1);
+      line-height: 1;
+    }
+
     .board {
       display: grid;
       grid-template-columns: 1fr minmax(130px, 180px) 1fr;
@@ -140,7 +147,7 @@
     .event-btn {
       border: 1px solid transparent;
       border-radius: 6px;
-      min-height: 2rem;
+      min-height: 3rem;
       font-weight: 700;
       font-size: 0.9rem;
       cursor: default;
@@ -260,6 +267,40 @@
       font-size: 0.92rem;
     }
 
+    .entry-box.caution {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      padding: 0;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .entry-box.caution.blue {
+      border-color: var(--blue);
+    }
+
+    .entry-box.caution.red {
+      border-color: var(--red);
+    }
+
+    .caution-row {
+      width: 100%;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 0.82rem;
+      line-height: 1;
+      color: #fff;
+    }
+
+    .caution-row.blue {
+      background: var(--blue);
+    }
+
+    .caution-row.red {
+      background: var(--red);
+    }
+
     .entry-box.red {
       background: var(--red);
       border-color: var(--red);
@@ -350,62 +391,49 @@
       <select class="select" aria-label="Ruleset">
         <option selected>Default Ruleset</option>
       </select>
-      <button class="action" type="button" aria-label="Release">Release</button>
     </section>
 
     <section class="board" aria-label="Bout Area">
       <article class="side red" aria-label="Wrestler Red">
-        <header class="side-head"><span>Rot</span><button class="action" type="button">Info</button></header>
+        <header class="side-head"><button class="action" type="button" aria-label="Bearbeiten">✎</button><span>Rot</span></header>
         <div class="score" aria-label="Score Red">0</div>
         <div class="injury-grid" aria-label="Red Injury Times">
-          <button class="mini-time" type="button">IR 0:00</button>
-          <button class="mini-time" type="button">BR 0:00</button>
+          <button class="mini-time" type="button">TIR 0:00</button>
+          <button class="mini-time" type="button">TBR 0:00</button>
         </div>
         <div class="event-grid" aria-label="Red Event Buttons">
-          <button class="event-btn" type="button">1R</button>
-          <button class="event-btn" type="button">2R</button>
-          <button class="event-btn" type="button">4R</button>
-          <button class="event-btn" type="button">5R</button>
-          <button class="event-btn" type="button">PR</button>
-          <button class="event-btn" type="button">0R</button>
+          <button class="event-btn" type="button">[1R]</button>
+          <button class="event-btn" type="button">[4R]</button>
+          <button class="event-btn" type="button">[5R]</button>
+          <button class="event-btn" type="button">[2R]</button>
+          <button class="event-btn" type="button">[PR]</button>
+          <button class="event-btn" type="button">[0R]</button>
         </div>
       </article>
 
       <article class="center" aria-label="Timing">
-        <div class="time-label">Bout Time</div>
         <button class="bout-time" type="button" id="bout-time-button" aria-label="Bout Time Toggle">
+          <div class="time-label">Kampfzeit</div>
           <div class="time" id="display">3:00</div>
-          <div class="time-note">Tap to Start / Stop</div>
+          <div class="time-note">[Leertaste]</div>
         </button>
-        <div class="mode-row" aria-label="Mode Preview">
-          <span class="mode-chip active">Correction Mode</span>
-          <span class="mode-chip">Swap</span>
-          <span class="mode-hint">Cursor on event #2</span>
-        </div>
-        <div class="correction-bar" aria-label="Correction Actions Preview">
-          <span class="correction-action primary">Confirm</span>
-          <span class="correction-action">Cancel</span>
-          <span class="correction-action">Delete</span>
-          <span class="correction-action">Insert</span>
-          <span class="correction-action">Swap</span>
-          <span class="correction-action">T: Modify Time</span>
-        </div>
+        <button class="action" type="button" aria-label="Release">Freigeben [F4]</button>
       </article>
 
       <article class="side blue" aria-label="Wrestler Blue">
-        <header class="side-head"><span>Blau</span><button class="action" type="button">Info</button></header>
+        <header class="side-head"><span>Blau</span><button class="action" type="button" aria-label="Bearbeiten">✎</button></header>
         <div class="score" aria-label="Score Blue">0</div>
         <div class="injury-grid" aria-label="Blue Injury Times">
-          <button class="mini-time" type="button">IB 0:00</button>
-          <button class="mini-time" type="button">BB 0:00</button>
+          <button class="mini-time" type="button">TBB 0:00</button>
+          <button class="mini-time" type="button">TIB 0:00</button>
         </div>
         <div class="event-grid" aria-label="Blue Event Buttons">
-          <button class="event-btn" type="button">1B</button>
-          <button class="event-btn" type="button">2B</button>
-          <button class="event-btn" type="button">4B</button>
-          <button class="event-btn" type="button">5B</button>
-          <button class="event-btn" type="button">PB</button>
-          <button class="event-btn" type="button">0B</button>
+            <button class="event-btn" type="button">[5B]</button>
+            <button class="event-btn" type="button">[4B]</button>
+            <button class="event-btn" type="button">[1B]</button>
+            <button class="event-btn" type="button">[0B]</button>
+            <button class="event-btn" type="button">[PB]</button>
+            <button class="event-btn" type="button">[2B]</button>
         </div>
       </article>
     </section>
@@ -418,6 +446,13 @@
       <div class="entry">
         <div class="entry-box blue cursor">PB</div>
         <div class="entry-time">0:39</div>
+      </div>
+      <div class="entry">
+        <div class="entry-box caution blue" aria-label="0B1R caution entry">
+          <div class="caution-row blue">0B</div>
+          <div class="caution-row red">1R</div>
+        </div>
+        <div class="entry-time">1:02</div>
       </div>
       <div class="entry">
         <div class="entry-box next">+</div>
