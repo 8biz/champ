@@ -267,6 +267,40 @@
       font-size: 0.92rem;
     }
 
+    .entry-box.caution {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      padding: 0;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .entry-box.caution.blue {
+      border-color: var(--blue);
+    }
+
+    .entry-box.caution.red {
+      border-color: var(--red);
+    }
+
+    .caution-row {
+      width: 100%;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 0.82rem;
+      line-height: 1;
+      color: #fff;
+    }
+
+    .caution-row.blue {
+      background: var(--blue);
+    }
+
+    .caution-row.red {
+      background: var(--red);
+    }
+
     .entry-box.red {
       background: var(--red);
       border-color: var(--red);
@@ -412,6 +446,13 @@
       <div class="entry">
         <div class="entry-box blue cursor">PB</div>
         <div class="entry-time">0:39</div>
+      </div>
+      <div class="entry">
+        <div class="entry-box caution blue" aria-label="0B1R caution entry">
+          <div class="caution-row blue">0B</div>
+          <div class="caution-row red">1R</div>
+        </div>
+        <div class="entry-time">1:02</div>
       </div>
       <div class="entry">
         <div class="entry-box next">+</div>
