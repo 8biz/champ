@@ -41,7 +41,7 @@
       background: #fff;
       border-radius: 8px;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto auto auto 1fr;
       gap: 0.5rem;
       padding: 0.5rem;
       overflow: hidden;
@@ -79,6 +79,13 @@
 
     .board {
       display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      min-height: 0;
+    }
+
+    .buttons {
+      display: grid;
       grid-template-columns: 1fr minmax(130px, 180px) 1fr;
       gap: 0.5rem;
       min-height: 0;
@@ -94,11 +101,29 @@
       min-height: 0;
     }
 
+    .button-side {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 0.45rem;
+      min-height: 0;
+    }
+
     .side.red {
       background: color-mix(in srgb, var(--red) 8%, white);
     }
 
     .side.blue {
+      background: color-mix(in srgb, var(--blue) 8%, white);
+    }
+
+    .button-side.red {
+      background: color-mix(in srgb, var(--red) 8%, white);
+    }
+
+    .button-side.blue {
       background: color-mix(in srgb, var(--blue) 8%, white);
     }
 
@@ -358,13 +383,14 @@
     }
 
     @media (max-width: 850px) {
-      .board {
+      .board,
+      .buttons {
         grid-template-columns: 1fr;
         grid-template-rows: auto auto auto;
         overflow: auto;
       }
 
-      .center {
+      .buttons .center {
         order: -1;
       }
     }
@@ -397,6 +423,16 @@
       <article id="side-red" class="side red" aria-label="Wrestler Red">
         <header id="info-red" class="side-head"><button class="action" type="button" aria-label="Bearbeiten">✎</button><span>Rot</span></header>
         <div id="score-red" class="score" aria-label="Score Red">0</div>
+      </article>
+
+      <article id="side-blue" class="side blue" aria-label="Wrestler Blue">
+        <header id="info-blue" class="side-head"><span>Blau</span><button class="action" type="button" aria-label="Bearbeiten">✎</button></header>
+        <div id="score-blue" class="score" aria-label="Score Blue">0</div>
+      </article>
+    </section>
+
+    <section id="buttons" class="buttons" aria-label="Bout Buttons">
+      <article id="buttons-red" class="button-side red" aria-label="Red Button Column">
         <div class="injury-grid" aria-label="Red Injury Times">
           <button id="injury-time-red" class="mini-time" type="button">TIR 0:00</button>
           <button id="blood-time-red" class="mini-time" type="button">TBR 0:00</button>
@@ -414,18 +450,16 @@
       <article id="center" class="center" aria-label="Timing">
         <button class="bout-time" type="button" id="bout-time-button" aria-label="Bout Time Toggle">
           <div class="time-label">Kampfzeit</div>
-          <div id="bout-time-display" class="time">3:00</div>
+          <div id="display" class="time">3:00</div>
           <div class="time-note">[Leertaste]</div>
         </button>
         <button id="release-button" class="action" type="button" aria-label="Release">Freigeben [F4]</button>
       </article>
 
-      <article id="side-blue" class="side blue" aria-label="Wrestler Blue">
-        <header id="info-blue" class="side-head"><span>Blau</span><button class="action" type="button" aria-label="Bearbeiten">✎</button></header>
-        <div id="score-blue" class="score" aria-label="Score Blue">0</div>
-        <div id="injury-time-blue" class="injury-grid" aria-label="Blue Injury Times">
-          <button class="mini-time" type="button">TBB 0:00</button>
-          <button class="mini-time" type="button">TIB 0:00</button>
+      <article id="buttons-blue" class="button-side blue" aria-label="Blue Button Column">
+        <div class="injury-grid" aria-label="Blue Injury Times">
+          <button id="blood-time-blue" class="mini-time" type="button">TBB 0:00</button>
+          <button id="injury-time-blue" class="mini-time" type="button">TIB 0:00</button>
         </div>
         <div id="event-buttons-blue" class="event-grid" aria-label="Blue Event Buttons">
             <button class="event-btn" type="button">[5B]</button>
@@ -471,7 +505,7 @@
     let remainingSeconds = START_TIME_SECONDS;
     let intervalId = null;
 
-    const display = document.getElementById("bout-time-display");
+    const display = document.getElementById("display");
     const startButton = document.getElementById("start");
     const stopButton = document.getElementById("stop");
     const boutTimeButton = document.getElementById("bout-time-button");
