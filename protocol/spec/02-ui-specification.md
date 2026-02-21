@@ -74,7 +74,7 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 | `center` | `buttons` | Central timing/control panel container |
 | `bout-time-button` | `center` | Bout time toggle control (start/stop) |
 | `bout-time-display` | `bout-time-button` | Visual bout time display (M:SS.f) |
-| `release-button` | `center` | Release / Complete scoresheet action button |
+| `release-complete-button` | `center` | Release / Complete scoresheet action button |
 | `buttons-blue` | `buttons` | Blue controls column container |
 | `injury-time-blue` | `buttons-blue` | Blue wrestler injury time control button |
 | `blood-time-blue` | `buttons-blue` | Blue wrestler blood time control button |
