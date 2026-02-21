@@ -382,7 +382,7 @@
 </head>
 <body>
   <main id="app" class="app" aria-label="CHAMP Protocol Prototype">
-    <section class="top-bar" aria-label="Scoresheet Header">
+    <section id="top-bar" class="top-bar" aria-label="Scoresheet Header">
       <input id="bout-info" class="field" type="text" value="Wettkampf: Landesmeisterschaft; U17 74kg" aria-label="Bout Info" />
       <select id="style-select" class="select" aria-label="Style">
         <option selected>Freestyle</option>
@@ -395,13 +395,13 @@
 
     <section id="board" class="board" aria-label="Bout Area">
       <article id="side-red" class="side red" aria-label="Wrestler Red">
-        <header class="side-head"><button class="action" type="button" aria-label="Bearbeiten">✎</button><span>Rot</span></header>
+        <header id="info-red" class="side-head"><button class="action" type="button" aria-label="Bearbeiten">✎</button><span>Rot</span></header>
         <div id="score-red" class="score" aria-label="Score Red">0</div>
-        <div id="injury-red" class="injury-grid" aria-label="Red Injury Times">
-          <button class="mini-time" type="button">TIR 0:00</button>
-          <button class="mini-time" type="button">TBR 0:00</button>
+        <div class="injury-grid" aria-label="Red Injury Times">
+          <button id="injury-time-red" class="mini-time" type="button">TIR 0:00</button>
+          <button id="blood-time-red" class="mini-time" type="button">TBR 0:00</button>
         </div>
-        <div id="events-red" class="event-grid" aria-label="Red Event Buttons">
+        <div id="event-buttons-red" class="event-grid" aria-label="Red Event Buttons">
           <button class="event-btn" type="button">[1R]</button>
           <button class="event-btn" type="button">[4R]</button>
           <button class="event-btn" type="button">[5R]</button>
@@ -421,13 +421,13 @@
       </article>
 
       <article id="side-blue" class="side blue" aria-label="Wrestler Blue">
-        <header class="side-head"><span>Blau</span><button class="action" type="button" aria-label="Bearbeiten">✎</button></header>
+        <header id="info-blue" class="side-head"><span>Blau</span><button class="action" type="button" aria-label="Bearbeiten">✎</button></header>
         <div id="score-blue" class="score" aria-label="Score Blue">0</div>
-        <div id="injury-blue" class="injury-grid" aria-label="Blue Injury Times">
+        <div id="injury-time-blue" class="injury-grid" aria-label="Blue Injury Times">
           <button class="mini-time" type="button">TBB 0:00</button>
           <button class="mini-time" type="button">TIB 0:00</button>
         </div>
-        <div id="events-blue" class="event-grid" aria-label="Blue Event Buttons">
+        <div id="event-buttons-blue" class="event-grid" aria-label="Blue Event Buttons">
             <button class="event-btn" type="button">[5B]</button>
             <button class="event-btn" type="button">[4B]</button>
             <button class="event-btn" type="button">[1B]</button>
@@ -454,7 +454,7 @@
         </div>
         <div class="entry-time">1:02</div>
       </div>
-      <div class="entry">
+      <div id?="next-event" class="entry">
         <div class="entry-box next">+</div>
         <div class="entry-time">Next</div>
       </div>

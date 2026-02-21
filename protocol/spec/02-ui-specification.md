@@ -26,30 +26,34 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
         - Red: #d33131, Blue: #1975d2, Neutral1: #f5f5f5, Neutral2: #9e9e9e, Neutral3: #616161; https://colorkit.co/palette/d33131-1975d2-f5f5f5-9e9e9e-616161/
 
 
-## HTML element IDs
-
-The table below lists the main HTML elements in the single-file app that have an `id` attribute and their intended purpose. Use these IDs for scripting, tests, and keyboard bindings.
+## Main element IDs
 
 | ID | Element (brief) | Intention |
 |---|---|---|
 | `app` | `main` | Root application container — overall layout and accessibility root |
+| `top-bar` | `section` | Scoresheet header container |
 | `bout-info` | text `input` | Editable bout information field (competition, weight class, etc.) |
 | `style-select` | `select` | Ruleset style selector (Freestyle / Greco-Roman) |
 | `ruleset-select` | `select` | Ruleset dropdown (predefined/custom ruleset selection) |
 | `board` | `section` | Container for the bout area (left/right sides and center) |
 | `side-red` | `article` | Red wrestler panel container |
+| `info-red` | `header` | Red wrestler information (name, team, etc.) |
 | `score-red` | `div` | Red wrestler's score display (auto-calculated) |
-| `injury-red` | `div` | Red wrestler injury-time controls/display container |
-| `events-red` | `div` | Red side event buttons container (point/passivity/caution buttons) |
+| `injury-time-red` | `button` | Red wrestler injury time control button |
+| `blood-time-red` | `button` | Red wrestler blood time control button |
+| `event-buttons-red` | `div` | Red side event buttons container (point/passivity/caution buttons) |
 | `center` | `article` | Central timing/control panel container |
 | `bout-time-button` | `button` | Bout time toggle control (start/stop) |
 | `display` | `div` | Visual bout time display (M:SS) |
 | `release-button` | `button` | Release / Complete scoresheet action button |
 | `side-blue` | `article` | Blue wrestler panel container |
+| `info-blue` | `header` | Blue wrestler information (name, team, etc.) |
 | `score-blue` | `div` | Blue wrestler's score display (auto-calculated) |
-| `injury-blue` | `div` | Blue wrestler injury-time controls/display container |
-| `events-blue` | `div` | Blue side event buttons container (point/passivity/caution buttons) |
+| `injury-time-blue` | `button` | Blue wrestler injury time control button |
+| `blood-time-blue` | `button` | Blue wrestler blood time control button |
+| `event-buttons-blue` | `div` | Blue side event buttons container (point/passivity/caution buttons) |
 | `timeline` | `section` | Horizontal timeline listing recorded events (visual entry blocks) |
+| `next-event` | `div` | Next event entry block (used for inserting new events) |
 | `start` | `button` | Hidden test hook: start timer (used by tests) |
 | `stop` | `button` | Hidden test hook: stop timer (used by tests) |
 
