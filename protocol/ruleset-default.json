@@ -8,12 +8,12 @@
   },
   "periodTimesInSeconds": [180, 180],
   "periodTimeCountingDirection": "Down",
-  "periodBreakTimeSeconds": 30,
-  "injuryTimeWithoutBloodSeconds": 120,
-  "injuryTimeWithBloodSeconds": 240,
+  "periodBreakTimeInSeconds": 30,
+  "injuryTimeWithoutBloodInSeconds": 120,
+  "injuryTimeWithBloodInSeconds": 240,
   "injuryTimeCountingDirection": "Up",
   "freestyle": {
-    "activityTimeSeconds": 30,
+    "activityTimeInSeconds": 30,
     "activityTimeCountingDirection": "Down",
     "activityTimeCondition": {
       "passivityCount": { "gt": 1 }
