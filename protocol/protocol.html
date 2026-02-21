@@ -414,7 +414,7 @@
       <article id="center" class="center" aria-label="Timing">
         <button class="bout-time" type="button" id="bout-time-button" aria-label="Bout Time Toggle">
           <div class="time-label">Kampfzeit</div>
-          <div class="time" id="display">3:00</div>
+          <div id="bout-time-display" class="time">3:00</div>
           <div class="time-note">[Leertaste]</div>
         </button>
         <button id="release-button" class="action" type="button" aria-label="Release">Freigeben [F4]</button>
@@ -454,7 +454,7 @@
         </div>
         <div class="entry-time">1:02</div>
       </div>
-      <div id?="next-event" class="entry">
+      <div id="next-event" class="entry">
         <div class="entry-box next">+</div>
         <div class="entry-time">Next</div>
       </div>
@@ -471,7 +471,7 @@
     let remainingSeconds = START_TIME_SECONDS;
     let intervalId = null;
 
-    const display = document.getElementById("display");
+    const display = document.getElementById("bout-time-display");
     const startButton = document.getElementById("start");
     const stopButton = document.getElementById("stop");
     const boutTimeButton = document.getElementById("bout-time-button");

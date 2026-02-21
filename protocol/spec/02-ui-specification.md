@@ -28,34 +28,34 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 
 ## Main element IDs
 
-| ID | Element (brief) | Intention |
+| ID | Parent element | Intention |
 |---|---|---|
-| `app` | `main` | Root application container — overall layout and accessibility root |
-| `top-bar` | `section` | Scoresheet header container |
-| `bout-info` | text `input` | Editable bout information field (competition, weight class, etc.) |
-| `style-select` | `select` | Ruleset style selector (Freestyle / Greco-Roman) |
-| `ruleset-select` | `select` | Ruleset dropdown (predefined/custom ruleset selection) |
-| `board` | `section` | Container for the bout area (left/right sides and center) |
-| `side-red` | `article` | Red wrestler panel container |
-| `info-red` | `header` | Red wrestler information (name, team, etc.) |
-| `score-red` | `div` | Red wrestler's score display (auto-calculated) |
-| `injury-time-red` | `button` | Red wrestler injury time control button |
-| `blood-time-red` | `button` | Red wrestler blood time control button |
-| `event-buttons-red` | `div` | Red side event buttons container (point/passivity/caution buttons) |
-| `center` | `article` | Central timing/control panel container |
-| `bout-time-button` | `button` | Bout time toggle control (start/stop) |
-| `display` | `div` | Visual bout time display (M:SS) |
-| `release-button` | `button` | Release / Complete scoresheet action button |
-| `side-blue` | `article` | Blue wrestler panel container |
-| `info-blue` | `header` | Blue wrestler information (name, team, etc.) |
-| `score-blue` | `div` | Blue wrestler's score display (auto-calculated) |
-| `injury-time-blue` | `button` | Blue wrestler injury time control button |
-| `blood-time-blue` | `button` | Blue wrestler blood time control button |
-| `event-buttons-blue` | `div` | Blue side event buttons container (point/passivity/caution buttons) |
-| `timeline` | `section` | Horizontal timeline listing recorded events (visual entry blocks) |
-| `next-event` | `div` | Next event entry block (used for inserting new events) |
-| `start` | `button` | Hidden test hook: start timer (used by tests) |
-| `stop` | `button` | Hidden test hook: stop timer (used by tests) |
+| `app` | `body` | Root application container — overall layout and accessibility root |
+| `top-bar` | `app` | Scoresheet header container |
+| `bout-info` | `top-bar` | Editable bout information field (competition, weight class, etc.) |
+| `style-select` | `top-bar` | Ruleset style selector (Freestyle / Greco-Roman) |
+| `ruleset-select` | `top-bar` | Ruleset dropdown (predefined/custom ruleset selection) |
+| `board` | `app` | Container for the bout area (left/right sides and center) |
+| `side-red` | `board` | Red wrestler panel container |
+| `info-red` | `side-red` | Red wrestler information (name, team, etc.) |
+| `score-red` | `side-red` | Red wrestler's score display (auto-calculated) |
+| `injury-time-red` | `side-red` | Red wrestler injury time control button |
+| `blood-time-red` | `side-red` | Red wrestler blood time control button |
+| `event-buttons-red` | `side-red` | Red side event buttons container (point/passivity/caution buttons) |
+| `center` | `board` | Central timing/control panel container |
+| `bout-time-button` | `center` | Bout time toggle control (start/stop) |
+| `bout-time-display` | `bout-time-button` | Visual bout time display (M:SS.f) |
+| `release-button` | `center` | Release / Complete scoresheet action button |
+| `side-blue` | `board` | Blue wrestler panel container |
+| `info-blue` | `side-blue` | Blue wrestler information (name, team, etc.) |
+| `score-blue` | `side-blue` | Blue wrestler's score display (auto-calculated) |
+| `injury-time-blue` | `side-blue` | Blue wrestler injury time control button |
+| `blood-time-blue` | `side-blue` | Blue wrestler blood time control button |
+| `event-buttons-blue` | `side-blue` | Blue side event buttons container (point/passivity/caution buttons) |
+| `timeline` | `app` | Horizontal timeline listing recorded events (visual entry blocks) |
+| `next-event` | `timeline` | Next event entry block (used for inserting new events) |
+| `start` | hidden `div` container | Hidden test hook: start timer (used by tests) |
+| `stop` | hidden `div` container | Hidden test hook: stop timer (used by tests) |
 
 
 
@@ -76,7 +76,7 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
         - row 1: colored red displaying "0R"
         - row 2: colored blue displaying "1B" or "2B"
         - vice versa for a caution for blue wrestler
-    - The bout time of the event is shown below the block in "M:SS" format.
+    - The bout time of the event is shown below the block in "M:SS.f" format.
 - A **bout event insert entry** like the **Next event entry** is represented as
     - an empty, neutral, light colored block with a light neutral colored, dashed border. (with cursor on it, it is colored dark neutral, but dashed)
     - Typing a color key (`R` or `B`) changes the block and border color to Red or Blue
