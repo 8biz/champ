@@ -98,6 +98,43 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 | `stop` | hidden `div` container | Hidden test hook: stop timer (used by tests) |
 
 
+## States of the UI
+
+The application has two primary interactive states that determine which controls are editable and which actions are available:
+
+- Idle: the scoresheet is not released for recording (either still preparing or already completed). No bout events can be recorded.
+- Recording: the scoresheet is released and the user may record bout events in real time.
+
+### Idle
+
+When the UI is in the Idle state the interface is primarily editable for preparation or post‑bout review. Appearance and behaviour in this state:
+
+- `top-bar` is unlocked and editable by the user.
+- `board` is unlocked and editable.
+- `buttons` are disabled for recording actions (controls appear inactive/greyed out), with two exceptions:
+    - `release-complete-button` is enabled and displays the label "Freigeben [F4]" to allow releasing the scoresheet for recording. This is also valid when the scoresheet is already completed, allowing to re-release it for corrections.
+- `timeline` contains no event entries; the `next-event` entry is not present in the DOM while Idle.
+
+On opening a new scoresheet the UI displays following default values:
+- `bout-info`: "Freundschaftskampf"
+- `style-select`: "Freistil" selected, "Griech.-röm." available
+- `ruleset-select`: "beiliegendes Regelwerk" available
+- `info-red`: "Rot"
+- `info-blue`: "Blau"
+- `bout-time-display`: shows the period length from the embedded JSON ruleset (e.g., "3:00" if `periodTimesInSeconds` is 180)
+
+### Recording
+
+When the scoresheet is released the UI enters the Recording state and is optimized for fast, reliable event entry:
+
+- `top-bar` is locked and no longer editable to prevent accidental changes while recording.
+- `board` is locked so wrestler info and scoresheet metadata cannot be changed during recording.
+- `buttons` are enabled and ready for input (injury timers, blood timers, event buttons, and the bout time control).
+    - `release-complete-button` is enabled and displays the label "Abschließen [F4]" to allow completing the scoresheet (even if the scoresheet is re-released).
+- `timeline` displays the `next-event` entry block at the end of the timeline and accepts new bout events; this block is the active cursor position for entering events.
+
+
+
 
 ## Timeline Design Guidelines 📊
 - The timeline grows from left to right, with the most recent events on the right.
