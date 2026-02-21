@@ -26,23 +26,47 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
         - Red: #d33131, Blue: #1975d2, Neutral1: #f5f5f5, Neutral2: #9e9e9e, Neutral3: #616161; https://colorkit.co/palette/d33131-1975d2-f5f5f5-9e9e9e-616161/
 
 
-## Main element IDs
+## UI Element IDs
+
+### Main elements
 
 | ID | Parent element | Intention |
 |---|---|---|
 | `app` | `body` | Root application container — overall layout and accessibility root |
 | `top-bar` | `app` | Scoresheet header container |
+| `board` | `app` | Container for the wrestler panels (left/right sides) |
+| `buttons` | `app` | Container for the controls area (left/right button columns and center timing controls) |
+| `timeline` | `app` | Horizontal timeline listing recorded events (visual entry blocks) |
+
+---
+
+### `top-bar` elements
+
+| ID | Parent element | Intention |
+|---|---|---|
 | `bout-info` | `top-bar` | Editable bout information field (competition, weight class, etc.) |
 | `style-select` | `top-bar` | Ruleset style selector (Freestyle / Greco-Roman) |
 | `ruleset-select` | `top-bar` | Ruleset dropdown (predefined/custom ruleset selection) |
-| `board` | `app` | Container for the wrestler panels (left/right sides) |
+
+---
+
+### `board` elements
+
+| ID | Parent element | Intention |
+|---|---|---|
 | `side-red` | `board` | Red wrestler panel container |
 | `info-red` | `side-red` | Red wrestler information (name, team, etc.) |
 | `score-red` | `side-red` | Red wrestler's score display (auto-calculated) |
 | `side-blue` | `board` | Blue wrestler panel container |
 | `info-blue` | `side-blue` | Blue wrestler information (name, team, etc.) |
 | `score-blue` | `side-blue` | Blue wrestler's score display (auto-calculated) |
-| `buttons` | `app` | Container for the controls area (left/right button columns and center timing controls) |
+
+---
+
+### `buttons` elements
+
+| ID | Parent element | Intention |
+|---|---|---|
 | `buttons-red` | `buttons` | Red controls column container |
 | `injury-time-red` | `buttons-red` | Red wrestler injury time control button |
 | `blood-time-red` | `buttons-red` | Red wrestler blood time control button |
@@ -55,8 +79,21 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 | `injury-time-blue` | `buttons-blue` | Blue wrestler injury time control button |
 | `blood-time-blue` | `buttons-blue` | Blue wrestler blood time control button |
 | `event-buttons-blue` | `buttons-blue` | Blue side event buttons container (point/passivity/caution buttons) |
-| `timeline` | `app` | Horizontal timeline listing recorded events (visual entry blocks) |
+
+---
+
+### `timeline` elements
+
+| ID | Parent element | Intention |
+|---|---|---|
 | `next-event` | `timeline` | Next event entry block (used for inserting new events) |
+
+---
+
+### Hidden test hooks
+
+| ID | Parent element | Intention |
+|---|---|---|
 | `start` | hidden `div` container | Hidden test hook: start timer (used by tests) |
 | `stop` | hidden `div` container | Hidden test hook: stop timer (used by tests) |
 
