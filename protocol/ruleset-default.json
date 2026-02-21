@@ -12,22 +12,44 @@
   "injuryTimeWithoutBloodSeconds": 120,
   "injuryTimeWithBloodSeconds": 240,
   "injuryTimeCountingDirection": "Up",
+  "freestyle": {
+    "activityTimeSeconds": 30,
+    "activityTimeCountingDirection": "Down",
+    "activityTimeCondition": {
+      "passivityCount": { "gt": 1 }
+    }
+  },
   "victoryTypes": [
     { "type": "SS", "description": "Schultersieg", "classificationPoints": [4, 0] },
-    { "type": "TÜ", "description": "Technische Überlegenheit", "classificationPoints": [4, 0], "onCondition": { "scoreDifferenceAtLeast": 15 } },
-    { "type": "PS", "description": "Punktsieg", "classificationPoints": [3, 0], "onCondition": { "scoreDifferenceBetween": [8, 14] } },
-    { "type": "PS", "description": "Punktsieg", "classificationPoints": [2, 0], "onCondition": { "scoreDifferenceBetween": [3, 7] } },
-    { "type": "PS", "description": "Punktsieg", "classificationPoints": [1, 0], "onCondition": { "scoreDifferenceBetween": [0, 2] } },
+    {
+      "type": "TÜ",
+      "description": "Technische Überlegenheit",
+      "classificationPoints": [4, 0],
+      "condition": { "scoreDifference": { "gte": 15 } }
+    },
+    {
+      "type": "PS",
+      "description": "Punktsieg",
+      "classificationPoints": [3, 0],
+      "condition": { "scoreDifference": { "gte": 8, "lte": 14 } }
+    },
+    {
+      "type": "PS",
+      "description": "Punktsieg",
+      "classificationPoints": [2, 0],
+      "condition": { "scoreDifference": { "gte": 3, "lte": 7 } }
+    },
+    {
+      "type": "PS",
+      "description": "Punktsieg",
+      "classificationPoints": [1, 0],
+      "condition": { "scoreDifference": { "gte": 0, "lte": 2 } }
+    },
     { "type": "AS", "description": "Aufgabesieg", "classificationPoints": [4, 0] },
-    { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": [4, 0] },
+    { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": [4, 0], "condition": { "cautionCount": { "gte": 3 } } },
     { "type": "DQ", "description": "Disqualifikation durch unfaires Verhalten", "classificationPoints": [4, 0] },
     { "type": "DSQ2", "description": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": [0, 0] },
     { "type": "KL", "description": "Kampfloser Sieg", "classificationPoints": [4, 0] },
     { "type": "ÜG", "description": "Übergewicht", "classificationPoints": [4, 0] }
-  ],
-  "freestyle": {
-    "activityTimeSeconds": 30,
-    "activityTimeCountingDirection": "Down",
-    "activityTimeTrigger": "PassivityCountMoreThan1"
-  }
+  ]
 }
