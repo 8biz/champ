@@ -1,0 +1,36 @@
+{
+  "metadata": {
+    "name": "Freistil Ligakampf 2025",
+    "description": "Deutsches Regelwerk für Mannschaftskämpfe im Freistil",
+    "version": "1.0",
+    "language": "de",
+    "author": "Deutscher Ringer-Bund"
+  },
+  "periodTimesInSeconds": [180, 180],
+  "periodTimeCountingDirection": "Down",
+  "periodBreakTimeSeconds": 30,
+  "injuryTimeWithoutBloodSeconds": 120,
+  "injuryTimeWithBloodSeconds": 240,
+  "injuryTimeCountingDirection": "Up",
+  "maxPointDifferenceForVSU": 15,
+  "victoryConditions": [
+    { "code": "SS", "type": "Schultersieg", "classificationPoints": [4, 0] },
+    { "code": "TÜ", "type": "Technische Überlegenheit", "classificationPoints": [4, 0] },
+    { "code": "PS", "type": "Punktsieg", "classificationPoints": [3, 0], "scoreDifferenceMin": 8, "scoreDifferenceMax": 14 },
+    { "code": "PS", "type": "Punktsieg", "classificationPoints": [2, 0], "scoreDifferenceMin": 3, "scoreDifferenceMax": 7 },
+    { "code": "PS", "type": "Punktsieg", "classificationPoints": [1, 0], "scoreDifferenceMin": 0, "scoreDifferenceMax": 2 },
+    { "code": "AS", "type": "Aufgabesieg", "classificationPoints": [4, 0] },
+    { "code": "DV", "type": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": [4, 0] },
+    { "code": "DQ", "type": "Disqualifikation durch unfaires Verhalten", "classificationPoints": [4, 0] },
+    { "code": "DSQ2", "type": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": [0, 0] },
+    { "code": "KL", "type": "Kampfloser Sieg", "classificationPoints": [4, 0] },
+    { "code": "ÜG", "type": "Übergewicht", "classificationPoints": [4, 0] }
+  ],
+  "specialRules": {
+    "freestyle": {
+      "activityTimeSeconds": 30,
+      "activityTimeCountingDirection": "Down",
+      "activityTimeTrigger": "PassivityCountMoreThan1"
+    }
+  }
+}
