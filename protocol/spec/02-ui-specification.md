@@ -39,6 +39,9 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 | `side-red` | `board` | Red wrestler panel container |
 | `info-red` | `side-red` | Red wrestler information (name, team, etc.) |
 | `score-red` | `side-red` | Red wrestler's score display (auto-calculated) |
+| `side-blue` | `board` | Blue wrestler panel container |
+| `info-blue` | `side-blue` | Blue wrestler information (name, team, etc.) |
+| `score-blue` | `side-blue` | Blue wrestler's score display (auto-calculated) |
 | `buttons` | `app` | Container for the controls area (left/right button columns and center timing controls) |
 | `buttons-red` | `buttons` | Red controls column container |
 | `injury-time-red` | `buttons-red` | Red wrestler injury time control button |
@@ -46,11 +49,8 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 | `event-buttons-red` | `buttons-red` | Red side event buttons container (point/passivity/caution buttons) |
 | `center` | `buttons` | Central timing/control panel container |
 | `bout-time-button` | `center` | Bout time toggle control (start/stop) |
-| `display` | `bout-time-button` | Visual bout time display (M:SS.f) |
+| `bout-time-display` | `bout-time-button` | Visual bout time display (M:SS.f) |
 | `release-button` | `center` | Release / Complete scoresheet action button |
-| `side-blue` | `board` | Blue wrestler panel container |
-| `info-blue` | `side-blue` | Blue wrestler information (name, team, etc.) |
-| `score-blue` | `side-blue` | Blue wrestler's score display (auto-calculated) |
 | `buttons-blue` | `buttons` | Blue controls column container |
 | `injury-time-blue` | `buttons-blue` | Blue wrestler injury time control button |
 | `blood-time-blue` | `buttons-blue` | Blue wrestler blood time control button |
