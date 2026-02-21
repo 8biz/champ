@@ -207,7 +207,6 @@ These events are shown in the timeline.
 | `periodBreakTimeSeconds` | integer | Break duration between periods, in seconds. |
 | `injuryTimeWithoutBloodSeconds` | integer | Allowed injury stoppage without blood, in seconds. |
 | `injuryTimeWithBloodSeconds` | integer | Allowed injury stoppage with blood, in seconds. |
-| `boutEvents` | array of integers | Allowed bout events (e.g., `[1,2,4,5,P,0]`). |
 | `maxPointDifferenceForVSU` | integer | Point difference threshold for Victory by Superiority (VSU). |
 | `victoryConditions` | array | List of victory condition objects or identifiers (e.g., VFA - Victory by Fall, VSU, ...). |
 
