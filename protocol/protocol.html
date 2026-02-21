@@ -381,27 +381,27 @@
   </style>
 </head>
 <body>
-  <main class="app" aria-label="CHAMP Protocol Prototype">
+  <main id="app" class="app" aria-label="CHAMP Protocol Prototype">
     <section class="top-bar" aria-label="Scoresheet Header">
-      <input class="field" type="text" value="Wettkampf: Landesmeisterschaft; U17 74kg" aria-label="Bout Info" />
-      <select class="select" aria-label="Style">
+      <input id="bout-info" class="field" type="text" value="Wettkampf: Landesmeisterschaft; U17 74kg" aria-label="Bout Info" />
+      <select id="style-select" class="select" aria-label="Style">
         <option selected>Freestyle</option>
         <option>Greco-Roman</option>
       </select>
-      <select class="select" aria-label="Ruleset">
+      <select id="ruleset-select" class="select" aria-label="Ruleset">
         <option selected>Default Ruleset</option>
       </select>
     </section>
 
-    <section class="board" aria-label="Bout Area">
-      <article class="side red" aria-label="Wrestler Red">
+    <section id="board" class="board" aria-label="Bout Area">
+      <article id="side-red" class="side red" aria-label="Wrestler Red">
         <header class="side-head"><button class="action" type="button" aria-label="Bearbeiten">✎</button><span>Rot</span></header>
-        <div class="score" aria-label="Score Red">0</div>
-        <div class="injury-grid" aria-label="Red Injury Times">
+        <div id="score-red" class="score" aria-label="Score Red">0</div>
+        <div id="injury-red" class="injury-grid" aria-label="Red Injury Times">
           <button class="mini-time" type="button">TIR 0:00</button>
           <button class="mini-time" type="button">TBR 0:00</button>
         </div>
-        <div class="event-grid" aria-label="Red Event Buttons">
+        <div id="events-red" class="event-grid" aria-label="Red Event Buttons">
           <button class="event-btn" type="button">[1R]</button>
           <button class="event-btn" type="button">[4R]</button>
           <button class="event-btn" type="button">[5R]</button>
@@ -411,23 +411,23 @@
         </div>
       </article>
 
-      <article class="center" aria-label="Timing">
+      <article id="center" class="center" aria-label="Timing">
         <button class="bout-time" type="button" id="bout-time-button" aria-label="Bout Time Toggle">
           <div class="time-label">Kampfzeit</div>
           <div class="time" id="display">3:00</div>
           <div class="time-note">[Leertaste]</div>
         </button>
-        <button class="action" type="button" aria-label="Release">Freigeben [F4]</button>
+        <button id="release-button" class="action" type="button" aria-label="Release">Freigeben [F4]</button>
       </article>
 
-      <article class="side blue" aria-label="Wrestler Blue">
+      <article id="side-blue" class="side blue" aria-label="Wrestler Blue">
         <header class="side-head"><span>Blau</span><button class="action" type="button" aria-label="Bearbeiten">✎</button></header>
-        <div class="score" aria-label="Score Blue">0</div>
-        <div class="injury-grid" aria-label="Blue Injury Times">
+        <div id="score-blue" class="score" aria-label="Score Blue">0</div>
+        <div id="injury-blue" class="injury-grid" aria-label="Blue Injury Times">
           <button class="mini-time" type="button">TBB 0:00</button>
           <button class="mini-time" type="button">TIB 0:00</button>
         </div>
-        <div class="event-grid" aria-label="Blue Event Buttons">
+        <div id="events-blue" class="event-grid" aria-label="Blue Event Buttons">
             <button class="event-btn" type="button">[5B]</button>
             <button class="event-btn" type="button">[4B]</button>
             <button class="event-btn" type="button">[1B]</button>
@@ -438,7 +438,7 @@
       </article>
     </section>
 
-    <section class="timeline" aria-label="Timeline">
+    <section id="timeline" class="timeline" aria-label="Timeline">
       <div class="entry">
         <div class="entry-box red">1R</div>
         <div class="entry-time">0:12</div>
