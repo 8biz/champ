@@ -1,10 +1,10 @@
 {
+  "$schema": "./ruleset-rev01.schema.json",
   "metadata": {
     "name": "de-mannschaftskampf-2025",
     "description": "Deutsches Regelwerk für Mannschaftskämpfe",
-    "language": "de",
-    "author": "Deutscher Ringer-Bund",
-    "rulesetRevision": 1
+    "languages": ["de"],
+    "author": "Deutscher Ringer-Bund"
   },
   "periodTimesInSeconds": [180, 180],
   "periodTimeCountingDirection": "Down",
