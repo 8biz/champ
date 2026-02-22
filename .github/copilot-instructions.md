@@ -53,7 +53,7 @@ npx playwright test
 │   │   ├── 01-specification.md   # Feature specifications
 │   │   └── 02-ui-specification.md # UI design & guidelines
 │   └── tests/
-│       └── timer.spec.js  # Playwright E2E tests
+│       └── protocol.spec.js  # Playwright E2E tests
 ├── .devcontainer/
 │   └── devcontainer.json  # VS Code Dev Container config (Node 18)
 ├── package.json           # Scripts: test command only
@@ -76,7 +76,7 @@ npx playwright test
 - `01-specification.md`: Event types, data structures, ruleset details
 - `02-ui-specification.md`: UI constraints, timeline design, color scheme (#d33131 red, #1975d2 blue)
 
-**protocol/tests/timer.spec.js**
+**protocol/tests/protocol.spec.js**
 - Tests countdown timer: starts at 3:00, counts down, stop button works
 - Uses `file://` protocol to load local HTML
 
@@ -93,7 +93,7 @@ npx playwright test
    ```bash
    npm test
    ```
-   Must pass. If timer.spec.js fails, you likely broke the countdown timer in protocol.html.
+  Must pass. If protocol.spec.js fails, you likely broke the countdown timer in protocol.html.
 
 2. **Manual browser test:**
    Open `protocol/protocol.html` in a browser (Chrome/Firefox/Safari):
