@@ -26,6 +26,116 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
         - Red: #d33131, Blue: #1975d2, Neutral1: #f5f5f5, Neutral2: #9e9e9e, Neutral3: #616161; https://colorkit.co/palette/d33131-1975d2-f5f5f5-9e9e9e-616161/
 
 
+## UI Element IDs
+
+### Main elements
+
+| ID | Parent element | Intention |
+|---|---|---|
+| `app` | `body` | Root application container — overall layout and accessibility root |
+| `top-bar` | `app` | Scoresheet header container |
+| `board` | `app` | Container for the wrestler panels (left/right sides) |
+| `buttons` | `app` | Container for the controls area (left/right button columns and center timing controls) |
+| `timeline` | `app` | Horizontal timeline listing recorded events (visual entry blocks) |
+
+---
+
+### `top-bar` elements
+
+| ID | Parent element | Intention |
+|---|---|---|
+| `bout-info` | `top-bar` | Editable bout information field (competition, weight class, etc.) |
+| `style-select` | `top-bar` | Ruleset style selector (Freestyle / Greco-Roman) |
+| `ruleset-select` | `top-bar` | Ruleset dropdown (predefined/custom ruleset selection) |
+
+---
+
+### `board` elements
+
+| ID | Parent element | Intention |
+|---|---|---|
+| `side-red` | `board` | Red wrestler panel container |
+| `info-red` | `side-red` | Red wrestler information (name, team, etc.) |
+| `score-red` | `side-red` | Red wrestler's score display (auto-calculated) |
+| `side-blue` | `board` | Blue wrestler panel container |
+| `info-blue` | `side-blue` | Blue wrestler information (name, team, etc.) |
+| `score-blue` | `side-blue` | Blue wrestler's score display (auto-calculated) |
+
+---
+
+### `buttons` elements
+
+| ID | Parent element | Intention |
+|---|---|---|
+| `buttons-red` | `buttons` | Red controls column container |
+| `injury-time-red` | `buttons-red` | Red wrestler injury time control button |
+| `blood-time-red` | `buttons-red` | Red wrestler blood time control button |
+| `event-buttons-red` | `buttons-red` | Red side event buttons container (point/passivity/caution buttons) |
+| `center` | `buttons` | Central timing/control panel container |
+| `bout-time-button` | `center` | Bout time toggle control (start/stop) |
+| `bout-time-display` | `bout-time-button` | Visual bout time display (M:SS.f) |
+| `release-complete-button` | `center` | Release / Complete scoresheet action button |
+| `buttons-blue` | `buttons` | Blue controls column container |
+| `injury-time-blue` | `buttons-blue` | Blue wrestler injury time control button |
+| `blood-time-blue` | `buttons-blue` | Blue wrestler blood time control button |
+| `event-buttons-blue` | `buttons-blue` | Blue side event buttons container (point/passivity/caution buttons) |
+
+---
+
+### `timeline` elements
+
+| ID | Parent element | Intention |
+|---|---|---|
+| `next-event` | `timeline` | Next event entry block (used for inserting new events) |
+
+---
+
+### Hidden test hooks
+
+| ID | Parent element | Intention |
+|---|---|---|
+| `start` | hidden `div` container | Hidden test hook: start timer (used by tests) |
+| `stop` | hidden `div` container | Hidden test hook: stop timer (used by tests) |
+
+
+## States of the UI
+
+The application has two primary interactive states that determine which controls are editable and which actions are available:
+
+- Idle: the scoresheet is not released for recording (either still preparing or already completed). No bout events can be recorded.
+- Recording: the scoresheet is released and the user may record bout events in real time.
+
+### Idle
+
+When the UI is in the Idle state the interface is primarily editable for preparation or post‑bout review. Appearance and behaviour in this state:
+
+- `top-bar` is unlocked and editable by the user.
+- `board` is unlocked and editable.
+- `buttons` are disabled for recording actions (controls appear inactive/greyed out), with two exceptions:
+    - `release-complete-button` is enabled and displays the label "Freigeben [F4]" to allow releasing the scoresheet for recording. This is also valid when the scoresheet is already completed, allowing to re-release it for corrections.
+- `timeline` contains no event entries; the `next-event` entry is not present in the DOM while Idle.
+
+On opening a new scoresheet the UI displays following default values:
+- `bout-info`: "Freundschaftskampf"
+- `style-select`: "Freistil" selected, "Griech.-röm." available
+- `ruleset-select`: "beiliegendes Regelwerk" available
+- `info-red`: "Rot"
+- `info-blue`: "Blau"
+- `bout-time-display`: shows the period length from the embedded JSON ruleset (e.g., "3:00" if `periodTimesInSeconds` is 180)
+
+### Recording
+
+When the scoresheet is released the UI enters the Recording state and is optimized for fast, reliable event entry:
+
+- `top-bar` is locked and no longer editable to prevent accidental changes while recording.
+- `board` is locked so wrestler info and scoresheet metadata cannot be changed during recording.
+- `buttons` are enabled and ready for input (injury timers, blood timers, event buttons, and the bout time control).
+    - `release-complete-button` is enabled and displays the label "Abschließen [F4]" to allow completing the scoresheet (even if the scoresheet is re-released).
+- `timeline` displays the `next-event` entry block at the end of the timeline and accepts new bout events; this block is the active cursor position for entering events.
+
+
+
+
 ## Timeline Design Guidelines 📊
 - The timeline grows from left to right, with the most recent events on the right.
 - The timeline is horizontally scrollable if the number of events exceeds the available width.
@@ -43,7 +153,7 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
         - row 1: colored red displaying "0R"
         - row 2: colored blue displaying "1B" or "2B"
         - vice versa for a caution for blue wrestler
-    - The bout time of the event is shown below the block in "M:SS" format.
+    - The bout time of the event is shown below the block in "M:SS.f" format.
 - A **bout event insert entry** like the **Next event entry** is represented as
     - an empty, neutral, light colored block with a light neutral colored, dashed border. (with cursor on it, it is colored dark neutral, but dashed)
     - Typing a color key (`R` or `B`) changes the block and border color to Red or Blue

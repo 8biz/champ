@@ -1,0 +1,278 @@
+{
+  "$schema": "../export-v1.schema.json",
+  "exportVersion": "1.0",
+  "metadata": {
+    "app": {
+      "name": "CHAMP Protocol",
+      "version": "1.0.0",
+      "build": "2025-01-15T10:30:00Z"
+    },
+    "system": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "platform": "Win32",
+      "language": "de-DE",
+      "languages": ["de-DE", "de", "en-US", "en"],
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "timestamp": "2025-03-15T14:23:45.678Z",
+      "timezone": "Europe/Berlin",
+      "timezoneOffset": -60
+    }
+  },
+  "bout": {
+    "header": {
+      "createdAt": "2025-03-15T14:20:00.000Z",
+      "info": "Wettkampf: Landesmeisterschaft; U17 74kg",
+      "style": "Freestyle",
+      "ruleset": {
+        "reference": "de-mannschaftskampf-2025",
+        "embedded": {
+          "metadata": {
+            "name": "de-mannschaftskampf-2025",
+            "description": "Deutsches Regelwerk für Mannschaftskämpfe",
+            "languages": ["de"],
+            "author": "Deutscher Ringer-Bund"
+          },
+          "periodTimesInSeconds": [180, 180],
+          "periodTimeCountingDirection": "Down",
+          "periodBreakTimeInSeconds": 30,
+          "injuryTimeWithoutBloodInSeconds": 120,
+          "injuryTimeWithBloodInSeconds": 240,
+          "injuryTimeCountingDirection": "Up",
+          "freestyle": {
+            "activityTimeInSeconds": 30,
+            "activityTimeCountingDirection": "Down",
+            "activityTimeCondition": {
+              "passivityCount": { "gt": 1 }
+            }
+          },
+          "victoryTypes": [
+            { "type": "SS", "description": "Schultersieg", "classificationPoints": [4, 0] },
+            { "type": "TÜ", "description": "Technische Überlegenheit", "classificationPoints": [4, 0], "condition": { "scoreDifference": { "gte": 15 } } },
+            { "type": "PS", "description": "Punktsieg", "classificationPoints": [3, 0], "condition": { "scoreDifference": { "gte": 8, "lte": 14 } } },
+            { "type": "PS", "description": "Punktsieg", "classificationPoints": [2, 0], "condition": { "scoreDifference": { "gte": 3, "lte": 7 } } },
+            { "type": "PS", "description": "Punktsieg", "classificationPoints": [1, 0], "condition": { "scoreDifference": { "gte": 0, "lte": 2 } } },
+            { "type": "AS", "description": "Aufgabesieg", "classificationPoints": [4, 0] },
+            { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": [4, 0], "condition": { "cautionCount": { "gte": 3 } } },
+            { "type": "DQ", "description": "Disqualifikation durch unfaires Verhalten", "classificationPoints": [4, 0] },
+            { "type": "DSQ2", "description": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": [0, 0] },
+            { "type": "KL", "description": "Kampfloser Sieg", "classificationPoints": [4, 0] },
+            { "type": "ÜG", "description": "Übergewicht", "classificationPoints": [4, 0] }
+          ]
+        }
+      },
+      "wrestlers": {
+        "red": {
+          "info": "Name: Max Mustermann; Club: KSV Ringerhimmel; $Region: Südbaden",
+          "parsedInfo": {
+            "name": "Max Mustermann",
+            "club": "KSV Ringerhimmel",
+            "region": "Südbaden"
+          }
+        },
+        "blue": {
+          "info": "Name: John Doe; Club: SV Blautal; $Region: Baden",
+          "parsedInfo": {
+            "name": "John Doe",
+            "club": "SV Blautal",
+            "region": "Baden"
+          }
+        }
+      }
+    },
+    "summary": {
+      "completed": true,
+      "completedAt": "2025-03-15T14:29:12.456Z",
+      "duration": {
+        "totalBoutTime100ms": 34560,
+        "totalRealTime": 552000,
+        "periods": [
+          { "period": 1, "duration100ms": 18000 },
+          { "period": 2, "duration100ms": 16560 }
+        ]
+      },
+      "scores": {
+        "red": 8,
+        "blue": 3
+      },
+      "winner": "red",
+      "victory": {
+        "type": "PS",
+        "description": "Punktsieg",
+        "classificationPoints": [3, 0]
+      },
+      "statistics": {
+        "red": {
+          "technicalPoints": { "1": 2, "2": 1, "4": 1, "5": 0 },
+          "passivity": 1,
+          "cautions": 0,
+          "injuryTime100ms": 0,
+          "bloodTime100ms": 0
+        },
+        "blue": {
+          "technicalPoints": { "1": 1, "2": 1, "4": 0, "5": 0 },
+          "passivity": 2,
+          "cautions": 0,
+          "injuryTime100ms": 0,
+          "bloodTime100ms": 0
+        },
+        "totalEvents": 15,
+        "corrections": 2
+      },
+      "timeline": [
+        { "seq": 3, "eventType": "1R", "boutTime100ms": 1200 },
+        { "seq": 6, "eventType": "PB", "boutTime100ms": 3900 },
+        { "seq": 8, "eventType": "2B", "boutTime100ms": 5670 },
+        { "seq": 12, "eventType": "4R", "boutTime100ms": 11250 },
+        { "seq": 14, "eventType": "PeriodEnd", "boutTime100ms": 18000 },
+        { "seq": 17, "eventType": "2R", "boutTime100ms": 21340 },
+        { "seq": 19, "eventType": "1B", "boutTime100ms": 28900 },
+        { "seq": 21, "eventType": "1R", "boutTime100ms": 34560 }
+      ],
+      "notes": ""
+    },
+    "events": [
+      {
+        "seq": 1,
+        "timestamp": "2025-03-15T14:20:05.123Z",
+        "eventType": "ScoresheetReleased"
+      },
+      {
+        "seq": 2,
+        "timestamp": "2025-03-15T14:20:08.456Z",
+        "eventType": "T_Started",
+        "boutTime100ms": 0
+      },
+      {
+        "seq": 3,
+        "timestamp": "2025-03-15T14:20:20.789Z",
+        "eventType": "1R",
+        "boutTime100ms": 1200
+      },
+      {
+        "seq": 4,
+        "timestamp": "2025-03-15T14:20:45.012Z",
+        "eventType": "T_Stopped",
+        "boutTime100ms": 2500
+      },
+      {
+        "seq": 5,
+        "timestamp": "2025-03-15T14:20:52.345Z",
+        "eventType": "T_Started",
+        "boutTime100ms": 2500
+      },
+      {
+        "seq": 6,
+        "timestamp": "2025-03-15T14:21:01.678Z",
+        "eventType": "PB",
+        "boutTime100ms": 3900
+      },
+      {
+        "seq": 7,
+        "timestamp": "2025-03-15T14:21:15.234Z",
+        "eventType": "EventModified",
+        "refSeq": 6,
+        "newEventType": "PR"
+      },
+      {
+        "seq": 8,
+        "timestamp": "2025-03-15T14:21:28.567Z",
+        "eventType": "2B",
+        "boutTime100ms": 5670
+      },
+      {
+        "seq": 9,
+        "timestamp": "2025-03-15T14:22:10.890Z",
+        "eventType": "T_IR_Started",
+        "boutTime100ms": 9800
+      },
+      {
+        "seq": 10,
+        "timestamp": "2025-03-15T14:22:40.123Z",
+        "eventType": "T_IR_Stopped",
+        "boutTime100ms": 9800
+      },
+      {
+        "seq": 11,
+        "timestamp": "2025-03-15T14:22:45.456Z",
+        "eventType": "T_Started",
+        "boutTime100ms": 9800
+      },
+      {
+        "seq": 12,
+        "timestamp": "2025-03-15T14:23:02.789Z",
+        "eventType": "4R",
+        "boutTime100ms": 11250
+      },
+      {
+        "seq": 13,
+        "timestamp": "2025-03-15T14:23:35.012Z",
+        "eventType": "T_Stopped",
+        "boutTime100ms": 18000
+      },
+      {
+        "seq": 14,
+        "timestamp": "2025-03-15T14:23:35.013Z",
+        "eventType": "PeriodEnd",
+        "boutTime100ms": 18000
+      },
+      {
+        "seq": 15,
+        "timestamp": "2025-03-15T14:24:10.345Z",
+        "eventType": "T_Started",
+        "boutTime100ms": 18000
+      },
+      {
+        "seq": 16,
+        "timestamp": "2025-03-15T14:24:23.678Z",
+        "eventType": "T_Stopped",
+        "boutTime100ms": 19340
+      },
+      {
+        "seq": 17,
+        "timestamp": "2025-03-15T14:24:28.901Z",
+        "eventType": "2R",
+        "boutTime100ms": 21340
+      },
+      {
+        "seq": 18,
+        "timestamp": "2025-03-15T14:25:15.234Z",
+        "eventType": "T_Started",
+        "boutTime100ms": 21340
+      },
+      {
+        "seq": 19,
+        "timestamp": "2025-03-15T14:26:04.567Z",
+        "eventType": "1B",
+        "boutTime100ms": 28900
+      },
+      {
+        "seq": 20,
+        "timestamp": "2025-03-15T14:26:45.890Z",
+        "eventType": "T_Stopped",
+        "boutTime100ms": 33230
+      },
+      {
+        "seq": 21,
+        "timestamp": "2025-03-15T14:26:51.123Z",
+        "eventType": "1R",
+        "boutTime100ms": 34560
+      },
+      {
+        "seq": 22,
+        "timestamp": "2025-03-15T14:27:02.456Z",
+        "eventType": "T_Started",
+        "boutTime100ms": 34560
+      },
+      {
+        "seq": 23,
+        "timestamp": "2025-03-15T14:29:12.456Z",
+        "eventType": "ScoresheetCompleted",
+        "victoryType": "PS",
+        "classificationPoints": [3, 0]
+      }
+    ]
+  }
+}

@@ -8,6 +8,7 @@ It covers
 - event specification
 - timeline specification
 - ruleset specification
+- export format specification
 
 An overview of the CHAMP Protocol tool can be found in the [overview document](00-overview.md).
 
@@ -199,16 +200,242 @@ These events are shown in the timeline.
 
 ## Ruleset specification ⚙️
 
-| field | type | description |
-| --- | --- | --- |
-| `name` | string | Human-readable ruleset name. |
-| `periodTimesInSeconds` | array of integers | Durations of each period in seconds (e.g., `[180, 180]`). |
-| `periodTimeCountingDirection` | `Up` \| `Down` | Direction the period clock counts. |
-| `periodBreakTimeSeconds` | integer | Break duration between periods, in seconds. |
-| `injuryTimeWithoutBloodSeconds` | integer | Allowed injury stoppage without blood, in seconds. |
-| `injuryTimeWithBloodSeconds` | integer | Allowed injury stoppage with blood, in seconds. |
-| `points` | array of integers | Allowed scoring increments (e.g., `[1,2,4,5]`). |
-| `maxPointDifferenceForVSU` | integer | Point difference threshold for Victory by Superiority (VSU). |
-| `victoryConditions` | array | List of victory condition objects or identifiers (e.g., VFA - Victory by Fall, VSU, ...). |
+Rulesets define the timing rules, victory conditions, and style-specific configurations for wrestling bouts. They are stored as JSON objects and can be embedded in the application or loaded from external files.
+
+### Ruleset schema
+
+#### Root properties
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `metadata` | object | ✓ | Ruleset identification and authorship information |
+| `periodTimesInSeconds` | array of integers | ✓ | Duration of each period in seconds (e.g., `[180, 180]` for two 3-minute periods) |
+| `periodTimeCountingDirection` | `"Up"` \| `"Down"` | ✓ | Direction the period clock counts |
+| `periodBreakTimeInSeconds` | integer | ✓ | Break duration between periods, in seconds |
+| `injuryTimeWithoutBloodInSeconds` | integer | ✓ | Maximum allowed injury stoppage without blood, in seconds |
+| `injuryTimeWithBloodInSeconds` | integer | ✓ | Maximum allowed injury stoppage with blood, in seconds |
+| `injuryTimeCountingDirection` | `"Up"` \| `"Down"` | ✓ | Direction the injury time clock counts |
+| `freestyle` | object | optional | Freestyle-specific timing rules (see below) |
+| `victoryTypes` | array | ✓ | List of victory condition objects (see below) |
+
+#### Metadata object
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | ✓ | Human-readable ruleset name |
+| `description` | string | ✓ | Brief description of the ruleset |
+| `version` | string | optional | Ruleset version identifier |
+| `languages` | array of strings | ✓ | Supported language codes (e.g., `["de", "en"]`) |
+| `author` | string | ✓ | Ruleset author or organization |
+
+#### Freestyle object (optional)
+
+Freestyle wrestling has additional activity time rules that apply under certain conditions.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `activityTimeInSeconds` | integer | optional | Duration of activity time in seconds |
+| `activityTimeCountingDirection` | `"Up"` \| `"Down"` | optional | Direction the activity time clock counts |
+| `activityTimeCondition` | object | optional | Condition object specifying when activity time applies (see Condition Format below) |
+
+#### Victory types array
+
+Each victory type defines how a bout can be won, the classification points awarded, and optional conditions that must be met.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | ✓ | Victory type code (e.g., `"VFA"`, `"VSU"`, `"VPO"`) |
+| `description` | string | ✓ | Human-readable description |
+| `classificationPoints` | array of 2 integers | ✓ | Points awarded to [winner, loser] (e.g., `[5, 0]` or `[4, 0]`) |
+| `condition` | object | optional | Condition object specifying when this victory type applies (see Condition Format below) |
+
+#### Condition format
+
+Conditions use operator-based property matching. Each condition is an object where keys are property names (e.g., `scoreDifference`, `cautionCount`, `passivityCount`) and values are operator objects.
+
+**Supported operators:**
+- `gte`: Greater than or equal to
+- `lte`: Less than or equal to
+- `gt`: Greater than
+- `lt`: Less than
+- `eq`: Equal to
+
+**Example conditions:**
+```json
+{
+  "scoreDifference": { "gte": 15 }
+}
+```
+Match when score difference is greater than or equal to 15.
+
+```json
+{
+  "scoreDifference": { "gte": 8, "lte": 14 }
+}
+```
+Match when score difference is between 8 and 14 (inclusive).
+
+```json
+{
+  "passivityCount": { "gt": 1 }
+}
+```
+Match when passivity count is greater than 1 (i.e., 2 or more).
+
+### Example ruleset snippet
+
+```json
+{
+  "metadata": {
+    "name": "Default German Team Ruleset",
+    "description": "Standard rules for German team wrestling",
+    "version": "1.0",
+    "languages": ["de"],
+    "author": "CHAMP Protocol"
+  },
+  "periodTimesInSeconds": [180, 180],
+  "periodTimeCountingDirection": "Down",
+  "periodBreakTimeInSeconds": 30,
+  "victoryTypes": [
+    {
+      "type": "VFA",
+      "description": "Sieg durch Schultersieg",
+      "classificationPoints": [5, 0]
+    },
+    {
+      "type": "VSU",
+      "description": "Sieg durch technische Überlegenheit",
+      "classificationPoints": [5, 0],
+      "condition": {
+        "scoreDifference": { "gte": 15 }
+      }
+    },
+    {
+      "type": "VPO1",
+      "description": "Sieg nach Punkten (1-7 Punkte)",
+      "classificationPoints": [3, 0],
+      "condition": {
+        "scoreDifference": { "gte": 1, "lte": 7 }
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Export format specification 📤
+
+Completed bouts can be exported as JSON files containing all recorded data, metadata, and computed statistics. The export format is versioned to support future extensions.
+
+### Export schema
+
+#### Root properties
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `$schema` | string | optional | Reference to the JSON Schema file |
+| `exportVersion` | string | ✓ | Export format version (e.g., `"1.0"`) |
+| `metadata` | object | ✓ | Application and system metadata (see below) |
+| `bout` | object | ✓ | Complete bout data (see below) |
+
+#### Metadata object
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `app` | object | ✓ | Application information |
+| `system` | object | ✓ | System and environment information |
+
+**App object:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | ✓ | Application name (e.g., `"CHAMP Protocol"`) |
+| `version` | string | ✓ | Application version |
+| `build` | string (ISO 8601) | optional | Build timestamp |
+
+**System object:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `userAgent` | string | ✓ | Browser user agent string |
+| `platform` | string | ✓ | Operating system platform |
+| `language` | string | ✓ | Primary browser language |
+| `languages` | array of strings | optional | All browser languages |
+| `viewport` | object | optional | Viewport dimensions (`width`, `height`) |
+| `timestamp` | string (ISO 8601) | ✓ | Export creation timestamp |
+| `timezone` | string | optional | System timezone (e.g., `"Europe/Berlin"`) |
+| `timezoneOffset` | integer | optional | UTC offset in minutes |
+
+#### Bout object
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `header` | object | ✓ | Bout setup information (see below) |
+| `summary` | object | ✓ | Computed results and statistics (see below) |
+| `events` | array | ✓ | Chronological event log (see Event Specification) |
+
+**Bout header:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `createdAt` | string (ISO 8601) | ✓ | Bout creation timestamp |
+| `info` | string | ✓ | Bout info text (competition, weight class, etc.) |
+| `style` | `"Freestyle"` \| `"Greco-Roman"` | ✓ | Wrestling style |
+| `ruleset` | object | ✓ | Ruleset reference and embedded ruleset object |
+| `wrestlers` | object | ✓ | Red and blue wrestler information |
+
+*Ruleset object:*
+- `reference` (string, required): Ruleset name
+- `embedded` (object, optional): Full embedded ruleset object (see Ruleset specification)
+
+*Wrestlers object:*
+- `red` / `blue` (object, required):
+  - `info` (string, required): Raw info text
+  - `parsedInfo` (object, optional): Parsed key-value pairs from info text
+
+**Bout summary:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `completed` | boolean | ✓ | Whether bout is completed |
+| `completedAt` | string (ISO 8601) | optional | Completion timestamp |
+| `duration` | object | ✓ | Timing information (see below) |
+| `scores` | object | ✓ | Final scores: `{"red": integer, "blue": integer}` |
+| `winner` | `"red"` \| `"blue"` \| `"draw"` \| `"none"` | optional | Winner identification |
+| `victory` | object | optional | Victory details (see below) |
+| `statistics` | object | ✓ | Per-wrestler statistics (see below) |
+| `timeline` | array | optional | Filtered bout events with sequence, type, and time |
+| `notes` | string | optional | Additional notes |
+
+*Duration object:*
+- `totalBoutTime100ms` (integer, required): Total bout time in 100ms units
+- `totalRealTime` (integer, optional): Real-world duration in milliseconds
+- `periods` (array, optional): Per-period durations (objects with `period` and `duration100ms`)
+
+*Victory object (when bout is completed):*
+- `type` (string, required): Victory type code (e.g., `"VFA"`, `"VSU"`)
+- `description` (string, required): Human-readable description
+- `classificationPoints` (array of 2 integers, required): Points awarded [winner, loser]
+
+*Statistics object:*
+- `red` / `blue` (object, required): Per-wrestler statistics
+  - `technicalPoints` (object, required): Breakdown by point value: `{"1": count, "2": count, "4": count, "5": count}`
+  - `passivity` (integer, required): Passivity count
+  - `cautions` (integer, required): Caution count
+  - `injuryTime100ms` (integer, optional): Total injury time without blood, in 100ms units
+  - `bloodTime100ms` (integer, optional): Total blood time, in 100ms units
+- `totalEvents` (integer, required): Total number of events recorded
+- `corrections` (integer, optional): Number of correction events
+
+### Usage
+
+Exports are generated via:
+```javascript
+window.exportHelper.generate()  // Returns export object
+window.exportHelper.download()  // Downloads as JSON file
+```
+
+Exported files follow the naming pattern: `champ-export-YYYY-MM-DDTHH-MM-SS.json`
 
 ---

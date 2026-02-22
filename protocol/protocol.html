@@ -41,7 +41,7 @@
       background: #fff;
       border-radius: 8px;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto auto auto 1fr;
       gap: 0.5rem;
       padding: 0.5rem;
       overflow: hidden;
@@ -79,6 +79,13 @@
 
     .board {
       display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      min-height: 0;
+    }
+
+    .buttons {
+      display: grid;
       grid-template-columns: 1fr minmax(130px, 180px) 1fr;
       gap: 0.5rem;
       min-height: 0;
@@ -94,11 +101,29 @@
       min-height: 0;
     }
 
+    .button-side {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 0.45rem;
+      min-height: 0;
+    }
+
     .side.red {
       background: color-mix(in srgb, var(--red) 8%, white);
     }
 
     .side.blue {
+      background: color-mix(in srgb, var(--blue) 8%, white);
+    }
+
+    .button-side.red {
+      background: color-mix(in srgb, var(--red) 8%, white);
+    }
+
+    .button-side.blue {
       background: color-mix(in srgb, var(--blue) 8%, white);
     }
 
@@ -358,13 +383,14 @@
     }
 
     @media (max-width: 850px) {
-      .board {
+      .board,
+      .buttons {
         grid-template-columns: 1fr;
         grid-template-rows: auto auto auto;
         overflow: auto;
       }
 
-      .center {
+      .buttons .center {
         order: -1;
       }
     }
@@ -381,64 +407,31 @@
   </style>
 </head>
 <body>
-  <main class="app" aria-label="CHAMP Protocol Prototype">
-    <section class="top-bar" aria-label="Scoresheet Header">
-      <input class="field" type="text" value="Wettkampf: Landesmeisterschaft; U17 74kg" aria-label="Bout Info" />
-      <select class="select" aria-label="Style">
+  <main id="app" class="app" aria-label="CHAMP Protocol Prototype">
+    <section id="top-bar" class="top-bar" aria-label="Scoresheet Header">
+      <input id="bout-info" class="field" type="text" value="Wettkampf: Landesmeisterschaft; U17 74kg" aria-label="Bout Info" />
+      <select id="style-select" class="select" aria-label="Style">
         <option selected>Freestyle</option>
         <option>Greco-Roman</option>
       </select>
-      <select class="select" aria-label="Ruleset">
+      <select id="ruleset-select" class="select" aria-label="Ruleset">
         <option selected>Default Ruleset</option>
       </select>
     </section>
 
-    <section class="board" aria-label="Bout Area">
-      <article class="side red" aria-label="Wrestler Red">
-        <header class="side-head"><button class="action" type="button" aria-label="Bearbeiten">✎</button><span>Rot</span></header>
-        <div class="score" aria-label="Score Red">0</div>
-        <div class="injury-grid" aria-label="Red Injury Times">
-          <button class="mini-time" type="button">TIR 0:00</button>
-          <button class="mini-time" type="button">TBR 0:00</button>
-        </div>
-        <div class="event-grid" aria-label="Red Event Buttons">
-          <button class="event-btn" type="button">[1R]</button>
-          <button class="event-btn" type="button">[4R]</button>
-          <button class="event-btn" type="button">[5R]</button>
-          <button class="event-btn" type="button">[2R]</button>
-          <button class="event-btn" type="button">[PR]</button>
-          <button class="event-btn" type="button">[0R]</button>
-        </div>
+    <section id="board" class="board" aria-label="Bout Area">
+      <article id="side-red" class="side red" aria-label="Wrestler Red">
+        <header id="info-red" class="side-head"><button class="action" type="button" aria-label="Bearbeiten">✎</button><span>Rot</span></header>
+        <div id="score-red" class="score" aria-label="Score Red">0</div>
       </article>
 
-      <article class="center" aria-label="Timing">
-        <button class="bout-time" type="button" id="bout-time-button" aria-label="Bout Time Toggle">
-          <div class="time-label">Kampfzeit</div>
-          <div class="time" id="display">3:00</div>
-          <div class="time-note">[Leertaste]</div>
-        </button>
-        <button class="action" type="button" aria-label="Release">Freigeben [F4]</button>
-      </article>
-
-      <article class="side blue" aria-label="Wrestler Blue">
-        <header class="side-head"><span>Blau</span><button class="action" type="button" aria-label="Bearbeiten">✎</button></header>
-        <div class="score" aria-label="Score Blue">0</div>
-        <div class="injury-grid" aria-label="Blue Injury Times">
-          <button class="mini-time" type="button">TBB 0:00</button>
-          <button class="mini-time" type="button">TIB 0:00</button>
-        </div>
-        <div class="event-grid" aria-label="Blue Event Buttons">
-            <button class="event-btn" type="button">[5B]</button>
-            <button class="event-btn" type="button">[4B]</button>
-            <button class="event-btn" type="button">[1B]</button>
-            <button class="event-btn" type="button">[0B]</button>
-            <button class="event-btn" type="button">[PB]</button>
-            <button class="event-btn" type="button">[2B]</button>
-        </div>
+      <article id="side-blue" class="side blue" aria-label="Wrestler Blue">
+        <header id="info-blue" class="side-head"><span>Blau</span><button class="action" type="button" aria-label="Bearbeiten">✎</button></header>
+        <div id="score-blue" class="score" aria-label="Score Blue">0</div>
       </article>
     </section>
 
-    <section class="timeline" aria-label="Timeline">
+    <section id="timeline" class="timeline" aria-label="Timeline">
       <div class="entry">
         <div class="entry-box red">1R</div>
         <div class="entry-time">0:12</div>
@@ -454,10 +447,51 @@
         </div>
         <div class="entry-time">1:02</div>
       </div>
-      <div class="entry">
+      <div id="next-event" class="entry">
         <div class="entry-box next">+</div>
         <div class="entry-time">Next</div>
       </div>
+    </section>
+
+    <section id="buttons" class="buttons" aria-label="Bout Buttons">
+      <article id="buttons-red" class="button-side red" aria-label="Red Button Column">
+        <div class="injury-grid" aria-label="Red Injury Times">
+          <button id="injury-time-red" class="mini-time" type="button">TIR 0:00</button>
+          <button id="blood-time-red" class="mini-time" type="button">TBR 0:00</button>
+        </div>
+        <div id="event-buttons-red" class="event-grid" aria-label="Red Event Buttons">
+          <button class="event-btn" type="button">[1R]</button>
+          <button class="event-btn" type="button">[4R]</button>
+          <button class="event-btn" type="button">[5R]</button>
+          <button class="event-btn" type="button">[2R]</button>
+          <button class="event-btn" type="button">[PR]</button>
+          <button class="event-btn" type="button">[0R]</button>
+        </div>
+      </article>
+
+      <article id="center" class="center" aria-label="Timing">
+        <button class="bout-time" type="button" id="bout-time-button" aria-label="Bout Time Toggle">
+          <div class="time-label">Kampfzeit</div>
+          <div id="bout-time-display" class="time">3:00</div>
+          <div class="time-note">[Leertaste]</div>
+        </button>
+        <button id="release-complete-button" class="action" type="button" aria-label="Release">Freigeben [F4]</button>
+      </article>
+
+      <article id="buttons-blue" class="button-side blue" aria-label="Blue Button Column">
+        <div class="injury-grid" aria-label="Blue Injury Times">
+          <button id="blood-time-blue" class="mini-time" type="button">TBB 0:00</button>
+          <button id="injury-time-blue" class="mini-time" type="button">TIB 0:00</button>
+        </div>
+        <div id="event-buttons-blue" class="event-grid" aria-label="Blue Event Buttons">
+            <button class="event-btn" type="button">[5B]</button>
+            <button class="event-btn" type="button">[4B]</button>
+            <button class="event-btn" type="button">[1B]</button>
+            <button class="event-btn" type="button">[0B]</button>
+            <button class="event-btn" type="button">[PB]</button>
+            <button class="event-btn" type="button">[2B]</button>
+        </div>
+      </article>
     </section>
   </main>
 
@@ -511,6 +545,393 @@
     stopButton.addEventListener("click", stopTimer);
     boutTimeButton.addEventListener("click", toggleTimer);
     updateDisplay();
+
+    // --- Ruleset helper -------------------------------------------------
+    function loadEmbeddedRuleset() {
+      const el = document.getElementById('default-ruleset');
+      if (!el) return null;
+      try {
+        return JSON.parse(el.textContent);
+      } catch (e) {
+        console.error('Failed to parse embedded ruleset:', e);
+        return null;
+      }
+    }
+
+    function simpleValidateRuleset(r) {
+      const errors = [];
+      if (!r) { errors.push('ruleset missing'); return { valid: false, errors }; }
+      if (!r.metadata || typeof r.metadata.name !== 'string') errors.push('metadata.name required');
+      if (!Array.isArray(r.periodTimesInSeconds)) errors.push('periodTimesInSeconds array required');
+      if (typeof r.periodTimeCountingDirection !== 'string') errors.push('periodTimeCountingDirection required');
+      if (typeof r.periodBreakTimeInSeconds !== 'number') errors.push('periodBreakTimeInSeconds required');
+      if (!Array.isArray(r.victoryTypes)) errors.push('victoryTypes array required');
+      if (Array.isArray(r.victoryTypes)) {
+        r.victoryTypes.forEach((vt, i) => {
+          if (typeof vt.type !== 'string') errors.push(`victoryTypes[${i}].type required`);
+          if (!Array.isArray(vt.classificationPoints) || vt.classificationPoints.length !== 2) errors.push(`victoryTypes[${i}].classificationPoints must be [win,lose]`);
+          if (vt.condition && typeof vt.condition === 'object') {
+            Object.values(vt.condition).forEach(op => {
+              if (typeof op !== 'object') errors.push(`victoryTypes[${i}].condition entries must be objects`);
+            });
+          }
+        });
+      }
+      return { valid: errors.length === 0, errors };
+    }
+
+    function evalOperator(value, op, target) {
+      if (op.gte !== undefined && !(value >= op.gte)) return false;
+      if (op.lte !== undefined && !(value <= op.lte)) return false;
+      if (op.gt !== undefined && !(value > op.gt)) return false;
+      if (op.lt !== undefined && !(value < op.lt)) return false;
+      if (op.eq !== undefined && !(value === op.eq)) return false;
+      return true;
+    }
+
+    function evaluateCondition(condition, context) {
+      if (!condition) return true;
+      // All named condition fields must be satisfied (AND)
+      for (const key in condition) {
+        const op = condition[key];
+        const value = context[key];
+        if (value === undefined) return false;
+        if (!evalOperator(value, op, key)) return false;
+      }
+      return true;
+    }
+
+    function findMatchingVictoryTypes(ruleset, context) {
+      if (!ruleset || !Array.isArray(ruleset.victoryTypes)) return [];
+      return ruleset.victoryTypes.filter(vt => {
+        if (!vt.condition) return true;
+        return evaluateCondition(vt.condition, context);
+      });
+    }
+
+    // Expose helper
+    window.rulesetHelper = {
+      load: loadEmbeddedRuleset,
+      validate: simpleValidateRuleset,
+      evaluateCondition,
+      findMatchingVictoryTypes
+    };
+
+    // Auto-load and validate at startup (logs result)
+    const _embeddedRuleset = loadEmbeddedRuleset();
+    const _valid = simpleValidateRuleset(_embeddedRuleset);
+    if (!_valid.valid) console.warn('Embedded ruleset validation warnings:', _valid.errors);
+
+    // --- Export functionality --------------------------------------------
+    // Placeholder data structures (to be replaced with actual app state)
+    const boutState = {
+      createdAt: null,
+      events: [],
+      sequenceCounter: 0,
+      completed: false,
+      completedAt: null,
+      victoryType: null,
+      classificationPoints: null
+    };
+
+    function getSystemMetadata() {
+      return {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        languages: Array.from(navigator.languages || [navigator.language]),
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight
+        },
+        timestamp: new Date().toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezoneOffset: new Date().getTimezoneOffset()
+      };
+    }
+
+    function parseInfo(infoString) {
+      // Parse key-value pairs from info string (spec: key:value; separator)
+      const pairs = {};
+      const segments = infoString.split(';').map(s => s.trim());
+      let anonCounter = 1;
+      
+      segments.forEach(seg => {
+        if (!seg) return;
+        const colonIdx = seg.indexOf(':');
+        if (colonIdx === -1) {
+          pairs[`$anonym${anonCounter++}`] = seg;
+        } else {
+          let key = seg.substring(0, colonIdx).trim();
+          const value = seg.substring(colonIdx + 1).trim();
+          
+          if (key.startsWith('$$')) {
+            // Hidden pair - don't include in parsedInfo
+            return;
+          }
+          if (key.startsWith('$')) {
+            pairs[`anonym${anonCounter++}`] = value;
+          } else {
+            pairs[key.toLowerCase()] = value;
+          }
+        }
+      });
+      return pairs;
+    }
+
+    function calculateStatistics(events) {
+      const stats = {
+        red: {
+          technicalPoints: { "1": 0, "2": 0, "4": 0, "5": 0 },
+          passivity: 0,
+          cautions: 0,
+          injuryTime100ms: 0,
+          bloodTime100ms: 0
+        },
+        blue: {
+          technicalPoints: { "1": 0, "2": 0, "4": 0, "5": 0 },
+          passivity: 0,
+          cautions: 0,
+          injuryTime100ms: 0,
+          bloodTime100ms: 0
+        },
+        totalEvents: events.length,
+        corrections: 0
+      };
+
+      events.forEach(e => {
+        // Technical points
+        const pointMatch = e.eventType.match(/^([1245])(R|B)$/);
+        if (pointMatch) {
+          const points = pointMatch[1];
+          const side = pointMatch[2] === 'R' ? 'red' : 'blue';
+          stats[side].technicalPoints[points]++;
+        }
+        
+        // Passivity
+        if (e.eventType === 'PR') stats.red.passivity++;
+        if (e.eventType === 'PB') stats.blue.passivity++;
+        
+        // Cautions
+        if (e.eventType.match(/^0R[12]B$/)) stats.red.cautions++;
+        if (e.eventType.match(/^0B[12]R$/)) stats.blue.cautions++;
+        
+        // Corrections
+        if (e.eventType.startsWith('Event') || e.eventType.includes('_Modified')) {
+          stats.corrections++;
+        }
+      });
+
+      return stats;
+    }
+
+    function calculateScores(events) {
+      const scores = { red: 0, blue: 0 };
+      
+      events.forEach(e => {
+        const pointMatch = e.eventType.match(/^([1245])(R|B)$/);
+        if (pointMatch) {
+          const points = parseInt(pointMatch[1]);
+          const side = pointMatch[2] === 'R' ? 'red' : 'blue';
+          scores[side] += points;
+        }
+        
+        // Cautions award points to opponent
+        const cautionMatch = e.eventType.match(/^0([RB])([12])([RB])$/);
+        if (cautionMatch) {
+          const points = parseInt(cautionMatch[2]);
+          const recipient = cautionMatch[3] === 'R' ? 'red' : 'blue';
+          scores[recipient] += points;
+        }
+      });
+      
+      return scores;
+    }
+
+    function generateExport() {
+      const ruleset = loadEmbeddedRuleset();
+      const boutInfo = document.getElementById('bout-info')?.value || '';
+      const style = document.getElementById('style-select')?.value || 'Freestyle';
+      const rulesetName = document.getElementById('ruleset-select')?.value || 'Default Ruleset';
+      const redInfo = document.getElementById('info-red')?.textContent || 'Rot';
+      const blueInfo = document.getElementById('info-blue')?.textContent || 'Blau';
+      
+      const scores = calculateScores(boutState.events);
+      const statistics = calculateStatistics(boutState.events);
+      
+      // Calculate winner
+      let winner = 'none';
+      if (boutState.completed && scores.red > scores.blue) winner = 'red';
+      else if (boutState.completed && scores.blue > scores.red) winner = 'blue';
+      else if (boutState.completed && scores.red === scores.blue) winner = 'draw';
+      
+      // Calculate total bout time
+      let totalBoutTime100ms = 0;
+      if (boutState.events.length > 0) {
+        const lastBoutEvent = boutState.events
+          .filter(e => e.boutTime100ms !== undefined)
+          .pop();
+        if (lastBoutEvent) totalBoutTime100ms = lastBoutEvent.boutTime100ms;
+      }
+      
+      // Calculate real time duration
+      let totalRealTime = 0;
+      if (boutState.createdAt && boutState.completedAt) {
+        totalRealTime = new Date(boutState.completedAt) - new Date(boutState.createdAt);
+      }
+      
+      // Filter timeline (only bout events)
+      const timeline = boutState.events.filter(e => 
+        e.boutTime100ms !== undefined && 
+        !e.eventType.startsWith('T_') &&
+        !e.eventType.startsWith('Event') &&
+        !e.eventType.includes('_Modified')
+      ).map(e => ({
+        seq: e.seq,
+        eventType: e.eventType,
+        boutTime100ms: e.boutTime100ms
+      }));
+
+      const exportData = {
+        "$schema": "./export-v1.schema.json",
+        "exportVersion": "1.0",
+        "metadata": {
+          "app": {
+            "name": "CHAMP Protocol",
+            "version": "1.0.0",
+            "build": "2025-01-15T10:30:00Z"
+          },
+          "system": getSystemMetadata()
+        },
+        "bout": {
+          "header": {
+            "createdAt": boutState.createdAt || new Date().toISOString(),
+            "info": boutInfo,
+            "style": style,
+            "ruleset": {
+              "reference": ruleset?.metadata?.name || rulesetName,
+              "embedded": ruleset
+            },
+            "wrestlers": {
+              "red": {
+                "info": redInfo,
+                "parsedInfo": parseInfo(redInfo)
+              },
+              "blue": {
+                "info": blueInfo,
+                "parsedInfo": parseInfo(blueInfo)
+              }
+            }
+          },
+          "summary": {
+            "completed": boutState.completed,
+            "completedAt": boutState.completedAt,
+            "duration": {
+              "totalBoutTime100ms": totalBoutTime100ms,
+              "totalRealTime": totalRealTime,
+              "periods": []
+            },
+            "scores": scores,
+            "winner": winner,
+            "victory": boutState.victoryType ? {
+              "type": boutState.victoryType,
+              "description": "",
+              "classificationPoints": boutState.classificationPoints || [0, 0]
+            } : undefined,
+            "statistics": statistics,
+            "timeline": timeline,
+            "notes": ""
+          },
+          "events": boutState.events
+        }
+      };
+
+      return exportData;
+    }
+
+    function downloadExport() {
+      const exportData = generateExport();
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+      const filename = `champ-export-${timestamp}.json`;
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      console.log('Export downloaded:', filename);
+    }
+
+    // Expose export helper
+    window.exportHelper = {
+      generate: generateExport,
+      download: downloadExport
+    };
+  </script>
+
+  <!-- Embedded default ruleset: protocol/rulesets/ruleset-default.json -->
+  <script id="default-ruleset" type="application/json">
+  {
+    "metadata": {
+      "name": "de-mannschaftskampf-2025",
+      "description": "Deutsches Regelwerk für Mannschaftskämpfe",
+      "languages": ["de"],
+      "author": "Deutscher Ringer-Bund"
+    },
+    "periodTimesInSeconds": [180, 180],
+    "periodTimeCountingDirection": "Down",
+    "periodBreakTimeInSeconds": 30,
+    "injuryTimeWithoutBloodInSeconds": 120,
+    "injuryTimeWithBloodInSeconds": 240,
+    "injuryTimeCountingDirection": "Up",
+    "freestyle": {
+      "activityTimeInSeconds": 30,
+      "activityTimeCountingDirection": "Down",
+      "activityTimeCondition": {
+        "passivityCount": { "gt": 1 }
+      }
+    },
+    "victoryTypes": [
+      { "type": "SS", "description": "Schultersieg", "classificationPoints": [4, 0] },
+      {
+        "type": "TÜ",
+        "description": "Technische Überlegenheit",
+        "classificationPoints": [4, 0],
+        "condition": { "scoreDifference": { "gte": 15 } }
+      },
+      {
+        "type": "PS",
+        "description": "Punktsieg",
+        "classificationPoints": [3, 0],
+        "condition": { "scoreDifference": { "gte": 8, "lte": 14 } }
+      },
+      {
+        "type": "PS",
+        "description": "Punktsieg",
+        "classificationPoints": [2, 0],
+        "condition": { "scoreDifference": { "gte": 3, "lte": 7 } }
+      },
+      {
+        "type": "PS",
+        "description": "Punktsieg",
+        "classificationPoints": [1, 0],
+        "condition": { "scoreDifference": { "gte": 0, "lte": 2 } }
+      },
+      { "type": "AS", "description": "Aufgabesieg", "classificationPoints": [4, 0] },
+      { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": [4, 0], "condition": { "cautionCount": { "gte": 3 } } },
+      { "type": "DQ", "description": "Disqualifikation durch unfaires Verhalten", "classificationPoints": [4, 0] },
+      { "type": "DSQ2", "description": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": [0, 0] },
+      { "type": "KL", "description": "Kampfloser Sieg", "classificationPoints": [4, 0] },
+      { "type": "ÜG", "description": "Übergewicht", "classificationPoints": [4, 0] }
+    ]
+  }
   </script>
 </body>
 </html>
