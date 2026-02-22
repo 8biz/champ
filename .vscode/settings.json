@@ -1,0 +1,10 @@
+{
+    "json.schemas": [        
+        {
+            "fileMatch": [
+                "ruleset-*.json"
+            ],
+            "url": "./protocol/ruleset-rev01.schema.json"
+        }
+    ]
+}

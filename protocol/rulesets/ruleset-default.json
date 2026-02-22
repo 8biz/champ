@@ -1,5 +1,4 @@
 {
-  "$schema": "./ruleset-rev01.schema.json",
   "metadata": {
     "name": "de-mannschaftskampf-2025",
     "description": "Deutsches Regelwerk für Mannschaftskämpfe",
