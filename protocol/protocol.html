@@ -432,25 +432,7 @@
     </section>
 
     <section id="timeline" class="timeline" aria-label="Timeline">
-      <div class="entry">
-        <div class="entry-box red">1R</div>
-        <div class="entry-time">0:12</div>
-      </div>
-      <div class="entry">
-        <div class="entry-box blue cursor">PB</div>
-        <div class="entry-time">0:39</div>
-      </div>
-      <div class="entry">
-        <div class="entry-box caution blue" aria-label="0B1R caution entry">
-          <div class="caution-row blue">0B</div>
-          <div class="caution-row red">1R</div>
-        </div>
-        <div class="entry-time">1:02</div>
-      </div>
-      <div id="next-event" class="entry">
-        <div class="entry-box next">+</div>
-        <div class="entry-time">Next</div>
-      </div>
+      <!-- Events will be added dynamically -->
     </section>
 
     <section id="buttons" class="buttons" aria-label="Bout Buttons">
@@ -495,56 +477,452 @@
     </section>
   </main>
 
-  <div hidden>
+  <div style="position: fixed; top: 0; left: 0; opacity: 0; width: 10px; height: 10px;">
     <button id="start" type="button">Start</button>
     <button id="stop" type="button">Stop</button>
   </div>
 
   <script>
-    const START_TIME_SECONDS = 3 * 60;
-    let remainingSeconds = START_TIME_SECONDS;
-    let intervalId = null;
+    // ===================================================================
+    // APP STATE
+    // ===================================================================
+    const appState = {
+      mode: 'Idle', // 'Idle' | 'Recording'
+      timerRunning: false,
+      timerIntervalId: null,
+      boutTime100ms: 0, // in 100ms units
+      periodTime100ms: 1800, // 3 minutes = 180 seconds = 1800 * 100ms units
+      sequenceCounter: 0,
+      events: [],
+      createdAt: null,
+      completed: false,
+      completedAt: null,
+      victoryType: null,
+      classificationPoints: null,
+      keyBuffer: []
+    };
 
-    const display = document.getElementById("display");
+    // ===================================================================
+    // TIMER LOGIC
+    // ===================================================================
+    const boutTimeDisplay = document.getElementById("bout-time-display");
     const startButton = document.getElementById("start");
     const stopButton = document.getElementById("stop");
     const boutTimeButton = document.getElementById("bout-time-button");
 
-    function updateDisplay() {
-      const minutes = Math.floor(remainingSeconds / 60);
-      const seconds = remainingSeconds % 60;
-      display.textContent =
-        minutes + ":" + seconds.toString().padStart(2, "0");
+    // Test-only functions that bypass mode checks
+    function testStartTimer() {
+      if (appState.timerIntervalId !== null) return;
+      appState.timerRunning = true;
+      appState.timerIntervalId = setInterval(tick, 100);
     }
+
+    function testStopTimer() {
+      if (appState.timerIntervalId === null) return;
+      clearInterval(appState.timerIntervalId);
+      appState.timerIntervalId = null;
+      appState.timerRunning = false;
+    }
+
+    function formatTime100ms(time100ms) {
+      const totalSeconds = Math.floor(time100ms / 10);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      const fraction = Math.floor((time100ms % 10));
+      return `${minutes}:${seconds.toString().padStart(2, "0")}.${fraction}`;
+    }
+
+    function formatTimeSeconds(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${minutes}:${secs.toString().padStart(2, "0")}`;
+    }
+
+    function updateBoutTimeDisplay() {
+      boutTimeDisplay.textContent = formatTimeSeconds(Math.floor(appState.periodTime100ms / 10));
+    }
+
     function tick() {
-      if (remainingSeconds > 0) {
-        remainingSeconds--;
-        updateDisplay();
-      } else {
+      if (!appState.timerRunning) return;
+      
+      appState.boutTime100ms++;
+      appState.periodTime100ms--;
+      
+      updateBoutTimeDisplay();
+      
+      if (appState.periodTime100ms <= 0) {
         stopTimer();
+        if (appState.mode === 'Recording') {
+          recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.boutTime100ms });
+        }
       }
     }
+
     function startTimer() {
-      if (intervalId !== null) return;
-      intervalId = setInterval(tick, 1000);
+      if (appState.mode !== 'Recording') return;
+      if (appState.timerIntervalId !== null) return;
+      
+      appState.timerRunning = true;
+      appState.timerIntervalId = setInterval(tick, 100); // 100ms intervals
+      recordEvent({ eventType: 'T_Started', boutTime100ms: appState.boutTime100ms });
     }
+
     function stopTimer() {
-      clearInterval(intervalId);
-      intervalId = null;
+      if (appState.timerIntervalId === null) return;
+      
+      clearInterval(appState.timerIntervalId);
+      appState.timerIntervalId = null;
+      appState.timerRunning = false;
+      
+      recordEvent({ eventType: 'T_Stopped', boutTime100ms: appState.boutTime100ms });
     }
 
     function toggleTimer() {
-      if (intervalId === null) {
+      if (appState.mode !== 'Recording') return;
+      
+      if (appState.timerRunning) {
+        stopTimer();
+      } else {
         startTimer();
-        return;
       }
-      stopTimer();
     }
 
-    startButton.addEventListener("click", startTimer);
-    stopButton.addEventListener("click", stopTimer);
+    startButton.addEventListener("click", testStartTimer);
+    stopButton.addEventListener("click", testStopTimer);
     boutTimeButton.addEventListener("click", toggleTimer);
-    updateDisplay();
+    updateBoutTimeDisplay();
+
+    // ===================================================================
+    // EVENT RECORDING
+    // ===================================================================
+    function recordEvent(eventData) {
+      appState.sequenceCounter++;
+      const event = {
+        seq: appState.sequenceCounter,
+        timestamp: new Date().toISOString(),
+        ...eventData
+      };
+      appState.events.push(event);
+      
+      // Update UI after recording event
+      updateScores();
+      updateTimeline();
+      
+      console.log('Event recorded:', event);
+      return event;
+    }
+
+    // ===================================================================
+    // STATE MANAGEMENT
+    // ===================================================================
+    const releaseCompleteButton = document.getElementById('release-complete-button');
+    const boutInfoField = document.getElementById('bout-info');
+    const styleSelect = document.getElementById('style-select');
+    const rulesetSelect = document.getElementById('ruleset-select');
+    const timeline = document.getElementById('timeline');
+
+    function releaseScoresheet() {
+      if (appState.mode !== 'Idle') return;
+      
+      appState.mode = 'Recording';
+      appState.createdAt = new Date().toISOString();
+      
+      recordEvent({ eventType: 'ScoresheetReleased' });
+      
+      // Lock input fields
+      boutInfoField.disabled = true;
+      styleSelect.disabled = true;
+      rulesetSelect.disabled = true;
+      
+      // Update button
+      releaseCompleteButton.textContent = 'Abschließen [F4]';
+      
+      // Clear timeline and show next-event
+      updateTimeline();
+      
+      console.log('Scoresheet released for recording');
+    }
+
+    function completeScoresheet(victoryType, classificationPoints) {
+      if (appState.mode !== 'Recording') return;
+      
+      appState.mode = 'Idle';
+      appState.completed = true;
+      appState.completedAt = new Date().toISOString();
+      appState.victoryType = victoryType;
+      appState.classificationPoints = classificationPoints;
+      
+      // Stop timer if running
+      if (appState.timerRunning) {
+        stopTimer();
+      }
+      
+      recordEvent({ 
+        eventType: 'ScoresheetCompleted',
+        victoryType: victoryType,
+        classificationPoints: classificationPoints
+      });
+      
+      // Update button
+      releaseCompleteButton.textContent = 'Freigeben [F4]';
+      
+      console.log('Scoresheet completed:', victoryType, classificationPoints);
+    }
+
+    function showCompletionDialog() {
+      const scores = calculateScores(appState.events);
+      const winner = scores.red > scores.blue ? 'red' : (scores.blue > scores.red ? 'blue' : 'draw');
+      
+      // Simple completion for now - in a real app, this would be a proper modal
+      const victoryType = prompt('Siegart (SS, TÜ, PS, etc.):') || 'SS';
+      const winnerPoints = parseInt(prompt('Klassifizierungspunkte Sieger:') || '4');
+      const loserPoints = parseInt(prompt('Klassifizierungspunkte Verlierer:') || '0');
+      
+      if (victoryType) {
+        completeScoresheet(victoryType, [winnerPoints, loserPoints]);
+      }
+    }
+
+    releaseCompleteButton.addEventListener('click', () => {
+      if (appState.mode === 'Idle') {
+        releaseScoresheet();
+      } else if (appState.mode === 'Recording') {
+        showCompletionDialog();
+      }
+    });
+
+    // ===================================================================
+    // SCORE CALCULATION
+    // ===================================================================
+    const scoreRedDisplay = document.getElementById('score-red');
+    const scoreBlueDisplay = document.getElementById('score-blue');
+
+    function calculateScores(events) {
+      const scores = { red: 0, blue: 0 };
+      
+      events.forEach(e => {
+        // Technical points: 1R, 2R, 4R, 5R, 1B, 2B, 4B, 5B
+        const pointMatch = e.eventType.match(/^([1245])(R|B)$/);
+        if (pointMatch) {
+          const points = parseInt(pointMatch[1]);
+          const side = pointMatch[2] === 'R' ? 'red' : 'blue';
+          scores[side] += points;
+        }
+        
+        // Cautions award points to opponent: 0R1B, 0R2B, 0B1R, 0B2R
+        const cautionMatch = e.eventType.match(/^0([RB])([12])([RB])$/);
+        if (cautionMatch) {
+          const points = parseInt(cautionMatch[2]);
+          const recipient = cautionMatch[3] === 'R' ? 'red' : 'blue';
+          scores[recipient] += points;
+        }
+      });
+      
+      return scores;
+    }
+
+    function updateScores() {
+      const scores = calculateScores(appState.events);
+      scoreRedDisplay.textContent = scores.red;
+      scoreBlueDisplay.textContent = scores.blue;
+    }
+
+    // ===================================================================
+    // TIMELINE RENDERING
+    // ===================================================================
+    function updateTimeline() {
+      timeline.innerHTML = '';
+      
+      // Filter to only bout events with bout time
+      const boutEvents = appState.events.filter(e => 
+        e.boutTime100ms !== undefined && 
+        !e.eventType.startsWith('T_') &&
+        e.eventType !== 'ScoresheetReleased' &&
+        e.eventType !== 'ScoresheetCompleted'
+      );
+      
+      boutEvents.forEach(event => {
+        const entry = createTimelineEntry(event);
+        timeline.appendChild(entry);
+      });
+      
+      // Add next-event entry if in Recording mode
+      if (appState.mode === 'Recording') {
+        const nextEventEntry = document.createElement('div');
+        nextEventEntry.id = 'next-event';
+        nextEventEntry.className = 'entry';
+        nextEventEntry.innerHTML = `
+          <div class="entry-box next cursor">+</div>
+          <div class="entry-time">Next</div>
+        `;
+        timeline.appendChild(nextEventEntry);
+      }
+    }
+
+    function createTimelineEntry(event) {
+      const entry = document.createElement('div');
+      entry.className = 'entry';
+      
+      const eventType = event.eventType;
+      let boxHtml = '';
+      
+      // Check if it's a caution event (0R1B, 0R2B, 0B1R, 0B2R)
+      const cautionMatch = eventType.match(/^0([RB])([12])([RB])$/);
+      if (cautionMatch) {
+        const cautionSide = cautionMatch[1] === 'R' ? 'red' : 'blue';
+        const pointSide = cautionMatch[3] === 'R' ? 'red' : 'blue';
+        boxHtml = `
+          <div class="entry-box caution ${cautionSide === 'red' ? 'red' : 'blue'}">
+            <div class="caution-row ${cautionSide}">${cautionMatch[1]}0</div>
+            <div class="caution-row ${pointSide}">${cautionMatch[2]}${cautionMatch[3]}</div>
+          </div>
+        `;
+      } else {
+        // Regular event (points or passivity)
+        const colorClass = eventType.includes('R') ? 'red' : (eventType.includes('B') ? 'blue' : 'next');
+        boxHtml = `<div class="entry-box ${colorClass}">${eventType}</div>`;
+      }
+      
+      entry.innerHTML = `
+        ${boxHtml}
+        <div class="entry-time">${formatTime100ms(event.boutTime100ms)}</div>
+      `;
+      
+      return entry;
+    }
+
+    // ===================================================================
+    // KEYBOARD INPUT HANDLER
+    // ===================================================================
+    function processKeySequence(buffer) {
+      const seq = buffer.join('').toUpperCase();
+      
+      // Only process bout events in Recording mode
+      if (appState.mode !== 'Recording') return false;
+      
+      // Space: Toggle timer
+      if (seq === ' ') {
+        toggleTimer();
+        return true;
+      }
+      
+      // Technical points: R1, 1R, R2, 2R, R4, 4R, R5, 5R, B1, 1B, B2, 2B, B4, 4B, B5, 5B
+      if (seq.match(/^[RB][1245]$/)) {
+        const points = seq[1];
+        const side = seq[0];
+        recordEvent({ eventType: `${points}${side}`, boutTime100ms: appState.boutTime100ms });
+        return true;
+      }
+      if (seq.match(/^[1245][RB]$/)) {
+        const points = seq[0];
+        const side = seq[1];
+        recordEvent({ eventType: `${points}${side}`, boutTime100ms: appState.boutTime100ms });
+        return true;
+      }
+      
+      // Passivity: RP, PR, BP, PB
+      if (seq === 'RP' || seq === 'PR') {
+        recordEvent({ eventType: 'PR', boutTime100ms: appState.boutTime100ms });
+        return true;
+      }
+      if (seq === 'BP' || seq === 'PB') {
+        recordEvent({ eventType: 'PB', boutTime100ms: appState.boutTime100ms });
+        return true;
+      }
+      
+      // Cautions: R01, 0R1, R02, 0R2, B01, 0B1, B02, 0B2
+      if (seq.match(/^[RB]0[12]$/)) {
+        const cautionSide = seq[0];
+        const points = seq[2];
+        const pointSide = cautionSide === 'R' ? 'B' : 'R';
+        recordEvent({ eventType: `0${cautionSide}${points}${pointSide}`, boutTime100ms: appState.boutTime100ms });
+        return true;
+      }
+      if (seq.match(/^0[RB][12]$/)) {
+        const cautionSide = seq[1];
+        const points = seq[2];
+        const pointSide = cautionSide === 'R' ? 'B' : 'R';
+        recordEvent({ eventType: `0${cautionSide}${points}${pointSide}`, boutTime100ms: appState.boutTime100ms });
+        return true;
+      }
+      
+      return false;
+    }
+
+    function isValidContinuation(buffer, key) {
+      const seq = buffer.join('').toUpperCase();
+      const newKey = key.toUpperCase();
+      
+      // Empty buffer - accept most keys
+      if (buffer.length === 0) {
+        return ['R', 'B', 'P', '1', '2', '4', '5', '0', ' '].includes(newKey);
+      }
+      
+      // Single key sequences
+      if (buffer.length === 1) {
+        if (seq === 'R') return ['1', '2', '4', '5', 'P', '0'].includes(newKey);
+        if (seq === 'B') return ['1', '2', '4', '5', 'P', '0'].includes(newKey);
+        if (seq === 'P') return ['R', 'B'].includes(newKey);
+        if (['1', '2', '4', '5'].includes(seq)) return ['R', 'B'].includes(newKey);
+        if (seq === '0') return ['R', 'B'].includes(newKey);
+      }
+      
+      // Two key sequences
+      if (buffer.length === 2) {
+        if (seq === 'R0') return ['1', '2'].includes(newKey);
+        if (seq === 'B0') return ['1', '2'].includes(newKey);
+        if (seq === '0R') return ['1', '2'].includes(newKey);
+        if (seq === '0B') return ['1', '2'].includes(newKey);
+      }
+      
+      return false;
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const key = e.key;
+      
+      // Handle function keys directly (F4, F8)
+      if (key === 'F4') {
+        if (appState.mode === 'Idle') {
+          releaseScoresheet();
+        } else if (appState.mode === 'Recording') {
+          showCompletionDialog();
+        }
+        e.preventDefault();
+        return;
+      }
+      
+      if (key === 'F8' && appState.completed) {
+        downloadExport();
+        e.preventDefault();
+        return;
+      }
+      
+      // Escape clears buffer
+      if (key === 'Escape') {
+        appState.keyBuffer = [];
+        console.log('Key buffer cleared');
+        return;
+      }
+      
+      // Check if key is valid continuation
+      if (!isValidContinuation(appState.keyBuffer, key)) {
+        // Invalid key - ignore
+        console.log('Invalid key for current buffer:', key);
+        return;
+      }
+      
+      // Add to buffer
+      appState.keyBuffer.push(key);
+      console.log('Key buffer:', appState.keyBuffer);
+      
+      // Try to process sequence
+      if (processKeySequence(appState.keyBuffer)) {
+        // Sequence processed - clear buffer
+        appState.keyBuffer = [];
+        console.log('Sequence processed, buffer cleared');
+      }
+    });
 
     // --- Ruleset helper -------------------------------------------------
     function loadEmbeddedRuleset() {
@@ -623,17 +1001,6 @@
     if (!_valid.valid) console.warn('Embedded ruleset validation warnings:', _valid.errors);
 
     // --- Export functionality --------------------------------------------
-    // Placeholder data structures (to be replaced with actual app state)
-    const boutState = {
-      createdAt: null,
-      events: [],
-      sequenceCounter: 0,
-      completed: false,
-      completedAt: null,
-      victoryType: null,
-      classificationPoints: null
-    };
-
     function getSystemMetadata() {
       return {
         userAgent: navigator.userAgent,
@@ -756,36 +1123,41 @@
       const redInfo = document.getElementById('info-red')?.textContent || 'Rot';
       const blueInfo = document.getElementById('info-blue')?.textContent || 'Blau';
       
-      const scores = calculateScores(boutState.events);
-      const statistics = calculateStatistics(boutState.events);
+      const scores = calculateScores(appState.events);
+      const statistics = calculateStatistics(appState.events);
       
       // Calculate winner
       let winner = 'none';
-      if (boutState.completed && scores.red > scores.blue) winner = 'red';
-      else if (boutState.completed && scores.blue > scores.red) winner = 'blue';
-      else if (boutState.completed && scores.red === scores.blue) winner = 'draw';
+      if (appState.completed && scores.red > scores.blue) winner = 'red';
+      else if (appState.completed && scores.blue > scores.red) winner = 'blue';
+      else if (appState.completed && scores.red === scores.blue) winner = 'draw';
       
-      // Calculate total bout time
+      // Calculate total bout time (sum of running periods)
       let totalBoutTime100ms = 0;
-      if (boutState.events.length > 0) {
-        const lastBoutEvent = boutState.events
-          .filter(e => e.boutTime100ms !== undefined)
-          .pop();
-        if (lastBoutEvent) totalBoutTime100ms = lastBoutEvent.boutTime100ms;
-      }
+      let timerStartTime = 0;
+      appState.events.forEach(e => {
+        if (e.eventType === 'T_Started') {
+          timerStartTime = e.boutTime100ms;
+        } else if (e.eventType === 'T_Stopped' && timerStartTime !== null) {
+          totalBoutTime100ms += (e.boutTime100ms - timerStartTime);
+          timerStartTime = null;
+        }
+      });
       
       // Calculate real time duration
       let totalRealTime = 0;
-      if (boutState.createdAt && boutState.completedAt) {
-        totalRealTime = new Date(boutState.completedAt) - new Date(boutState.createdAt);
+      if (appState.createdAt && appState.completedAt) {
+        totalRealTime = new Date(appState.completedAt) - new Date(appState.createdAt);
       }
       
       // Filter timeline (only bout events)
-      const timeline = boutState.events.filter(e => 
+      const timeline = appState.events.filter(e => 
         e.boutTime100ms !== undefined && 
         !e.eventType.startsWith('T_') &&
         !e.eventType.startsWith('Event') &&
-        !e.eventType.includes('_Modified')
+        !e.eventType.includes('_Modified') &&
+        e.eventType !== 'ScoresheetReleased' &&
+        e.eventType !== 'ScoresheetCompleted'
       ).map(e => ({
         seq: e.seq,
         eventType: e.eventType,
@@ -805,7 +1177,7 @@
         },
         "bout": {
           "header": {
-            "createdAt": boutState.createdAt || new Date().toISOString(),
+            "createdAt": appState.createdAt || new Date().toISOString(),
             "info": boutInfo,
             "style": style,
             "ruleset": {
@@ -824,8 +1196,8 @@
             }
           },
           "summary": {
-            "completed": boutState.completed,
-            "completedAt": boutState.completedAt,
+            "completed": appState.completed,
+            "completedAt": appState.completedAt,
             "duration": {
               "totalBoutTime100ms": totalBoutTime100ms,
               "totalRealTime": totalRealTime,
@@ -833,16 +1205,16 @@
             },
             "scores": scores,
             "winner": winner,
-            "victory": boutState.victoryType ? {
-              "type": boutState.victoryType,
+            "victory": appState.victoryType ? {
+              "type": appState.victoryType,
               "description": "",
-              "classificationPoints": boutState.classificationPoints || [0, 0]
+              "classificationPoints": appState.classificationPoints || [0, 0]
             } : undefined,
             "statistics": statistics,
             "timeline": timeline,
             "notes": ""
           },
-          "events": boutState.events
+          "events": appState.events
         }
       };
 
@@ -874,6 +1246,30 @@
       generate: generateExport,
       download: downloadExport
     };
+
+    // ===================================================================
+    // INITIALIZATION
+    // ===================================================================
+    function initializeApp() {
+      // Clear timeline for Idle state
+      timeline.innerHTML = '';
+      
+      // Initialize scores
+      updateScores();
+      
+      // Set initial button state
+      releaseCompleteButton.textContent = 'Freigeben [F4]';
+      
+      // Ensure input fields are enabled in Idle state
+      boutInfoField.disabled = false;
+      styleSelect.disabled = false;
+      rulesetSelect.disabled = false;
+      
+      console.log('App initialized in Idle state');
+    }
+
+    // Initialize on page load
+    initializeApp();
   </script>
 
   <!-- Embedded default ruleset: protocol/rulesets/ruleset-default.json -->
