@@ -621,6 +621,259 @@
     const _embeddedRuleset = loadEmbeddedRuleset();
     const _valid = simpleValidateRuleset(_embeddedRuleset);
     if (!_valid.valid) console.warn('Embedded ruleset validation warnings:', _valid.errors);
+
+    // --- Export functionality --------------------------------------------
+    // Placeholder data structures (to be replaced with actual app state)
+    const boutState = {
+      createdAt: null,
+      events: [],
+      sequenceCounter: 0,
+      completed: false,
+      completedAt: null,
+      victoryType: null,
+      classificationPoints: null
+    };
+
+    function getSystemMetadata() {
+      return {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        languages: Array.from(navigator.languages || [navigator.language]),
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight
+        },
+        timestamp: new Date().toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezoneOffset: new Date().getTimezoneOffset()
+      };
+    }
+
+    function parseInfo(infoString) {
+      // Parse key-value pairs from info string (spec: key:value; separator)
+      const pairs = {};
+      const segments = infoString.split(';').map(s => s.trim());
+      let anonCounter = 1;
+      
+      segments.forEach(seg => {
+        if (!seg) return;
+        const colonIdx = seg.indexOf(':');
+        if (colonIdx === -1) {
+          pairs[`$anonym${anonCounter++}`] = seg;
+        } else {
+          let key = seg.substring(0, colonIdx).trim();
+          const value = seg.substring(colonIdx + 1).trim();
+          
+          if (key.startsWith('$$')) {
+            // Hidden pair - don't include in parsedInfo
+            return;
+          }
+          if (key.startsWith('$')) {
+            pairs[`anonym${anonCounter++}`] = value;
+          } else {
+            pairs[key.toLowerCase()] = value;
+          }
+        }
+      });
+      return pairs;
+    }
+
+    function calculateStatistics(events) {
+      const stats = {
+        red: {
+          technicalPoints: { "1": 0, "2": 0, "4": 0, "5": 0 },
+          passivity: 0,
+          cautions: 0,
+          injuryTime100ms: 0,
+          bloodTime100ms: 0
+        },
+        blue: {
+          technicalPoints: { "1": 0, "2": 0, "4": 0, "5": 0 },
+          passivity: 0,
+          cautions: 0,
+          injuryTime100ms: 0,
+          bloodTime100ms: 0
+        },
+        totalEvents: events.length,
+        corrections: 0
+      };
+
+      events.forEach(e => {
+        // Technical points
+        const pointMatch = e.eventType.match(/^([1245])(R|B)$/);
+        if (pointMatch) {
+          const points = pointMatch[1];
+          const side = pointMatch[2] === 'R' ? 'red' : 'blue';
+          stats[side].technicalPoints[points]++;
+        }
+        
+        // Passivity
+        if (e.eventType === 'PR') stats.red.passivity++;
+        if (e.eventType === 'PB') stats.blue.passivity++;
+        
+        // Cautions
+        if (e.eventType.match(/^0R[12]B$/)) stats.red.cautions++;
+        if (e.eventType.match(/^0B[12]R$/)) stats.blue.cautions++;
+        
+        // Corrections
+        if (e.eventType.startsWith('Event') || e.eventType.includes('_Modified')) {
+          stats.corrections++;
+        }
+      });
+
+      return stats;
+    }
+
+    function calculateScores(events) {
+      const scores = { red: 0, blue: 0 };
+      
+      events.forEach(e => {
+        const pointMatch = e.eventType.match(/^([1245])(R|B)$/);
+        if (pointMatch) {
+          const points = parseInt(pointMatch[1]);
+          const side = pointMatch[2] === 'R' ? 'red' : 'blue';
+          scores[side] += points;
+        }
+        
+        // Cautions award points to opponent
+        const cautionMatch = e.eventType.match(/^0([RB])([12])([RB])$/);
+        if (cautionMatch) {
+          const points = parseInt(cautionMatch[2]);
+          const recipient = cautionMatch[3] === 'R' ? 'red' : 'blue';
+          scores[recipient] += points;
+        }
+      });
+      
+      return scores;
+    }
+
+    function generateExport() {
+      const ruleset = loadEmbeddedRuleset();
+      const boutInfo = document.getElementById('bout-info')?.value || '';
+      const style = document.getElementById('style-select')?.value || 'Freestyle';
+      const rulesetName = document.getElementById('ruleset-select')?.value || 'Default Ruleset';
+      const redInfo = document.getElementById('info-red')?.textContent || 'Rot';
+      const blueInfo = document.getElementById('info-blue')?.textContent || 'Blau';
+      
+      const scores = calculateScores(boutState.events);
+      const statistics = calculateStatistics(boutState.events);
+      
+      // Calculate winner
+      let winner = 'none';
+      if (boutState.completed && scores.red > scores.blue) winner = 'red';
+      else if (boutState.completed && scores.blue > scores.red) winner = 'blue';
+      else if (boutState.completed && scores.red === scores.blue) winner = 'draw';
+      
+      // Calculate total bout time
+      let totalBoutTime100ms = 0;
+      if (boutState.events.length > 0) {
+        const lastBoutEvent = boutState.events
+          .filter(e => e.boutTime100ms !== undefined)
+          .pop();
+        if (lastBoutEvent) totalBoutTime100ms = lastBoutEvent.boutTime100ms;
+      }
+      
+      // Calculate real time duration
+      let totalRealTime = 0;
+      if (boutState.createdAt && boutState.completedAt) {
+        totalRealTime = new Date(boutState.completedAt) - new Date(boutState.createdAt);
+      }
+      
+      // Filter timeline (only bout events)
+      const timeline = boutState.events.filter(e => 
+        e.boutTime100ms !== undefined && 
+        !e.eventType.startsWith('T_') &&
+        !e.eventType.startsWith('Event') &&
+        !e.eventType.includes('_Modified')
+      ).map(e => ({
+        seq: e.seq,
+        eventType: e.eventType,
+        boutTime100ms: e.boutTime100ms
+      }));
+
+      const exportData = {
+        "$schema": "./export-v1.schema.json",
+        "exportVersion": "1.0",
+        "metadata": {
+          "app": {
+            "name": "CHAMP Protocol",
+            "version": "1.0.0",
+            "build": "2025-01-15T10:30:00Z"
+          },
+          "system": getSystemMetadata()
+        },
+        "bout": {
+          "header": {
+            "createdAt": boutState.createdAt || new Date().toISOString(),
+            "info": boutInfo,
+            "style": style,
+            "ruleset": {
+              "reference": ruleset?.metadata?.name || rulesetName,
+              "embedded": ruleset
+            },
+            "wrestlers": {
+              "red": {
+                "info": redInfo,
+                "parsedInfo": parseInfo(redInfo)
+              },
+              "blue": {
+                "info": blueInfo,
+                "parsedInfo": parseInfo(blueInfo)
+              }
+            }
+          },
+          "summary": {
+            "completed": boutState.completed,
+            "completedAt": boutState.completedAt,
+            "duration": {
+              "totalBoutTime100ms": totalBoutTime100ms,
+              "totalRealTime": totalRealTime,
+              "periods": []
+            },
+            "scores": scores,
+            "winner": winner,
+            "victory": boutState.victoryType ? {
+              "type": boutState.victoryType,
+              "description": "",
+              "classificationPoints": boutState.classificationPoints || [0, 0]
+            } : undefined,
+            "statistics": statistics,
+            "timeline": timeline,
+            "notes": ""
+          },
+          "events": boutState.events
+        }
+      };
+
+      return exportData;
+    }
+
+    function downloadExport() {
+      const exportData = generateExport();
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+      const filename = `champ-export-${timestamp}.json`;
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      console.log('Export downloaded:', filename);
+    }
+
+    // Expose export helper
+    window.exportHelper = {
+      generate: generateExport,
+      download: downloadExport
+    };
   </script>
 
   <!-- Embedded default ruleset: protocol/rulesets/ruleset-default.json -->
