@@ -545,6 +545,140 @@
     stopButton.addEventListener("click", stopTimer);
     boutTimeButton.addEventListener("click", toggleTimer);
     updateDisplay();
+
+    // --- Ruleset helper -------------------------------------------------
+    function loadEmbeddedRuleset() {
+      const el = document.getElementById('default-ruleset');
+      if (!el) return null;
+      try {
+        return JSON.parse(el.textContent);
+      } catch (e) {
+        console.error('Failed to parse embedded ruleset:', e);
+        return null;
+      }
+    }
+
+    function simpleValidateRuleset(r) {
+      const errors = [];
+      if (!r) { errors.push('ruleset missing'); return { valid: false, errors }; }
+      if (!r.metadata || typeof r.metadata.name !== 'string') errors.push('metadata.name required');
+      if (!Array.isArray(r.periodTimesInSeconds)) errors.push('periodTimesInSeconds array required');
+      if (typeof r.periodTimeCountingDirection !== 'string') errors.push('periodTimeCountingDirection required');
+      if (typeof r.periodBreakTimeInSeconds !== 'number') errors.push('periodBreakTimeInSeconds required');
+      if (!Array.isArray(r.victoryTypes)) errors.push('victoryTypes array required');
+      if (Array.isArray(r.victoryTypes)) {
+        r.victoryTypes.forEach((vt, i) => {
+          if (typeof vt.type !== 'string') errors.push(`victoryTypes[${i}].type required`);
+          if (!Array.isArray(vt.classificationPoints) || vt.classificationPoints.length !== 2) errors.push(`victoryTypes[${i}].classificationPoints must be [win,lose]`);
+          if (vt.condition && typeof vt.condition === 'object') {
+            Object.values(vt.condition).forEach(op => {
+              if (typeof op !== 'object') errors.push(`victoryTypes[${i}].condition entries must be objects`);
+            });
+          }
+        });
+      }
+      return { valid: errors.length === 0, errors };
+    }
+
+    function evalOperator(value, op, target) {
+      if (op.gte !== undefined && !(value >= op.gte)) return false;
+      if (op.lte !== undefined && !(value <= op.lte)) return false;
+      if (op.gt !== undefined && !(value > op.gt)) return false;
+      if (op.lt !== undefined && !(value < op.lt)) return false;
+      if (op.eq !== undefined && !(value === op.eq)) return false;
+      return true;
+    }
+
+    function evaluateCondition(condition, context) {
+      if (!condition) return true;
+      // All named condition fields must be satisfied (AND)
+      for (const key in condition) {
+        const op = condition[key];
+        const value = context[key];
+        if (value === undefined) return false;
+        if (!evalOperator(value, op, key)) return false;
+      }
+      return true;
+    }
+
+    function findMatchingVictoryTypes(ruleset, context) {
+      if (!ruleset || !Array.isArray(ruleset.victoryTypes)) return [];
+      return ruleset.victoryTypes.filter(vt => {
+        if (!vt.condition) return true;
+        return evaluateCondition(vt.condition, context);
+      });
+    }
+
+    // Expose helper
+    window.rulesetHelper = {
+      load: loadEmbeddedRuleset,
+      validate: simpleValidateRuleset,
+      evaluateCondition,
+      findMatchingVictoryTypes
+    };
+
+    // Auto-load and validate at startup (logs result)
+    const _embeddedRuleset = loadEmbeddedRuleset();
+    const _valid = simpleValidateRuleset(_embeddedRuleset);
+    if (!_valid.valid) console.warn('Embedded ruleset validation warnings:', _valid.errors);
+  </script>
+
+  <!-- Embedded default ruleset: protocol/rulesets/ruleset-default.json -->
+  <script id="default-ruleset" type="application/json">
+  {
+    "metadata": {
+      "name": "de-mannschaftskampf-2025",
+      "description": "Deutsches Regelwerk für Mannschaftskämpfe",
+      "languages": ["de"],
+      "author": "Deutscher Ringer-Bund"
+    },
+    "periodTimesInSeconds": [180, 180],
+    "periodTimeCountingDirection": "Down",
+    "periodBreakTimeInSeconds": 30,
+    "injuryTimeWithoutBloodInSeconds": 120,
+    "injuryTimeWithBloodInSeconds": 240,
+    "injuryTimeCountingDirection": "Up",
+    "freestyle": {
+      "activityTimeInSeconds": 30,
+      "activityTimeCountingDirection": "Down",
+      "activityTimeCondition": {
+        "passivityCount": { "gt": 1 }
+      }
+    },
+    "victoryTypes": [
+      { "type": "SS", "description": "Schultersieg", "classificationPoints": [4, 0] },
+      {
+        "type": "TÜ",
+        "description": "Technische Überlegenheit",
+        "classificationPoints": [4, 0],
+        "condition": { "scoreDifference": { "gte": 15 } }
+      },
+      {
+        "type": "PS",
+        "description": "Punktsieg",
+        "classificationPoints": [3, 0],
+        "condition": { "scoreDifference": { "gte": 8, "lte": 14 } }
+      },
+      {
+        "type": "PS",
+        "description": "Punktsieg",
+        "classificationPoints": [2, 0],
+        "condition": { "scoreDifference": { "gte": 3, "lte": 7 } }
+      },
+      {
+        "type": "PS",
+        "description": "Punktsieg",
+        "classificationPoints": [1, 0],
+        "condition": { "scoreDifference": { "gte": 0, "lte": 2 } }
+      },
+      { "type": "AS", "description": "Aufgabesieg", "classificationPoints": [4, 0] },
+      { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": [4, 0], "condition": { "cautionCount": { "gte": 3 } } },
+      { "type": "DQ", "description": "Disqualifikation durch unfaires Verhalten", "classificationPoints": [4, 0] },
+      { "type": "DSQ2", "description": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": [0, 0] },
+      { "type": "KL", "description": "Kampfloser Sieg", "classificationPoints": [4, 0] },
+      { "type": "ÜG", "description": "Übergewicht", "classificationPoints": [4, 0] }
+    ]
+  }
   </script>
 </body>
 </html>
