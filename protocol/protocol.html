@@ -255,6 +255,20 @@
       font-variant-numeric: tabular-nums;
       font-weight: 700;
       line-height: 1;
+      display: inline-block;
+      /* reserve space for visual superscript added via ::after */
+    }
+
+    /* Visual-only superscript for the 100ms digit. Uses a data attribute so
+       the textual content (used by tests/assistive tech) remains M:SS. */
+    .time::after {
+      content: attr(data-fraction);
+      font-size: 0.45em;
+      vertical-align: super;
+      margin-left: 0.08em;
+      line-height: 1;
+      color: inherit;
+      display: inline-block;
     }
 
     .time-note {
@@ -513,7 +527,7 @@
       <article id="center" class="center" aria-label="Timing">
         <button class="bout-time" type="button" id="bout-time-button" aria-label="Bout Time Toggle">
           <div class="time-label">Kampfzeit</div>
-          <div id="bout-time-display" class="time">3:00</div>
+          <div id="bout-time-display" class="time" data-fraction="0" aria-live="polite">3:00</div>
           <div class="time-note">[Leertaste]</div>
         </button>
         <div id="completion-form" aria-label="Completion Form">
@@ -672,7 +686,16 @@
     }
 
     function updateBoutTimeDisplay() {
-      boutTimeDisplay.textContent = formatTimeSeconds(Math.floor(appState.periodTime100ms / 10));
+      // Display minutes:seconds as the textual content (keeps compatibility
+      // with existing tests and assistive technologies) and expose the
+      // 100ms digit through a data attribute that is rendered visually
+      // as a superscript via CSS ::after.
+      const totalSeconds = Math.floor(appState.periodTime100ms / 10);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      boutTimeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+      const fraction = Math.floor(appState.periodTime100ms % 10);
+      boutTimeDisplay.dataset.fraction = String(fraction);
     }
 
     function tick() {
