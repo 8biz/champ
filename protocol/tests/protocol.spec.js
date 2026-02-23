@@ -172,23 +172,25 @@ test.describe("CHAMP Protocol - UC001 Short Bout", () => {
     // Verify next-event is still present
     await expect(page.locator("#next-event")).toBeVisible();
 
-    // Step 15-19: Complete bout (F4 and dialog)
-    page.on("dialog", async (dialog) => {
-      const message = dialog.message();
-      if (message.includes("Siegart")) {
-        await dialog.accept("SS");
-      } else if (message.includes("Sieger")) {
-        await dialog.accept("4");
-      } else if (message.includes("Verlierer")) {
-        await dialog.accept("0");
-      }
-    });
-
+    // Step 15-19: Complete bout (F4 then form interaction)
     await page.keyboard.press("F4");
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(200);
+
+    // Completion form should appear
+    await expect(page.locator("#completion-form")).toBeVisible();
+
+    // Select winner "Rot"
+    await page.selectOption("#compl-winner", "red");
+
+    // Click Ok to apply
+    await page.click("#compl-ok");
+    await page.waitForTimeout(200);
 
     // Button should return to "Freigeben"
     await expect(page.locator("#release-complete-button")).toContainText("Freigeben");
+
+    // Form should be frozen (Ok button disabled)
+    await expect(page.locator("#compl-ok")).toBeDisabled();
   });
 
   test("Export functionality generates valid JSON", async ({ page }) => {

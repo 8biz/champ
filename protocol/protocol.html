@@ -382,6 +382,65 @@
       color: #fff;
     }
 
+    #completion-form {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--neutral-1);
+      padding: 0.4rem;
+      display: grid;
+      gap: 0.3rem;
+    }
+
+    #completion-form select {
+      min-height: 2rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.82rem;
+      padding: 0 0.4rem;
+      background: #fff;
+      width: 100%;
+    }
+
+    #compl-ok {
+      min-height: 2rem;
+      border: 1px solid var(--neutral-3);
+      border-radius: 6px;
+      background: var(--neutral-3);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .compl-points-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.3rem;
+    }
+
+    .compl-points {
+      border: 1px solid;
+      border-radius: 6px;
+      min-height: 2rem;
+      text-align: center;
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 0 0.3rem;
+      width: 100%;
+    }
+
+    .compl-points.red {
+      border-color: var(--red);
+      color: var(--red);
+      background: #fff;
+    }
+
+    .compl-points.blue {
+      border-color: var(--blue);
+      color: var(--blue);
+      background: #fff;
+    }
+
     @media (max-width: 850px) {
       .board,
       .buttons {
@@ -457,6 +516,20 @@
           <div id="bout-time-display" class="time">3:00</div>
           <div class="time-note">[Leertaste]</div>
         </button>
+        <div id="completion-form" style="display:none" aria-label="Completion Form">
+          <select id="compl-winner" aria-label="Winner">
+            <option value="-">-</option>
+            <option value="red">Rot</option>
+            <option value="blue">Blau</option>
+          </select>
+          <select id="compl-victory-type" aria-label="Victory Type">
+          </select>
+          <div class="compl-points-row">
+            <input id="compl-points-red" class="compl-points red" type="number" min="0" value="0" aria-label="Red Points" />
+            <input id="compl-points-blue" class="compl-points blue" type="number" min="0" value="0" aria-label="Blue Points" />
+          </div>
+          <button id="compl-ok" type="button">Ok</button>
+        </div>
         <button id="release-complete-button" class="action" type="button" aria-label="Release">Freigeben [F4]</button>
       </article>
 
@@ -497,7 +570,9 @@
       createdAt: null,
       completed: false,
       completedAt: null,
+      winner: null,
       victoryType: null,
+      victoryDescription: null,
       classificationPoints: null,
       keyBuffer: []
     };
@@ -634,6 +709,9 @@
       styleSelect.disabled = true;
       rulesetSelect.disabled = true;
       
+      // Hide completion form
+      document.getElementById('completion-form').style.display = 'none';
+      
       // Update button
       releaseCompleteButton.textContent = 'Abschließen [F4]';
       
@@ -643,13 +721,15 @@
       console.log('Scoresheet released for recording');
     }
 
-    function completeScoresheet(victoryType, classificationPoints) {
+    function completeScoresheet(winner, victoryType, victoryDescription, classificationPoints) {
       if (appState.mode !== 'Recording') return;
       
       appState.mode = 'Idle';
       appState.completed = true;
       appState.completedAt = new Date().toISOString();
+      appState.winner = winner;
       appState.victoryType = victoryType;
+      appState.victoryDescription = victoryDescription;
       appState.classificationPoints = classificationPoints;
       
       // Stop timer if running
@@ -669,25 +749,93 @@
       console.log('Scoresheet completed:', victoryType, classificationPoints);
     }
 
-    function showCompletionDialog() {
-      const scores = calculateScores(appState.events);
-      const winner = scores.red > scores.blue ? 'red' : (scores.blue > scores.red ? 'blue' : 'draw');
-      
-      // Simple completion for now - in a real app, this would be a proper modal
-      const victoryType = prompt('Siegart (SS, TÜ, PS, etc.):') || 'SS';
-      const winnerPoints = parseInt(prompt('Klassifizierungspunkte Sieger:') || '4');
-      const loserPoints = parseInt(prompt('Klassifizierungspunkte Verlierer:') || '0');
-      
-      if (victoryType) {
-        completeScoresheet(victoryType, [winnerPoints, loserPoints]);
+    function showCompletionForm() {
+      const form = document.getElementById('completion-form');
+      const winnerSelect = document.getElementById('compl-winner');
+      const victoryTypeSelect = document.getElementById('compl-victory-type');
+
+      // Populate victory types from ruleset
+      const ruleset = loadEmbeddedRuleset();
+      victoryTypeSelect.innerHTML = '';
+      if (ruleset && Array.isArray(ruleset.victoryTypes)) {
+        ruleset.victoryTypes.forEach(vt => {
+          const option = document.createElement('option');
+          option.value = vt.type;
+          option.textContent = `(${vt.type}) ${vt.description}`;
+          option.dataset.pointsWinner = vt.classificationPoints[0];
+          option.dataset.pointsLoser = vt.classificationPoints[1];
+          option.dataset.description = vt.description;
+          victoryTypeSelect.appendChild(option);
+        });
+      }
+
+      // Reset winner selection
+      winnerSelect.value = '-';
+
+      // Restore all controls in case previously frozen
+      form.querySelectorAll('select, input, button').forEach(el => { el.disabled = false; });
+
+      // Pre-fill classification points
+      updateCompletionPoints();
+
+      // Show form
+      form.style.display = '';
+    }
+
+    function updateCompletionPoints() {
+      const winnerSelect = document.getElementById('compl-winner');
+      const victoryTypeSelect = document.getElementById('compl-victory-type');
+      const redInput = document.getElementById('compl-points-red');
+      const blueInput = document.getElementById('compl-points-blue');
+
+      const selectedOption = victoryTypeSelect.options[victoryTypeSelect.selectedIndex];
+      if (!selectedOption) return;
+
+      const winnerPts = parseInt(selectedOption.dataset.pointsWinner || '0');
+      const loserPts = parseInt(selectedOption.dataset.pointsLoser || '0');
+      const winner = winnerSelect.value;
+
+      if (winner === 'blue') {
+        redInput.value = loserPts;
+        blueInput.value = winnerPts;
+      } else {
+        redInput.value = winnerPts;
+        blueInput.value = loserPts;
       }
     }
+
+    function applyCompletion() {
+      const form = document.getElementById('completion-form');
+      const okBtn = document.getElementById('compl-ok');
+      if (!form || form.style.display === 'none' || okBtn.disabled) return;
+
+      const winnerSelect = document.getElementById('compl-winner');
+      const victoryTypeSelect = document.getElementById('compl-victory-type');
+      const redInput = document.getElementById('compl-points-red');
+      const blueInput = document.getElementById('compl-points-blue');
+
+      const winner = winnerSelect.value === '-' ? 'none' : winnerSelect.value;
+      const victoryType = victoryTypeSelect.value;
+      const selectedOption = victoryTypeSelect.options[victoryTypeSelect.selectedIndex];
+      const victoryDescription = selectedOption ? (selectedOption.dataset.description || '') : '';
+      const redPoints = parseInt(redInput.value) || 0;
+      const bluePoints = parseInt(blueInput.value) || 0;
+
+      completeScoresheet(winner, victoryType, victoryDescription, [redPoints, bluePoints]);
+
+      // Freeze the form
+      form.querySelectorAll('select, input, button').forEach(el => { el.disabled = true; });
+    }
+
+    document.getElementById('compl-winner').addEventListener('change', updateCompletionPoints);
+    document.getElementById('compl-victory-type').addEventListener('change', updateCompletionPoints);
+    document.getElementById('compl-ok').addEventListener('click', applyCompletion);
 
     releaseCompleteButton.addEventListener('click', () => {
       if (appState.mode === 'Idle') {
         releaseScoresheet();
       } else if (appState.mode === 'Recording') {
-        showCompletionDialog();
+        showCompletionForm();
       }
     });
 
@@ -886,7 +1034,7 @@
         if (appState.mode === 'Idle') {
           releaseScoresheet();
         } else if (appState.mode === 'Recording') {
-          showCompletionDialog();
+          showCompletionForm();
         }
         e.preventDefault();
         return;
@@ -896,6 +1044,17 @@
         downloadExport();
         e.preventDefault();
         return;
+      }
+
+      // Enter applies the completion form if visible and not frozen
+      if (key === 'Enter') {
+        const okBtn = document.getElementById('compl-ok');
+        const form = document.getElementById('completion-form');
+        if (form && form.style.display !== 'none' && okBtn && !okBtn.disabled) {
+          applyCompletion();
+          e.preventDefault();
+          return;
+        }
       }
       
       // Escape clears buffer
@@ -1128,9 +1287,17 @@
       
       // Calculate winner
       let winner = 'none';
-      if (appState.completed && scores.red > scores.blue) winner = 'red';
-      else if (appState.completed && scores.blue > scores.red) winner = 'blue';
-      else if (appState.completed && scores.red === scores.blue) winner = 'draw';
+      if (appState.completed) {
+        if (appState.winner && appState.winner !== 'none') {
+          winner = appState.winner;
+        } else if (scores.red > scores.blue) {
+          winner = 'red';
+        } else if (scores.blue > scores.red) {
+          winner = 'blue';
+        } else {
+          winner = 'draw';
+        }
+      }
       
       // Calculate total bout time (sum of running periods)
       let totalBoutTime100ms = 0;
@@ -1207,7 +1374,7 @@
             "winner": winner,
             "victory": appState.victoryType ? {
               "type": appState.victoryType,
-              "description": "",
+              "description": appState.victoryDescription || "",
               "classificationPoints": appState.classificationPoints || [0, 0]
             } : undefined,
             "statistics": statistics,
