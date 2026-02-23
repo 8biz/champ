@@ -412,17 +412,6 @@
       width: 100%;
     }
 
-    #compl-ok {
-      min-height: 2rem;
-      border: 1px solid var(--neutral-3);
-      border-radius: 6px;
-      background: var(--neutral-3);
-      color: #fff;
-      font-weight: 600;
-      cursor: pointer;
-      width: 100%;
-    }
-
     .compl-points-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -527,21 +516,21 @@
           <div id="bout-time-display" class="time">3:00</div>
           <div class="time-note">[Leertaste]</div>
         </button>
-        <div id="completion-form" style="display:none" aria-label="Completion Form">
-          <select id="compl-winner" aria-label="Winner">
+        <div id="completion-form" aria-label="Completion Form">
+          <select id="compl-winner" aria-label="Winner" disabled>
             <option value="-">-</option>
             <option value="red">Rot</option>
             <option value="blue">Blau</option>
           </select>
-          <select id="compl-victory-type" aria-label="Victory Type">
+          <select id="compl-victory-type" aria-label="Victory Type" disabled>
           </select>
           <div class="compl-points-row">
-            <input id="compl-points-red" class="compl-points red" type="number" min="0" value="0" aria-label="Red Points" />
-            <input id="compl-points-blue" class="compl-points blue" type="number" min="0" value="0" aria-label="Blue Points" />
+            <input id="compl-points-red" class="compl-points red" type="number" min="0" value="0" aria-label="Red Points" disabled />
+            <input id="compl-points-blue" class="compl-points blue" type="number" min="0" value="0" aria-label="Blue Points" disabled />
           </div>
-          <button id="compl-ok" type="button">Ok</button>
         </div>
         <button id="release-complete-button" class="action" type="button" aria-label="Release">Freigeben [F4]</button>
+        <button id="export-button" class="action" type="button" style="display:none" aria-label="Export">Exportieren [F8]</button>
       </article>
 
       <article id="buttons-blue" class="button-side blue" aria-label="Blue Button Column">
@@ -566,12 +555,70 @@
     <button id="stop" type="button">Stop</button>
   </div>
 
+  <!-- Embedded default ruleset: protocol/rulesets/ruleset-default.json -->
+  <script id="default-ruleset" type="application/json">
+  {
+    "metadata": {
+      "name": "de-mannschaftskampf-2025",
+      "description": "Deutsches Regelwerk für Mannschaftskämpfe",
+      "languages": ["de"],
+      "author": "Deutscher Ringer-Bund"
+    },
+    "periodTimesInSeconds": [180, 180],
+    "periodTimeCountingDirection": "Down",
+    "periodBreakTimeInSeconds": 30,
+    "injuryTimeWithoutBloodInSeconds": 120,
+    "injuryTimeWithBloodInSeconds": 240,
+    "injuryTimeCountingDirection": "Up",
+    "freestyle": {
+      "activityTimeInSeconds": 30,
+      "activityTimeCountingDirection": "Down",
+      "activityTimeCondition": {
+        "passivityCount": { "gt": 1 }
+      }
+    },
+    "victoryTypes": [
+      { "type": "SS", "description": "Schultersieg", "classificationPoints": [4, 0] },
+      {
+        "type": "TÜ",
+        "description": "Technische Überlegenheit",
+        "classificationPoints": [4, 0],
+        "condition": { "scoreDifference": { "gte": 15 } }
+      },
+      {
+        "type": "PS",
+        "description": "Punktsieg",
+        "classificationPoints": [3, 0],
+        "condition": { "scoreDifference": { "gte": 8, "lte": 14 } }
+      },
+      {
+        "type": "PS",
+        "description": "Punktsieg",
+        "classificationPoints": [2, 0],
+        "condition": { "scoreDifference": { "gte": 3, "lte": 7 } }
+      },
+      {
+        "type": "PS",
+        "description": "Punktsieg",
+        "classificationPoints": [1, 0],
+        "condition": { "scoreDifference": { "gte": 0, "lte": 2 } }
+      },
+      { "type": "AS", "description": "Aufgabesieg", "classificationPoints": [4, 0] },
+      { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": [4, 0], "condition": { "cautionCount": { "gte": 3 } } },
+      { "type": "DQ", "description": "Disqualifikation durch unfaires Verhalten", "classificationPoints": [4, 0] },
+      { "type": "DSQ2", "description": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": [0, 0] },
+      { "type": "KL", "description": "Kampfloser Sieg", "classificationPoints": [4, 0] },
+      { "type": "ÜG", "description": "Übergewicht", "classificationPoints": [4, 0] }
+    ]
+  }
+  </script>
+
   <script>
     // ===================================================================
     // APP STATE
     // ===================================================================
     const appState = {
-      mode: 'Idle', // 'Idle' | 'Recording'
+      mode: 'New', // 'New' | 'Recording' | 'Completing' | 'Completed' | 'Re-released'
       timerRunning: false,
       timerIntervalId: null,
       boutTime100ms: 0, // in 100ms units
@@ -702,72 +749,16 @@
     // STATE MANAGEMENT
     // ===================================================================
     const releaseCompleteButton = document.getElementById('release-complete-button');
+    const exportButton = document.getElementById('export-button');
     const boutInfoField = document.getElementById('bout-info');
     const styleSelect = document.getElementById('style-select');
     const rulesetSelect = document.getElementById('ruleset-select');
     const timeline = document.getElementById('timeline');
 
-    function releaseScoresheet() {
-      if (appState.mode !== 'Idle') return;
-      
-      appState.mode = 'Recording';
-      appState.createdAt = new Date().toISOString();
-      
-      recordEvent({ eventType: 'ScoresheetReleased' });
-      
-      // Lock input fields
-      boutInfoField.disabled = true;
-      styleSelect.disabled = true;
-      rulesetSelect.disabled = true;
-      
-      // Hide completion form
-      document.getElementById('completion-form').style.display = 'none';
-      
-      // Update button
-      releaseCompleteButton.textContent = 'Abschließen [F4]';
-      
-      // Clear timeline and show next-event
-      updateTimeline();
-      
-      console.log('Scoresheet released for recording');
-    }
-
-    function completeScoresheet(winner, victoryType, victoryDescription, classificationPoints) {
-      if (appState.mode !== 'Recording') return;
-      
-      appState.mode = 'Idle';
-      appState.completed = true;
-      appState.completedAt = new Date().toISOString();
-      appState.winner = winner;
-      appState.victoryType = victoryType;
-      appState.victoryDescription = victoryDescription;
-      appState.classificationPoints = classificationPoints;
-      
-      // Stop timer if running
-      if (appState.timerRunning) {
-        stopTimer();
-      }
-      
-      recordEvent({ 
-        eventType: 'ScoresheetCompleted',
-        victoryType: victoryType,
-        classificationPoints: classificationPoints
-      });
-      
-      // Update button
-      releaseCompleteButton.textContent = 'Freigeben [F4]';
-      
-      console.log('Scoresheet completed:', victoryType, classificationPoints);
-    }
-
-    function showCompletionForm() {
-      const form = document.getElementById('completion-form');
-      const winnerSelect = document.getElementById('compl-winner');
+    function populateVictoryTypes() {
       const victoryTypeSelect = document.getElementById('compl-victory-type');
-
-      // Populate victory types from ruleset
       const ruleset = loadEmbeddedRuleset();
-      victoryTypeSelect.innerHTML = '';
+      victoryTypeSelect.innerHTML = '<option value="-">-</option>';
       if (ruleset && Array.isArray(ruleset.victoryTypes)) {
         ruleset.victoryTypes.forEach(vt => {
           const option = document.createElement('option');
@@ -779,18 +770,125 @@
           victoryTypeSelect.appendChild(option);
         });
       }
+    }
 
-      // Reset winner selection
-      winnerSelect.value = '-';
+    function applyState(state) {
+      appState.mode = state;
+      const form = document.getElementById('completion-form');
+      const formControls = form.querySelectorAll('select, input');
+      const freezeForm = () => formControls.forEach(el => { el.disabled = true; });
+      const unfreezeForm = () => formControls.forEach(el => { el.disabled = false; });
 
-      // Restore all controls in case previously frozen
-      form.querySelectorAll('select, input, button').forEach(el => { el.disabled = false; });
+      switch (state) {
+        case 'New':
+          releaseCompleteButton.textContent = 'Freigeben [F4]';
+          freezeForm();
+          exportButton.style.display = 'none';
+          boutInfoField.disabled = false;
+          styleSelect.disabled = false;
+          rulesetSelect.disabled = false;
+          break;
+        case 'Recording':
+          releaseCompleteButton.textContent = 'Fertigstellen [F4]';
+          freezeForm();
+          exportButton.style.display = 'none';
+          boutInfoField.disabled = true;
+          styleSelect.disabled = true;
+          rulesetSelect.disabled = true;
+          break;
+        case 'Completing':
+          releaseCompleteButton.textContent = 'Abschließen [F4]';
+          unfreezeForm();
+          exportButton.style.display = 'none';
+          // bout info and wrestler info remain frozen from Recording state
+          boutInfoField.disabled = true;
+          styleSelect.disabled = true;
+          rulesetSelect.disabled = true;
+          break;
+        case 'Completed':
+          releaseCompleteButton.textContent = 'Korrigieren [F4]';
+          freezeForm();
+          exportButton.style.display = '';
+          boutInfoField.disabled = true;
+          styleSelect.disabled = true;
+          rulesetSelect.disabled = true;
+          break;
+        case 'Re-released':
+          releaseCompleteButton.textContent = 'Abschließen [F4]';
+          unfreezeForm();
+          exportButton.style.display = 'none';
+          boutInfoField.disabled = false;
+          styleSelect.disabled = false;
+          rulesetSelect.disabled = false;
+          break;
+      }
 
-      // Pre-fill classification points
-      updateCompletionPoints();
+      updateTimeline();
+    }
 
-      // Show form
-      form.style.display = '';
+    function releaseScoresheet() {
+      if (appState.mode !== 'New') return;
+
+      appState.createdAt = new Date().toISOString();
+      recordEvent({ eventType: 'ScoresheetReleased' });
+      applyState('Recording');
+
+      console.log('Scoresheet released for recording');
+    }
+
+    function startCompleting() {
+      if (appState.mode !== 'Recording') return;
+
+      // Stop timer if running
+      if (appState.timerRunning) {
+        stopTimer();
+      }
+
+      applyState('Completing');
+      console.log('Entering Completing state');
+    }
+
+    function readFormAndComplete() {
+      const winnerSelect = document.getElementById('compl-winner');
+      const victoryTypeSelect = document.getElementById('compl-victory-type');
+      const redInput = document.getElementById('compl-points-red');
+      const blueInput = document.getElementById('compl-points-blue');
+
+      const winner = winnerSelect.value === '-' ? 'none' : winnerSelect.value;
+      const victoryType = victoryTypeSelect.value;
+      const selectedOption = victoryTypeSelect.options[victoryTypeSelect.selectedIndex];
+      const victoryDescription = selectedOption ? (selectedOption.dataset.description || '') : '';
+      const redPoints = parseInt(redInput.value) || 0;
+      const bluePoints = parseInt(blueInput.value) || 0;
+
+      completeScoresheet(winner, victoryType, victoryDescription, [redPoints, bluePoints]);
+    }
+
+    function completeScoresheet(winner, victoryType, victoryDescription, classificationPoints) {
+      if (appState.mode !== 'Completing' && appState.mode !== 'Re-released') return;
+
+      appState.completed = true;
+      appState.completedAt = new Date().toISOString();
+      appState.winner = winner;
+      appState.victoryType = victoryType;
+      appState.victoryDescription = victoryDescription;
+      appState.classificationPoints = classificationPoints;
+
+      recordEvent({
+        eventType: 'ScoresheetCompleted',
+        victoryType: victoryType,
+        classificationPoints: classificationPoints
+      });
+
+      applyState('Completed');
+      console.log('Scoresheet completed:', victoryType, classificationPoints);
+    }
+
+    function rereleaseScoresheet() {
+      if (appState.mode !== 'Completed') return;
+
+      applyState('Re-released');
+      console.log('Scoresheet re-released for correction');
     }
 
     function updateCompletionPoints() {
@@ -820,38 +918,21 @@
       form.classList.toggle('winner-blue', winner === 'blue');
     }
 
-    function applyCompletion() {
-      const form = document.getElementById('completion-form');
-      const okBtn = document.getElementById('compl-ok');
-      if (!form || form.style.display === 'none' || okBtn.disabled) return;
-
-      const winnerSelect = document.getElementById('compl-winner');
-      const victoryTypeSelect = document.getElementById('compl-victory-type');
-      const redInput = document.getElementById('compl-points-red');
-      const blueInput = document.getElementById('compl-points-blue');
-
-      const winner = winnerSelect.value === '-' ? 'none' : winnerSelect.value;
-      const victoryType = victoryTypeSelect.value;
-      const selectedOption = victoryTypeSelect.options[victoryTypeSelect.selectedIndex];
-      const victoryDescription = selectedOption ? (selectedOption.dataset.description || '') : '';
-      const redPoints = parseInt(redInput.value) || 0;
-      const bluePoints = parseInt(blueInput.value) || 0;
-
-      completeScoresheet(winner, victoryType, victoryDescription, [redPoints, bluePoints]);
-
-      // Freeze the form
-      form.querySelectorAll('select, input, button').forEach(el => { el.disabled = true; });
-    }
-
     document.getElementById('compl-winner').addEventListener('change', updateCompletionPoints);
     document.getElementById('compl-victory-type').addEventListener('change', updateCompletionPoints);
-    document.getElementById('compl-ok').addEventListener('click', applyCompletion);
+    exportButton.addEventListener('click', downloadExport);
 
     releaseCompleteButton.addEventListener('click', () => {
-      if (appState.mode === 'Idle') {
+      if (appState.mode === 'New') {
         releaseScoresheet();
       } else if (appState.mode === 'Recording') {
-        showCompletionForm();
+        startCompleting();
+      } else if (appState.mode === 'Completing') {
+        readFormAndComplete();
+      } else if (appState.mode === 'Completed') {
+        rereleaseScoresheet();
+      } else if (appState.mode === 'Re-released') {
+        readFormAndComplete();
       }
     });
 
@@ -910,8 +991,8 @@
         timeline.appendChild(entry);
       });
       
-      // Add next-event entry if in Recording mode
-      if (appState.mode === 'Recording') {
+      // Add next-event entry if in Recording or Completing mode
+      if (appState.mode === 'Recording' || appState.mode === 'Completing') {
         const nextEventEntry = document.createElement('div');
         nextEventEntry.id = 'next-event';
         nextEventEntry.className = 'entry';
@@ -961,13 +1042,14 @@
     function processKeySequence(buffer) {
       const seq = buffer.join('').toUpperCase();
       
-      // Only process bout events in Recording mode
-      if (appState.mode !== 'Recording') return false;
+      // Only process bout events in Recording or Completing mode
+      if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return false;
       
-      // Space: Toggle timer
+      // Space: Toggle timer (only in Recording mode)
       if (seq === ' ') {
-        toggleTimer();
-        return true;
+        const isRecording = appState.mode === 'Recording';
+        if (isRecording) toggleTimer();
+        return isRecording;
       }
       
       // Technical points: R1, 1R, R2, 2R, R4, 4R, R5, 5R, B1, 1B, B2, 2B, B4, 4B, B5, 5B
@@ -1047,30 +1129,25 @@
       
       // Handle function keys directly (F4, F8)
       if (key === 'F4') {
-        if (appState.mode === 'Idle') {
+        if (appState.mode === 'New') {
           releaseScoresheet();
         } else if (appState.mode === 'Recording') {
-          showCompletionForm();
+          startCompleting();
+        } else if (appState.mode === 'Completing') {
+          readFormAndComplete();
+        } else if (appState.mode === 'Completed') {
+          rereleaseScoresheet();
+        } else if (appState.mode === 'Re-released') {
+          readFormAndComplete();
         }
         e.preventDefault();
         return;
       }
       
-      if (key === 'F8' && appState.completed) {
+      if (key === 'F8' && appState.mode === 'Completed') {
         downloadExport();
         e.preventDefault();
         return;
-      }
-
-      // Enter applies the completion form if visible and not frozen
-      if (key === 'Enter') {
-        const okBtn = document.getElementById('compl-ok');
-        const form = document.getElementById('completion-form');
-        if (form && form.style.display !== 'none' && okBtn && !okBtn.disabled) {
-          applyCompletion();
-          e.preventDefault();
-          return;
-        }
       }
       
       // Escape clears buffer
@@ -1434,83 +1511,23 @@
     // INITIALIZATION
     // ===================================================================
     function initializeApp() {
-      // Clear timeline for Idle state
+      // Populate victory types once at startup
+      populateVictoryTypes();
+
+      // Clear timeline
       timeline.innerHTML = '';
       
       // Initialize scores
       updateScores();
       
-      // Set initial button state
-      releaseCompleteButton.textContent = 'Freigeben [F4]';
+      // Apply initial state
+      applyState('New');
       
-      // Ensure input fields are enabled in Idle state
-      boutInfoField.disabled = false;
-      styleSelect.disabled = false;
-      rulesetSelect.disabled = false;
-      
-      console.log('App initialized in Idle state');
+      console.log('App initialized in New state');
     }
 
     // Initialize on page load
     initializeApp();
-  </script>
-
-  <!-- Embedded default ruleset: protocol/rulesets/ruleset-default.json -->
-  <script id="default-ruleset" type="application/json">
-  {
-    "metadata": {
-      "name": "de-mannschaftskampf-2025",
-      "description": "Deutsches Regelwerk für Mannschaftskämpfe",
-      "languages": ["de"],
-      "author": "Deutscher Ringer-Bund"
-    },
-    "periodTimesInSeconds": [180, 180],
-    "periodTimeCountingDirection": "Down",
-    "periodBreakTimeInSeconds": 30,
-    "injuryTimeWithoutBloodInSeconds": 120,
-    "injuryTimeWithBloodInSeconds": 240,
-    "injuryTimeCountingDirection": "Up",
-    "freestyle": {
-      "activityTimeInSeconds": 30,
-      "activityTimeCountingDirection": "Down",
-      "activityTimeCondition": {
-        "passivityCount": { "gt": 1 }
-      }
-    },
-    "victoryTypes": [
-      { "type": "SS", "description": "Schultersieg", "classificationPoints": [4, 0] },
-      {
-        "type": "TÜ",
-        "description": "Technische Überlegenheit",
-        "classificationPoints": [4, 0],
-        "condition": { "scoreDifference": { "gte": 15 } }
-      },
-      {
-        "type": "PS",
-        "description": "Punktsieg",
-        "classificationPoints": [3, 0],
-        "condition": { "scoreDifference": { "gte": 8, "lte": 14 } }
-      },
-      {
-        "type": "PS",
-        "description": "Punktsieg",
-        "classificationPoints": [2, 0],
-        "condition": { "scoreDifference": { "gte": 3, "lte": 7 } }
-      },
-      {
-        "type": "PS",
-        "description": "Punktsieg",
-        "classificationPoints": [1, 0],
-        "condition": { "scoreDifference": { "gte": 0, "lte": 2 } }
-      },
-      { "type": "AS", "description": "Aufgabesieg", "classificationPoints": [4, 0] },
-      { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": [4, 0], "condition": { "cautionCount": { "gte": 3 } } },
-      { "type": "DQ", "description": "Disqualifikation durch unfaires Verhalten", "classificationPoints": [4, 0] },
-      { "type": "DSQ2", "description": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": [0, 0] },
-      { "type": "KL", "description": "Kampfloser Sieg", "classificationPoints": [4, 0] },
-      { "type": "ÜG", "description": "Übergewicht", "classificationPoints": [4, 0] }
-    ]
-  }
   </script>
 </body>
 </html>

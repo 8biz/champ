@@ -32,9 +32,9 @@ test.describe("CHAMP Protocol - UC001 Short Bout", () => {
     // Press F4 to release
     await page.keyboard.press("F4");
 
-    // Button should change to "Abschließen"
+    // Button should change to "Fertigstellen"
     const releaseButton = page.locator("#release-complete-button");
-    await expect(releaseButton).toContainText("Abschließen");
+    await expect(releaseButton).toContainText("Fertigstellen");
 
     // Next-event should appear in timeline
     const nextEvent = page.locator("#next-event");
@@ -132,9 +132,9 @@ test.describe("CHAMP Protocol - UC001 Short Bout", () => {
   test("Complete use case UC001 - short bout", async ({ page }) => {
     await page.goto(BASE_URL);
 
-    // Step 1-2: Release scoresheet (F4)
+    // Step 1-2: Release scoresheet (F4) → Recording state
     await page.keyboard.press("F4");
-    await expect(page.locator("#release-complete-button")).toContainText("Abschließen");
+    await expect(page.locator("#release-complete-button")).toContainText("Fertigstellen");
 
     // Step 3-4: Start bout time (Space)
     await page.keyboard.press(" ");
@@ -172,25 +172,28 @@ test.describe("CHAMP Protocol - UC001 Short Bout", () => {
     // Verify next-event is still present
     await expect(page.locator("#next-event")).toBeVisible();
 
-    // Step 15-19: Complete bout (F4 then form interaction)
+    // Step 15-19: Complete bout (F4 to enter Completing, then F4 to finish)
     await page.keyboard.press("F4");
     await page.waitForTimeout(200);
 
-    // Completion form should appear
+    // Now in Completing state - button shows "Abschließen"
+    await expect(page.locator("#release-complete-button")).toContainText("Abschließen");
+
+    // Completion form should be visible and unfrozen
     await expect(page.locator("#completion-form")).toBeVisible();
 
     // Select winner "Rot"
     await page.selectOption("#compl-winner", "red");
 
-    // Click Ok to apply
-    await page.click("#compl-ok");
+    // Press F4 to apply completion → Completed state
+    await page.keyboard.press("F4");
     await page.waitForTimeout(200);
 
-    // Button should return to "Freigeben"
-    await expect(page.locator("#release-complete-button")).toContainText("Freigeben");
+    // Button should now show "Korrigieren"
+    await expect(page.locator("#release-complete-button")).toContainText("Korrigieren");
 
-    // Form should be frozen (Ok button disabled)
-    await expect(page.locator("#compl-ok")).toBeDisabled();
+    // Form should be frozen (controls disabled)
+    await expect(page.locator("#compl-winner")).toBeDisabled();
   });
 
   test("Export functionality generates valid JSON", async ({ page }) => {
