@@ -453,4 +453,56 @@ test.describe("CHAMP Protocol - UC001 Short Bout", () => {
     timelineEntries = page.locator('.timeline .entry:not(#next-event)');
     await expect(timelineEntries).toHaveCount(2);
   });
+
+  test("Spacebar after clicking event button does not repeat event", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    // Release scoresheet and click a point button
+    await page.keyboard.press("F4");
+    const button1R = page.locator('#event-buttons-red .event-btn', { hasText: '[1R]' });
+    await button1R.click();
+
+    // Baseline assertions
+    await expect(page.locator("#score-red")).toHaveText("1");
+    await expect(page.locator("#score-blue")).toHaveText("0");
+    const timelineEntries = page.locator('.timeline .entry:not(#next-event)');
+    await expect(timelineEntries).toHaveCount(1);
+
+    // Press space to start timer, wait briefly, then stop
+    const timeDisplay = page.locator('#bout-time-display');
+    await page.keyboard.press(" ");
+    await page.waitForTimeout(350);
+    await page.keyboard.press(" ");
+
+    // Timer should have advanced (fraction digit changed) but no new events
+    await expect(timeDisplay).not.toHaveAttribute('data-fraction', '0');
+    await expect(page.locator("#score-red")).toHaveText("1");
+    await expect(page.locator("#score-blue")).toHaveText("0");
+    await expect(timelineEntries).toHaveCount(1);
+  });
+
+  test("Spacebar after clicking release button starts timer, not Completing", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    // Click the release button with mouse (focus would stay on it)
+    const releaseButton = page.locator('#release-complete-button');
+    await releaseButton.click();
+
+    // After release, form should stay disabled (Recording state)
+    const winnerSelect = page.locator('#compl-winner');
+    await expect(winnerSelect).toBeDisabled();
+
+    // Press space to start timer
+    const timeDisplay = page.locator('#bout-time-display');
+    await page.keyboard.press(" ");
+    await page.waitForTimeout(350);
+    await page.keyboard.press(" ");
+
+    // Timer should have advanced; still in Recording (form remains disabled)
+    await expect(timeDisplay).not.toHaveAttribute('data-fraction', '0');
+    await expect(winnerSelect).toBeDisabled();
+
+    // Release button text should still indicate Recording -> Completing action
+    await expect(releaseButton).toContainText('Fertigstellen');
+  });
 });
