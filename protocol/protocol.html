@@ -520,7 +520,8 @@
           <button class="event-btn" type="button">[5R]</button>
           <button class="event-btn" type="button">[2R]</button>
           <button class="event-btn" type="button">[PR]</button>
-          <button class="event-btn" type="button">[0R]</button>
+          <button class="event-btn" type="button">[0R1B]</button>
+          <button class="event-btn" type="button">[0R2B]</button>
         </div>
       </article>
 
@@ -556,9 +557,10 @@
             <button class="event-btn" type="button">[5B]</button>
             <button class="event-btn" type="button">[4B]</button>
             <button class="event-btn" type="button">[1B]</button>
-            <button class="event-btn" type="button">[0B]</button>
+            <button class="event-btn" type="button">[0B1R]</button>
             <button class="event-btn" type="button">[PB]</button>
             <button class="event-btn" type="button">[2B]</button>
+            <button class="event-btn" type="button">[0B2R]</button>
         </div>
       </article>
     </section>
@@ -1199,6 +1201,100 @@
       }
     });
 
+    // ===================================================================
+    // EVENT BUTTON CLICK HANDLERS
+    // ===================================================================
+    
+    /**
+     * Simulates a key sequence by pushing keys to buffer and processing them.
+     * @param {string[]} keys - Array of keys to simulate pressing in sequence
+     */
+    function simulateKeySequence(keys) {
+      // Check if we're in a valid mode for recording events
+      if (appState.mode !== 'Recording' && appState.mode !== 'Completing') {
+        console.log('Cannot record events in mode:', appState.mode);
+        return;
+      }
+      
+      // Process each key in the sequence
+      for (const key of keys) {
+        // Check if key is valid continuation
+        if (!isValidContinuation(appState.keyBuffer, key)) {
+          console.log('Invalid key for current buffer:', key);
+          appState.keyBuffer = [];
+          return;
+        }
+        
+        // Add to buffer
+        appState.keyBuffer.push(key);
+      }
+      
+      console.log('Button clicked, key buffer:', appState.keyBuffer);
+      
+      // Try to process sequence
+      if (processKeySequence(appState.keyBuffer)) {
+        // Sequence processed - clear buffer
+        appState.keyBuffer = [];
+        console.log('Sequence processed, buffer cleared');
+      }
+    }
+    
+    /**
+     * Attach click handlers to all event buttons.
+     * Buttons send color key first, then event key (as per UI spec).
+     */
+    function initializeEventButtons() {
+      // Red event buttons
+      const redButtons = document.querySelectorAll('#event-buttons-red .event-btn');
+      redButtons.forEach(btn => {
+        const label = btn.textContent.trim();
+        // Parse labels: [1R], [2R], [PR], [0R1B], [0R2B]
+        let match = label.match(/\[0R([12])B\]/);
+        if (match) {
+          // Caution button: send R + 0 + points
+          const points = match[1];
+          btn.addEventListener('click', () => {
+            simulateKeySequence(['R', '0', points]);
+          });
+          return;
+        }
+        
+        match = label.match(/\[([0-9P]+)R\]/);
+        if (match) {
+          // Regular button: send R + event key
+          const eventKey = match[1];
+          btn.addEventListener('click', () => {
+            simulateKeySequence(['R', eventKey]);
+          });
+        }
+      });
+      
+      // Blue event buttons
+      const blueButtons = document.querySelectorAll('#event-buttons-blue .event-btn');
+      blueButtons.forEach(btn => {
+        const label = btn.textContent.trim();
+        // Parse labels: [1B], [2B], [PB], [0B1R], [0B2R]
+        let match = label.match(/\[0B([12])R\]/);
+        if (match) {
+          // Caution button: send B + 0 + points
+          const points = match[1];
+          btn.addEventListener('click', () => {
+            simulateKeySequence(['B', '0', points]);
+          });
+          return;
+        }
+        
+        match = label.match(/\[([0-9P]+)B\]/);
+        if (match) {
+          // Regular button: send B + event key
+          const eventKey = match[1];
+          btn.addEventListener('click', () => {
+            simulateKeySequence(['B', eventKey]);
+          });
+        }
+      });
+    }
+
     // --- Ruleset helper -------------------------------------------------
     function loadEmbeddedRuleset() {
       const el = document.getElementById('default-ruleset');
@@ -1542,6 +1638,9 @@
       
       // Initialize scores
       updateScores();
+      
+      // Initialize event button click handlers
+      initializeEventButtons();
       
       // Apply initial state
       applyState('New');

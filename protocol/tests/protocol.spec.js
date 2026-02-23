@@ -358,4 +358,99 @@ test.describe("CHAMP Protocol - UC001 Short Bout", () => {
     await page.keyboard.press("R");
     await expect(page.locator("#score-red")).toHaveText("1");
   });
+
+  test("Event buttons work correctly when clicked", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    // Release scoresheet first
+    await page.keyboard.press("F4");
+
+    // Click 1R button
+    const button1R = page.locator('#event-buttons-red .event-btn', { hasText: '[1R]' });
+    await button1R.click();
+    await expect(page.locator("#score-red")).toHaveText("1");
+    await expect(page.locator("#score-blue")).toHaveText("0");
+
+    // Click 2B button
+    const button2B = page.locator('#event-buttons-blue .event-btn', { hasText: '[2B]' });
+    await button2B.click();
+    await expect(page.locator("#score-red")).toHaveText("1");
+    await expect(page.locator("#score-blue")).toHaveText("2");
+
+    // Click 4R button
+    const button4R = page.locator('#event-buttons-red .event-btn', { hasText: '[4R]' });
+    await button4R.click();
+    await expect(page.locator("#score-red")).toHaveText("5");
+    await expect(page.locator("#score-blue")).toHaveText("2");
+
+    // Click 5B button
+    const button5B = page.locator('#event-buttons-blue .event-btn', { hasText: '[5B]' });
+    await button5B.click();
+    await expect(page.locator("#score-red")).toHaveText("5");
+    await expect(page.locator("#score-blue")).toHaveText("7");
+
+    // Verify timeline has 4 bout event entries (excluding next-event)
+    const timelineEntries = page.locator('.timeline .entry:not(#next-event)');
+    await expect(timelineEntries).toHaveCount(4);
+  });
+
+  test("Passivity buttons work when clicked", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    // Release scoresheet
+    await page.keyboard.press("F4");
+
+    // Click PR button (Red passivity)
+    const buttonPR = page.locator('#event-buttons-red .event-btn', { hasText: '[PR]' });
+    await buttonPR.click();
+
+    // Click PB button (Blue passivity)
+    const buttonPB = page.locator('#event-buttons-blue .event-btn', { hasText: '[PB]' });
+    await buttonPB.click();
+
+    // Verify timeline has 2 bout event entries (excluding next-event)
+    const timelineEntries = page.locator('.timeline .entry:not(#next-event)');
+    await expect(timelineEntries).toHaveCount(2);
+
+    // Verify passivity entries contain PR and PB
+    const firstEntry = timelineEntries.nth(0).locator('.entry-box');
+    await expect(firstEntry).toHaveText("PR");
+    
+    const secondEntry = timelineEntries.nth(1).locator('.entry-box');
+    await expect(secondEntry).toHaveText("PB");
+  });
+
+  test("Caution buttons send full key sequence", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    // Release scoresheet
+    await page.keyboard.press("F4");
+
+    // Click 0R1B button (caution for Red, Blue gets 1 point)
+    const button0R1B = page.locator('#event-buttons-red .event-btn', { hasText: '[0R1B]' });
+    await button0R1B.click();
+
+    // Verify scores: Red should have 0, Blue should have 1
+    await expect(page.locator("#score-red")).toHaveText("0");
+    await expect(page.locator("#score-blue")).toHaveText("1");
+
+    // Verify timeline entry (excluding next-event)
+    let timelineEntries = page.locator('.timeline .entry:not(#next-event)');
+    await expect(timelineEntries).toHaveCount(1);
+    
+    let entry = timelineEntries.nth(0).locator('.entry-box');
+    await expect(entry).toHaveClass(/caution/);
+
+    // Click 0B2R button (caution for Blue, Red gets 2 points)
+    const button0B2R = page.locator('#event-buttons-blue .event-btn', { hasText: '[0B2R]' });
+    await button0B2R.click();
+
+    // Verify scores: Red should have 2, Blue should have 1
+    await expect(page.locator("#score-red")).toHaveText("2");
+    await expect(page.locator("#score-blue")).toHaveText("1");
+
+    // Verify timeline now has 2 entries
+    timelineEntries = page.locator('.timeline .entry:not(#next-event)');
+    await expect(timelineEntries).toHaveCount(2);
+  });
 });
