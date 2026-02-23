@@ -389,6 +389,17 @@
       padding: 0.4rem;
       display: grid;
       gap: 0.3rem;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    #completion-form.winner-red {
+      background: color-mix(in srgb, var(--red) 12%, white);
+      border-color: var(--red);
+    }
+
+    #completion-form.winner-blue {
+      background: color-mix(in srgb, var(--blue) 12%, white);
+      border-color: var(--blue);
     }
 
     #completion-form select {
@@ -783,6 +794,7 @@
     }
 
     function updateCompletionPoints() {
+      const form = document.getElementById('completion-form');
       const winnerSelect = document.getElementById('compl-winner');
       const victoryTypeSelect = document.getElementById('compl-victory-type');
       const redInput = document.getElementById('compl-points-red');
@@ -802,6 +814,10 @@
         redInput.value = winnerPts;
         blueInput.value = loserPts;
       }
+
+      // Color background by winner
+      form.classList.toggle('winner-red', winner === 'red');
+      form.classList.toggle('winner-blue', winner === 'blue');
     }
 
     function applyCompletion() {
