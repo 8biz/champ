@@ -91,41 +91,23 @@
       min-height: 0;
     }
 
-    .side {
+    /* Shared base for wrestler panels (board) and button columns */
+    .side, .button-side {
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 0.5rem;
       display: grid;
-      grid-template-rows: auto auto auto 1fr;
       gap: 0.45rem;
       min-height: 0;
     }
 
-    .button-side {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.5rem;
-      display: grid;
-      grid-template-rows: auto 1fr;
-      gap: 0.45rem;
-      min-height: 0;
-    }
+    /* Board panels have an extra row for injury display */
+    .side        { grid-template-rows: auto auto auto 1fr; }
+    .button-side { grid-template-rows: auto 1fr; }
 
-    .side.red {
-      background: color-mix(in srgb, var(--red) 8%, white);
-    }
-
-    .side.blue {
-      background: color-mix(in srgb, var(--blue) 8%, white);
-    }
-
-    .button-side.red {
-      background: color-mix(in srgb, var(--red) 8%, white);
-    }
-
-    .button-side.blue {
-      background: color-mix(in srgb, var(--blue) 8%, white);
-    }
+    /* Tinted background for colour-coded columns */
+    .side.red, .button-side.red   { background: color-mix(in srgb, var(--red)  8%, white); }
+    .side.blue, .button-side.blue { background: color-mix(in srgb, var(--blue) 8%, white); }
 
     .side-head {
       display: flex;
@@ -457,19 +439,11 @@
       font-weight: 600;
       padding: 0 0.3rem;
       width: 100%;
+      background: #fff; /* shared between both colour variants and frozen state */
     }
 
-    .compl-points.red {
-      border-color: var(--red);
-      color: var(--red);
-      background: #fff;
-    }
-
-    .compl-points.blue {
-      border-color: var(--blue);
-      color: var(--blue);
-      background: #fff;
-    }
+    .compl-points.red  { border-color: var(--red);  color: var(--red);  }
+    .compl-points.blue { border-color: var(--blue); color: var(--blue); }
 
     #completion-form.frozen .compl-points {
       border-color: var(--border);
@@ -703,12 +677,6 @@
       return `${minutes}:${seconds.toString().padStart(2, "0")}.${fraction}`;
     }
 
-    function formatTimeSeconds(seconds) {
-      const minutes = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      return `${minutes}:${secs.toString().padStart(2, "0")}`;
-    }
-
     function updateBoutTimeDisplay() {
       // Display minutes:seconds as the textual content (keeps compatibility
       // with existing tests and assistive technologies) and expose the
@@ -819,81 +787,45 @@
       }
     }
 
-    function freezeEventButtons() {
-      const eventButtons = document.querySelectorAll('.event-btn');
-      const boutTimeButton = document.getElementById('bout-time-button');
-      eventButtons.forEach(btn => btn.classList.add('frozen'));
-      boutTimeButton.classList.add('frozen');
+    // Toggle frozen state on all event buttons and the bout-time button.
+    function setEventButtonsFrozen(frozen) {
+      document.querySelectorAll('.event-btn').forEach(btn => btn.classList.toggle('frozen', frozen));
+      document.getElementById('bout-time-button').classList.toggle('frozen', frozen);
     }
 
-    function unfreezeEventButtons() {
-      const eventButtons = document.querySelectorAll('.event-btn');
-      const boutTimeButton = document.getElementById('bout-time-button');
-      eventButtons.forEach(btn => btn.classList.remove('frozen'));
-      boutTimeButton.classList.remove('frozen');
+    // Lock or unlock the top-bar scoresheet header fields.
+    function lockTopBar(locked) {
+      boutInfoField.disabled = locked;
+      styleSelect.disabled   = locked;
+      rulesetSelect.disabled = locked;
     }
 
     function applyState(state) {
       appState.mode = state;
-      const form = document.getElementById('completion-form');
+
+      const form         = document.getElementById('completion-form');
       const formControls = form.querySelectorAll('select, input');
-      const freezeForm = () => {
-        formControls.forEach(el => { el.disabled = true; });
-        form.classList.add('frozen');
-      };
-      const unfreezeForm = () => {
-        formControls.forEach(el => { el.disabled = false; });
-        form.classList.remove('frozen');
+
+      // Freeze or unfreeze the completion form and its visible indicator class.
+      const freezeForm   = () => { formControls.forEach(el => { el.disabled = true;  }); form.classList.add('frozen');    };
+      const unfreezeForm = () => { formControls.forEach(el => { el.disabled = false; }); form.classList.remove('frozen'); };
+
+      // State-specific labels, locks and visibility.
+      // Format: [buttonLabel, freezeForm, freezeEventBtns, showExport, lockTopBar]
+      const cfg = {
+        'New':         ['Freigeben [F4]',   true,  true,  false, false],
+        'Recording':   ['Fertigstellen [F4]', true, false, false, true ],
+        'Completing':  ['Abschließen [F4]', false, false, false, true ],
+        'Completed':   ['Korrigieren [F4]', true,  true,  true,  true ],
+        'Re-released': ['Abschließen [F4]', false, false, false, false],
       };
 
-      switch (state) {
-        case 'New':
-          releaseCompleteButton.textContent = 'Freigeben [F4]';
-          freezeForm();
-          freezeEventButtons();
-          exportButton.style.display = 'none';
-          boutInfoField.disabled = false;
-          styleSelect.disabled = false;
-          rulesetSelect.disabled = false;
-          break;
-        case 'Recording':
-          releaseCompleteButton.textContent = 'Fertigstellen [F4]';
-          freezeForm();
-          unfreezeEventButtons();
-          exportButton.style.display = 'none';
-          boutInfoField.disabled = true;
-          styleSelect.disabled = true;
-          rulesetSelect.disabled = true;
-          break;
-        case 'Completing':
-          releaseCompleteButton.textContent = 'Abschließen [F4]';
-          unfreezeForm();
-          unfreezeEventButtons();
-          exportButton.style.display = 'none';
-          // bout info and wrestler info remain frozen from Recording state
-          boutInfoField.disabled = true;
-          styleSelect.disabled = true;
-          rulesetSelect.disabled = true;
-          break;
-        case 'Completed':
-          releaseCompleteButton.textContent = 'Korrigieren [F4]';
-          freezeForm();
-          freezeEventButtons();
-          exportButton.style.display = '';
-          boutInfoField.disabled = true;
-          styleSelect.disabled = true;
-          rulesetSelect.disabled = true;
-          break;
-        case 'Re-released':
-          releaseCompleteButton.textContent = 'Abschließen [F4]';
-          unfreezeForm();
-          unfreezeEventButtons();
-          exportButton.style.display = 'none';
-          boutInfoField.disabled = false;
-          styleSelect.disabled = false;
-          rulesetSelect.disabled = false;
-          break;
-      }
+      const [label, doFreezeForm, doFreezeEvt, showExport, doLockTopBar] = cfg[state];
+      releaseCompleteButton.textContent = label;
+      doFreezeForm ? freezeForm() : unfreezeForm();
+      setEventButtonsFrozen(doFreezeEvt);
+      exportButton.style.display = showExport ? '' : 'none';
+      lockTopBar(doLockTopBar);
 
       updateTimeline();
     }
@@ -994,29 +926,26 @@
     document.getElementById('compl-victory-type').addEventListener('change', updateCompletionPoints);
     exportButton.addEventListener('click', downloadExport);
 
-    releaseCompleteButton.addEventListener('click', () => {
-      if (appState.mode === 'New') {
-        releaseScoresheet();
-      } else if (appState.mode === 'Recording') {
-        startCompleting();
-      } else if (appState.mode === 'Completing') {
-        readFormAndComplete();
-      } else if (appState.mode === 'Completed') {
-        rereleaseScoresheet();
-      } else if (appState.mode === 'Re-released') {
-        readFormAndComplete();
+    // Centralised action for the release/complete button and F4 shortcut.
+    function handleReleaseCompleteAction() {
+      switch (appState.mode) {
+        case 'New':         releaseScoresheet();  break;
+        case 'Recording':   startCompleting();    break;
+        case 'Completing':  readFormAndComplete(); break;
+        case 'Completed':   rereleaseScoresheet(); break;
+        case 'Re-released': readFormAndComplete(); break;
       }
+    }
 
+    releaseCompleteButton.addEventListener('click', () => {
+      handleReleaseCompleteAction();
       // Remove focus so Space won't re-trigger this button
       releaseCompleteButton.blur();
     });
 
-    // Prevent Space key from activating the release/complete button when focused;
-    // Space should only toggle the bout timer.
-    releaseCompleteButton.addEventListener('keydown', (e) => {
-      if (e.code === 'Space' || e.key === ' ') {
-        e.preventDefault();
-      }
+    // Prevent Space from activating the button when focused – Space toggles the timer.
+    releaseCompleteButton.addEventListener('keydown', e => {
+      if (e.code === 'Space' || e.key === ' ') e.preventDefault();
     });
 
     // ===================================================================
@@ -1212,17 +1141,7 @@
       
       // Handle function keys directly (F4, F8)
       if (key === 'F4') {
-        if (appState.mode === 'New') {
-          releaseScoresheet();
-        } else if (appState.mode === 'Recording') {
-          startCompleting();
-        } else if (appState.mode === 'Completing') {
-          readFormAndComplete();
-        } else if (appState.mode === 'Completed') {
-          rereleaseScoresheet();
-        } else if (appState.mode === 'Re-released') {
-          readFormAndComplete();
-        }
+        handleReleaseCompleteAction();
         e.preventDefault();
         return;
       }
@@ -1299,81 +1218,37 @@
     
     /**
      * Attach click handlers to all event buttons.
-     * Buttons send color key first, then event key (as per UI spec).
+     * Buttons are labelled like [1R], [PR], [0R1B], [4B], etc.
+     * Per UI spec, each click sends the colour key first, then the event key.
      */
     function initializeEventButtons() {
-      // Red event buttons
-      const redButtons = document.querySelectorAll('#event-buttons-red .event-btn');
-      redButtons.forEach(btn => {
-        const label = btn.textContent.trim();
-        // Parse labels: [1R], [2R], [PR], [0R1B], [0R2B]
-        let match = label.match(/\[0R([12])B\]/);
-        if (match) {
-          // Caution button: send R + 0 + points
-          const points = match[1];
-          btn.addEventListener('click', () => {
-            simulateKeySequence(['R', '0', points]);
-            btn.blur(); // prevent spacebar from re-triggering this button
-          });
-          btn.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' || e.key === ' ') {
-              e.preventDefault();
-            }
-          });
-          return;
-        }
-        
-        match = label.match(/\[([0-9P]+)R\]/);
-        if (match) {
-          // Regular button: send R + event key
-          const eventKey = match[1];
-          btn.addEventListener('click', () => {
-            simulateKeySequence(['R', eventKey]);
-            btn.blur();
-          });
-          btn.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' || e.key === ' ') {
-              e.preventDefault();
-            }
-          });
-        }
-      });
-      
-      // Blue event buttons
-      const blueButtons = document.querySelectorAll('#event-buttons-blue .event-btn');
-      blueButtons.forEach(btn => {
-        const label = btn.textContent.trim();
-        // Parse labels: [1B], [2B], [PB], [0B1R], [0B2R]
-        let match = label.match(/\[0B([12])R\]/);
-        if (match) {
-          // Caution button: send B + 0 + points
-          const points = match[1];
-          btn.addEventListener('click', () => {
-            simulateKeySequence(['B', '0', points]);
-            btn.blur(); // prevent spacebar from re-triggering this button
-          });
-          btn.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' || e.key === ' ') {
-              e.preventDefault();
-            }
-          });
-          return;
-        }
-        
-        match = label.match(/\[([0-9P]+)B\]/);
-        if (match) {
-          // Regular button: send B + event key
-          const eventKey = match[1];
-          btn.addEventListener('click', () => {
-            simulateKeySequence(['B', eventKey]);
-            btn.blur();
-          });
-          btn.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' || e.key === ' ') {
-              e.preventDefault();
-            }
-          });
-        }
+      // Shared setup for both colour sides.
+      ['R', 'B'].forEach(color => {
+        const opponent   = color === 'R' ? 'B' : 'R';
+        const containerId = color === 'R' ? 'event-buttons-red' : 'event-buttons-blue';
+
+        document.querySelectorAll(`#${containerId} .event-btn`).forEach(btn => {
+          const label = btn.textContent.trim();
+          let keys;
+
+          // Caution button: [0R1B], [0R2B], [0B1R], [0B2R]
+          const cautionMatch = label.match(new RegExp(`\\[0${color}([12])${opponent}\\]`));
+          if (cautionMatch) {
+            keys = [color, '0', cautionMatch[1]];
+          } else {
+            // Regular point / passivity button: [1R], [PR], [4B] …
+            const regularMatch = label.match(new RegExp(`\\[([0-9P]+)${color}\\]`));
+            if (regularMatch) keys = [color, regularMatch[1]];
+          }
+
+          if (keys) {
+            btn.addEventListener('click', () => { simulateKeySequence(keys); btn.blur(); });
+            // Prevent Space from re-triggering the button after a click.
+            btn.addEventListener('keydown', e => {
+              if (e.code === 'Space' || e.key === ' ') e.preventDefault();
+            });
+          }
+        });
       });
     }
 
@@ -1543,29 +1418,6 @@
       });
 
       return stats;
-    }
-
-    function calculateScores(events) {
-      const scores = { red: 0, blue: 0 };
-      
-      events.forEach(e => {
-        const pointMatch = e.eventType.match(/^([1245])(R|B)$/);
-        if (pointMatch) {
-          const points = parseInt(pointMatch[1]);
-          const side = pointMatch[2] === 'R' ? 'red' : 'blue';
-          scores[side] += points;
-        }
-        
-        // Cautions award points to opponent
-        const cautionMatch = e.eventType.match(/^0([RB])([12])([RB])$/);
-        if (cautionMatch) {
-          const points = parseInt(cautionMatch[2]);
-          const recipient = cautionMatch[3] === 'R' ? 'red' : 'blue';
-          scores[recipient] += points;
-        }
-      });
-      
-      return scores;
     }
 
     function generateExport() {
