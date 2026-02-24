@@ -189,6 +189,22 @@
       border-color: var(--blue);
     }
 
+    .event-btn.frozen {
+      opacity: 0.5;
+      background: var(--neutral-2) !important;
+      border-color: var(--neutral-2) !important;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .bout-time.frozen {
+      opacity: 0.5;
+      background: var(--neutral-1) !important;
+      border-color: var(--neutral-2) !important;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
     .center {
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -797,6 +813,20 @@
       }
     }
 
+    function freezeEventButtons() {
+      const eventButtons = document.querySelectorAll('.event-btn');
+      const boutTimeButton = document.getElementById('bout-time-button');
+      eventButtons.forEach(btn => btn.classList.add('frozen'));
+      boutTimeButton.classList.add('frozen');
+    }
+
+    function unfreezeEventButtons() {
+      const eventButtons = document.querySelectorAll('.event-btn');
+      const boutTimeButton = document.getElementById('bout-time-button');
+      eventButtons.forEach(btn => btn.classList.remove('frozen'));
+      boutTimeButton.classList.remove('frozen');
+    }
+
     function applyState(state) {
       appState.mode = state;
       const form = document.getElementById('completion-form');
@@ -808,6 +838,7 @@
         case 'New':
           releaseCompleteButton.textContent = 'Freigeben [F4]';
           freezeForm();
+          freezeEventButtons();
           exportButton.style.display = 'none';
           boutInfoField.disabled = false;
           styleSelect.disabled = false;
@@ -816,6 +847,7 @@
         case 'Recording':
           releaseCompleteButton.textContent = 'Fertigstellen [F4]';
           freezeForm();
+          unfreezeEventButtons();
           exportButton.style.display = 'none';
           boutInfoField.disabled = true;
           styleSelect.disabled = true;
@@ -824,6 +856,7 @@
         case 'Completing':
           releaseCompleteButton.textContent = 'Abschließen [F4]';
           unfreezeForm();
+          unfreezeEventButtons();
           exportButton.style.display = 'none';
           // bout info and wrestler info remain frozen from Recording state
           boutInfoField.disabled = true;
@@ -833,6 +866,7 @@
         case 'Completed':
           releaseCompleteButton.textContent = 'Korrigieren [F4]';
           freezeForm();
+          freezeEventButtons();
           exportButton.style.display = '';
           boutInfoField.disabled = true;
           styleSelect.disabled = true;
@@ -841,6 +875,7 @@
         case 'Re-released':
           releaseCompleteButton.textContent = 'Abschließen [F4]';
           unfreezeForm();
+          unfreezeEventButtons();
           exportButton.style.display = 'none';
           boutInfoField.disabled = false;
           styleSelect.disabled = false;
