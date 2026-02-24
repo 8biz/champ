@@ -471,6 +471,12 @@
       background: #fff;
     }
 
+    #completion-form.frozen .compl-points {
+      border-color: var(--border);
+      color: var(--neutral-3);
+      background: #fff;
+    }
+
     @media (max-width: 850px) {
       .board,
       .buttons {
@@ -831,8 +837,14 @@
       appState.mode = state;
       const form = document.getElementById('completion-form');
       const formControls = form.querySelectorAll('select, input');
-      const freezeForm = () => formControls.forEach(el => { el.disabled = true; });
-      const unfreezeForm = () => formControls.forEach(el => { el.disabled = false; });
+      const freezeForm = () => {
+        formControls.forEach(el => { el.disabled = true; });
+        form.classList.add('frozen');
+      };
+      const unfreezeForm = () => {
+        formControls.forEach(el => { el.disabled = false; });
+        form.classList.remove('frozen');
+      };
 
       switch (state) {
         case 'New':
