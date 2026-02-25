@@ -171,7 +171,7 @@
       border-color: var(--blue);
     }
 
-    .event-btn.frozen {
+    .event-btn:disabled {
       opacity: 0.5;
       background: var(--neutral-2) !important;
       border-color: var(--neutral-2) !important;
@@ -179,7 +179,7 @@
       pointer-events: none;
     }
 
-    .bout-time.frozen {
+    .bout-time:disabled {
       opacity: 0.5;
       background: var(--neutral-1) !important;
       border-color: var(--neutral-2) !important;
@@ -439,13 +439,13 @@
       font-weight: 600;
       padding: 0 0.3rem;
       width: 100%;
-      background: #fff; /* shared between both colour variants and frozen state */
+      background: #fff; /* shared between both colour variants and disabled state */
     }
 
     .compl-points.red  { border-color: var(--red);  color: var(--red);  }
     .compl-points.blue { border-color: var(--blue); color: var(--blue); }
 
-    #completion-form.frozen .compl-points {
+    .compl-points:disabled {
       border-color: var(--border);
       color: var(--neutral-3);
       background: #fff;
@@ -799,10 +799,10 @@
       }
     }
 
-    // Toggle frozen state on all event buttons and the bout-time button.
+    // Toggle disabled state on all event buttons and the bout-time button.
     function setEventButtonsFrozen(frozen) {
-      document.querySelectorAll('.event-btn').forEach(btn => btn.classList.toggle('frozen', frozen));
-      document.getElementById('bout-time-button').classList.toggle('frozen', frozen);
+      document.querySelectorAll('.event-btn').forEach(btn => { btn.disabled = frozen; });
+      document.getElementById('bout-time-button').disabled = frozen;
     }
 
     // Lock or unlock the top-bar scoresheet header fields.
@@ -818,9 +818,9 @@
       const form         = document.getElementById('completion-form');
       const formControls = form.querySelectorAll('select, input');
 
-      // Freeze or unfreeze the completion form and its visible indicator class.
-      const freezeForm   = () => { formControls.forEach(el => { el.disabled = true;  }); form.classList.add('frozen');    };
-      const unfreezeForm = () => { formControls.forEach(el => { el.disabled = false; }); form.classList.remove('frozen'); };
+      // Freeze or unfreeze the completion form controls.
+      const freezeForm   = () => { formControls.forEach(el => { el.disabled = true;  }); };
+      const unfreezeForm = () => { formControls.forEach(el => { el.disabled = false; }); };
 
       // State-specific labels, locks and visibility.
       // Format: [buttonLabel, freezeForm, freezeEventBtns, showExport, lockTopBar]
