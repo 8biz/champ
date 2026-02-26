@@ -814,9 +814,10 @@
     function openTimeModModal() {
       if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return;
 
-      // Stop timer while editing so time does not drift
+      // Only allow opening the time modification modal when the bout timer
+      // is stopped. This prevents race conditions and ambiguous edits.
       if (appState.timerRunning) {
-        stopTimer();
+        return;
       }
 
       const modal = document.getElementById('time-mod-modal');

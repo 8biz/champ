@@ -840,26 +840,35 @@ test.describe("CHAMP Protocol - Time Modification Mode (TT)", () => {
     await expect(page.locator("#time-mod-error")).toBeVisible();
   });
 
-  test("TT stops the timer before opening the modal", async ({ page }) => {
+  test("TT does not open modal while timer is running", async ({ page }) => {
     await page.goto(BASE_URL);
     await page.keyboard.press("F4");
 
     // Start timer
     await page.keyboard.press(" ");
 
-    // Open modal with TT - timer should stop
+    // Press TT - modal must NOT open while timer runs
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    await expect(page.locator("#time-mod-modal")).not.toBeVisible();
+  });
+
+  test("TT opens modal after timer is stopped", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.keyboard.press("F4");
+
+    // Start timer then stop it
+    await page.keyboard.press(" ");
+    await page.waitForTimeout(200);
+    await page.keyboard.press(" ");
+
+    // Now TT should open modal
     await page.keyboard.press("t");
     await page.keyboard.press("t");
 
     await expect(page.locator("#time-mod-modal")).toBeVisible();
-
-    // Cancel modal
     await page.locator("#time-mod-cancel").click();
-
-    // Timer should remain stopped (wait 500ms and check time hasn't changed)
-    const timeAfterClose = await page.locator("#bout-time-display").textContent();
-    await page.waitForTimeout(500);
-    await expect(page.locator("#bout-time-display")).toHaveText(timeAfterClose);
   });
 
   test("TT works in Completing mode", async ({ page }) => {
