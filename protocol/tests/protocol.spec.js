@@ -506,3 +506,192 @@ test.describe("CHAMP Protocol - UC001 Short Bout", () => {
     await expect(releaseButton).toContainText('Fertigstellen');
   });
 });
+
+test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
+  test("Victory types dropdown has unique type entries", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    const types = await page.evaluate(() => {
+      const ruleset = window.rulesetHelper.load();
+      return ruleset.victoryTypes.map(vt => vt.type);
+    });
+
+    // All types must be unique
+    const uniqueTypes = new Set(types);
+    expect(uniqueTypes.size).toBe(types.length);
+  });
+
+  test("classificationPoints is an object with winner and looser", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    const allValid = await page.evaluate(() => {
+      const ruleset = window.rulesetHelper.load();
+      return ruleset.victoryTypes.every(vt => {
+        const cp = vt.classificationPoints;
+        return cp && typeof cp === 'object' && !Array.isArray(cp) &&
+               cp.winner !== undefined && cp.looser !== undefined;
+      });
+    });
+
+    expect(allValid).toBe(true);
+  });
+
+  test("resolveClassificationPoints returns correct points for constant values", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    const result = await page.evaluate(() => {
+      const cp = { winner: 4, looser: 0 };
+      return window.rulesetHelper.resolveClassificationPoints(cp, {});
+    });
+
+    expect(result.winner).toBe(4);
+    expect(result.looser).toBe(0);
+  });
+
+  test("resolveClassificationPoints evaluates conditional winner points (score diff 10 → 3pts)", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    const result = await page.evaluate(() => {
+      const ruleset = window.rulesetHelper.load();
+      const ps = ruleset.victoryTypes.find(vt => vt.type === 'PS');
+      const context = { scoreDifference: 10 }; // gte 8, lte 14 → 3 points
+      return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, context);
+    });
+
+    expect(result.winner).toBe(3);
+    expect(result.looser).toBe(0);
+  });
+
+  test("resolveClassificationPoints evaluates conditional winner points (score diff 5 → 2pts)", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    const result = await page.evaluate(() => {
+      const ruleset = window.rulesetHelper.load();
+      const ps = ruleset.victoryTypes.find(vt => vt.type === 'PS');
+      const context = { scoreDifference: 5 }; // gte 3, lte 7 → 2 points
+      return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, context);
+    });
+
+    expect(result.winner).toBe(2);
+    expect(result.looser).toBe(0);
+  });
+
+  test("resolveClassificationPoints evaluates conditional winner points (score diff 1 → 1pt)", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    const result = await page.evaluate(() => {
+      const ruleset = window.rulesetHelper.load();
+      const ps = ruleset.victoryTypes.find(vt => vt.type === 'PS');
+      const context = { scoreDifference: 1 }; // gte 0, lte 2 → 1 point
+      return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, context);
+    });
+
+    expect(result.winner).toBe(1);
+    expect(result.looser).toBe(0);
+  });
+
+  test("Completion form auto-fills conditional points based on score difference", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    // Release scoresheet and record events to create a score difference of 10
+    await page.keyboard.press("F4");
+    await page.keyboard.press(" ");
+    // Record 4R + 4R + 2R = 10 for red, 0 for blue → scoreDifference = 10
+    await page.keyboard.press("4"); await page.keyboard.press("R");
+    await page.keyboard.press("4"); await page.keyboard.press("R");
+    await page.keyboard.press("2"); await page.keyboard.press("R");
+    await page.keyboard.press(" ");
+
+    // Enter Completing state
+    await page.keyboard.press("F4");
+    await expect(page.locator("#completion-form")).toBeVisible();
+
+    // Select Red as winner and PS as victory type
+    await page.selectOption("#compl-winner", "red");
+    await page.selectOption("#compl-victory-type", "PS");
+
+    // With scoreDifference=10 (gte 8, lte 14), winner should get 3 pts
+    await expect(page.locator("#compl-points-red")).toHaveValue("3");
+    await expect(page.locator("#compl-points-blue")).toHaveValue("0");
+  });
+
+  test("Blue winner: form shows blue getting winner pts, export stores [winner,loser]", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    // Record 10 pts for blue
+    await page.keyboard.press("F4");
+    await page.keyboard.press(" ");
+    await page.keyboard.press("4"); await page.keyboard.press("B");
+    await page.keyboard.press("4"); await page.keyboard.press("B");
+    await page.keyboard.press("2"); await page.keyboard.press("B");
+    await page.keyboard.press(" ");
+
+    await expect(page.locator("#score-blue")).toHaveText("10");
+
+    // Enter Completing, select blue winner + PS (score diff 10 → 3 pts)
+    await page.keyboard.press("F4");
+    await page.selectOption("#compl-winner", "blue");
+    await page.selectOption("#compl-victory-type", "PS");
+
+    // Form: blue field (winner) = 3, red field (loser) = 0
+    await expect(page.locator("#compl-points-blue")).toHaveValue("3");
+    await expect(page.locator("#compl-points-red")).toHaveValue("0");
+
+    // Complete and verify export stores [winner, loser] = [3, 0]
+    await page.keyboard.press("F4");
+    await page.waitForTimeout(100);
+
+    const exportData = await page.evaluate(() => window.exportHelper.generate());
+    const cp = exportData.bout.summary.victory.classificationPoints;
+    // classificationPoints must be [winner, loser]
+    expect(cp[0]).toBe(3); // winner (blue) gets 3
+    expect(cp[1]).toBe(0); // loser (red) gets 0
+  });
+
+  test("Ruleset validates that type is unique", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    const result = await page.evaluate(() => {
+      const duplicateRuleset = {
+        metadata: { name: "test", description: "test", languages: ["de"], author: "test" },
+        periodTimesInSeconds: [180],
+        periodTimeCountingDirection: "Down",
+        periodBreakTimeInSeconds: 30,
+        injuryTimeWithoutBloodInSeconds: 120,
+        injuryTimeWithBloodInSeconds: 240,
+        injuryTimeCountingDirection: "Up",
+        victoryTypes: [
+          { type: "PS", description: "A", classificationPoints: { winner: 3, looser: 0 } },
+          { type: "PS", description: "B", classificationPoints: { winner: 1, looser: 0 } }
+        ]
+      };
+      return window.rulesetHelper.validate(duplicateRuleset);
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('not unique'))).toBe(true);
+  });
+
+  test("Ruleset validates that classificationPoints is object not array", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    const result = await page.evaluate(() => {
+      const oldFormatRuleset = {
+        metadata: { name: "test", description: "test", languages: ["de"], author: "test" },
+        periodTimesInSeconds: [180],
+        periodTimeCountingDirection: "Down",
+        periodBreakTimeInSeconds: 30,
+        injuryTimeWithoutBloodInSeconds: 120,
+        injuryTimeWithBloodInSeconds: 240,
+        injuryTimeCountingDirection: "Up",
+        victoryTypes: [
+          { type: "SS", description: "Test", classificationPoints: [4, 0] }
+        ]
+      };
+      return window.rulesetHelper.validate(oldFormatRuleset);
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('classificationPoints'))).toBe(true);
+  });
+});
