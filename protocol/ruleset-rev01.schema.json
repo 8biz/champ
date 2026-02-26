@@ -73,10 +73,85 @@
           "type": { "type": "string" },
           "description": { "type": "string" },
           "classificationPoints": {
-            "type": "array",
-            "minItems": 2,
-            "maxItems": 2,
-            "items": { "type": "integer" }
+            "type": "object",
+            "required": ["winner","looser"],
+            "properties": {
+              "winner": {
+                "oneOf": [
+                  { "type": "integer" },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "prefixItems": [
+                        { "type": "integer" },
+                        {
+                          "type": "object",
+                          "required": ["when"],
+                          "properties": {
+                            "when": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "gte": { "type": "number" },
+                                  "lte": { "type": "number" },
+                                  "gt": { "type": "number" },
+                                  "lt": { "type": "number" },
+                                  "eq": { "type": "number" }
+                                },
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "looser": {
+                "oneOf": [
+                  { "type": "integer" },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "prefixItems": [
+                        { "type": "integer" },
+                        {
+                          "type": "object",
+                          "required": ["when"],
+                          "properties": {
+                            "when": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "gte": { "type": "number" },
+                                  "lte": { "type": "number" },
+                                  "gt": { "type": "number" },
+                                  "lt": { "type": "number" },
+                                  "eq": { "type": "number" }
+                                },
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
           },
           "condition": {
             "type": "object",

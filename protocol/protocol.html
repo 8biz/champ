@@ -560,37 +560,31 @@
       }
     },
     "victoryTypes": [
-      { "type": "SS", "description": "Schultersieg", "classificationPoints": [4, 0] },
+      { "type": "SS", "description": "Schultersieg", "classificationPoints": { "winner": 4, "looser": 0 } },
       {
         "type": "TÜ",
         "description": "Technische Überlegenheit",
-        "classificationPoints": [4, 0],
+        "classificationPoints": { "winner": 4, "looser": 0 },
         "condition": { "scoreDifference": { "gte": 15 } }
       },
       {
         "type": "PS",
         "description": "Punktsieg",
-        "classificationPoints": [3, 0],
-        "condition": { "scoreDifference": { "gte": 8, "lte": 14 } }
+        "classificationPoints": {
+          "winner": [
+            [3, { "when": { "scoreDifference": { "gte": 8, "lte": 14 } } }],
+            [2, { "when": { "scoreDifference": { "gte": 3, "lte": 7 } } }],
+            [1, { "when": { "scoreDifference": { "gte": 0, "lte": 2 } } }]
+          ],
+          "looser": 0
+        }
       },
-      {
-        "type": "PS",
-        "description": "Punktsieg",
-        "classificationPoints": [2, 0],
-        "condition": { "scoreDifference": { "gte": 3, "lte": 7 } }
-      },
-      {
-        "type": "PS",
-        "description": "Punktsieg",
-        "classificationPoints": [1, 0],
-        "condition": { "scoreDifference": { "gte": 0, "lte": 2 } }
-      },
-      { "type": "AS", "description": "Aufgabesieg", "classificationPoints": [4, 0] },
-      { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": [4, 0], "condition": { "cautionCount": { "gte": 3 } } },
-      { "type": "DQ", "description": "Disqualifikation durch unfaires Verhalten", "classificationPoints": [4, 0] },
-      { "type": "DSQ2", "description": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": [0, 0] },
-      { "type": "KL", "description": "Kampfloser Sieg", "classificationPoints": [4, 0] },
-      { "type": "ÜG", "description": "Übergewicht", "classificationPoints": [4, 0] }
+      { "type": "AS", "description": "Aufgabesieg", "classificationPoints": { "winner": 4, "looser": 0 } },
+      { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": { "winner": 4, "looser": 0 }, "condition": { "cautionCount": { "gte": 3 } } },
+      { "type": "DQ", "description": "Disqualifikation durch unfaires Verhalten", "classificationPoints": { "winner": 4, "looser": 0 } },
+      { "type": "DSQ2", "description": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": { "winner": 0, "looser": 0 } },
+      { "type": "KL", "description": "Kampfloser Sieg", "classificationPoints": { "winner": 4, "looser": 0 } },
+      { "type": "ÜG", "description": "Übergewicht", "classificationPoints": { "winner": 4, "looser": 0 } }
     ]
   }
   </script>
@@ -749,8 +743,7 @@
           const option = document.createElement('option');
           option.value = vt.type;
           option.textContent = `(${vt.type}) ${vt.description}`;
-          option.dataset.pointsWinner = vt.classificationPoints[0];
-          option.dataset.pointsLoser = vt.classificationPoints[1];
+          option.dataset.classificationPoints = JSON.stringify(vt.classificationPoints);
           option.dataset.description = vt.description;
           victoryTypeSelect.appendChild(option);
         });
@@ -875,8 +868,20 @@
       const selectedOption = victoryTypeSelect.options[victoryTypeSelect.selectedIndex];
       if (!selectedOption) return;
 
-      const winnerPts = parseInt(selectedOption.dataset.pointsWinner || '0');
-      const loserPts = parseInt(selectedOption.dataset.pointsLoser || '0');
+      let winnerPts = 0;
+      let loserPts = 0;
+      try {
+        const cp = JSON.parse(selectedOption.dataset.classificationPoints || 'null');
+        if (cp) {
+          const context = getBoutContext();
+          const resolved = resolveClassificationPoints(cp, context);
+          winnerPts = resolved.winner;
+          loserPts = resolved.looser;
+        }
+      } catch (e) {
+        // ignore parse errors
+      }
+
       const winner = winnerSelect.value;
 
       if (winner === 'blue') {
@@ -1243,9 +1248,21 @@
       if (typeof r.periodBreakTimeInSeconds !== 'number') errors.push('periodBreakTimeInSeconds required');
       if (!Array.isArray(r.victoryTypes)) errors.push('victoryTypes array required');
       if (Array.isArray(r.victoryTypes)) {
+        const typesSeen = new Set();
         r.victoryTypes.forEach((vt, i) => {
-          if (typeof vt.type !== 'string') errors.push(`victoryTypes[${i}].type required`);
-          if (!Array.isArray(vt.classificationPoints) || vt.classificationPoints.length !== 2) errors.push(`victoryTypes[${i}].classificationPoints must be [win,lose]`);
+          if (typeof vt.type !== 'string') {
+            errors.push(`victoryTypes[${i}].type required`);
+          } else {
+            if (typesSeen.has(vt.type)) errors.push(`victoryTypes[${i}].type "${vt.type}" is not unique`);
+            typesSeen.add(vt.type);
+          }
+          const cp = vt.classificationPoints;
+          if (!cp || typeof cp !== 'object' || Array.isArray(cp)) {
+            errors.push(`victoryTypes[${i}].classificationPoints must be an object {winner, looser}`);
+          } else {
+            if (cp.winner === undefined) errors.push(`victoryTypes[${i}].classificationPoints.winner required`);
+            if (cp.looser === undefined) errors.push(`victoryTypes[${i}].classificationPoints.looser required`);
+          }
           if (vt.condition && typeof vt.condition === 'object') {
             Object.values(vt.condition).forEach(op => {
               if (typeof op !== 'object') errors.push(`victoryTypes[${i}].condition entries must be objects`);
@@ -1285,12 +1302,44 @@
       });
     }
 
+    function resolveClassificationPoints(classificationPoints, context) {
+      function resolveValue(v) {
+        if (typeof v === 'number') return v;
+        if (Array.isArray(v)) {
+          for (const entry of v) {
+            const [points, opts] = entry;
+            if (evaluateCondition(opts.when, context)) return points;
+          }
+          return 0;
+        }
+        return 0;
+      }
+      return {
+        winner: resolveValue(classificationPoints.winner),
+        looser: resolveValue(classificationPoints.looser)
+      };
+    }
+
+    function getBoutContext() {
+      const scores = calculateScores(appState.events);
+      const stats = calculateStatistics(appState.events);
+      return {
+        scoreDifference: Math.abs(scores.red - scores.blue),
+        scoreRed: scores.red,
+        scoreBlue: scores.blue,
+        cautionCount: stats.red.cautions + stats.blue.cautions,
+        passivityCount: stats.red.passivity + stats.blue.passivity
+      };
+    }
+
     // Expose helper
     window.rulesetHelper = {
       load: loadEmbeddedRuleset,
       validate: simpleValidateRuleset,
       evaluateCondition,
-      findMatchingVictoryTypes
+      findMatchingVictoryTypes,
+      resolveClassificationPoints,
+      getBoutContext
     };
 
     // Auto-load and validate at startup (logs result)

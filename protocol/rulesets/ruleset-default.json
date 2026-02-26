@@ -19,36 +19,30 @@
     }
   },
   "victoryTypes": [
-    { "type": "SS", "description": "Schultersieg", "classificationPoints": [4, 0] },
+    { "type": "SS", "description": "Schultersieg", "classificationPoints": { "winner": 4, "looser": 0 } },
     {
       "type": "TÜ",
       "description": "Technische Überlegenheit",
-      "classificationPoints": [4, 0],
+      "classificationPoints": { "winner": 4, "looser": 0 },
       "condition": { "scoreDifference": { "gte": 15 } }
     },
     {
       "type": "PS",
       "description": "Punktsieg",
-      "classificationPoints": [3, 0],
-      "condition": { "scoreDifference": { "gte": 8, "lte": 14 } }
+      "classificationPoints": {
+        "winner": [
+          [3, { "when": { "scoreDifference": { "gte": 8, "lte": 14 } } }],
+          [2, { "when": { "scoreDifference": { "gte": 3, "lte": 7 } } }],
+          [1, { "when": { "scoreDifference": { "gte": 0, "lte": 2 } } }]
+        ],
+        "looser": 0
+      }
     },
-    {
-      "type": "PS",
-      "description": "Punktsieg",
-      "classificationPoints": [2, 0],
-      "condition": { "scoreDifference": { "gte": 3, "lte": 7 } }
-    },
-    {
-      "type": "PS",
-      "description": "Punktsieg",
-      "classificationPoints": [1, 0],
-      "condition": { "scoreDifference": { "gte": 0, "lte": 2 } }
-    },
-    { "type": "AS", "description": "Aufgabesieg", "classificationPoints": [4, 0] },
-    { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": [4, 0], "condition": { "cautionCount": { "gte": 3 } } },
-    { "type": "DQ", "description": "Disqualifikation durch unfaires Verhalten", "classificationPoints": [4, 0] },
-    { "type": "DSQ2", "description": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": [0, 0] },
-    { "type": "KL", "description": "Kampfloser Sieg", "classificationPoints": [4, 0] },
-    { "type": "ÜG", "description": "Übergewicht", "classificationPoints": [4, 0] }
+    { "type": "AS", "description": "Aufgabesieg", "classificationPoints": { "winner": 4, "looser": 0 } },
+    { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": { "winner": 4, "looser": 0 }, "condition": { "cautionCount": { "gte": 3 } } },
+    { "type": "DQ", "description": "Disqualifikation durch unfaires Verhalten", "classificationPoints": { "winner": 4, "looser": 0 } },
+    { "type": "DSQ2", "description": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": { "winner": 0, "looser": 0 } },
+    { "type": "KL", "description": "Kampfloser Sieg", "classificationPoints": { "winner": 4, "looser": 0 } },
+    { "type": "ÜG", "description": "Übergewicht", "classificationPoints": { "winner": 4, "looser": 0 } }
   ]
 }

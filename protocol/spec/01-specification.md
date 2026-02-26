@@ -240,14 +240,41 @@ Freestyle wrestling has additional activity time rules that apply under certain 
 
 #### Victory types array
 
-Each victory type defines how a bout can be won, the classification points awarded, and optional conditions that must be met.
+Each victory type defines how a bout can be won, the classification points awarded, and optional conditions that must be met. The `type` field must be unique across all entries in the array.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `type` | string | ✓ | Victory type code (e.g., `"VFA"`, `"VSU"`, `"VPO"`) |
+| `type` | string | ✓ | Victory type code (e.g., `"VFA"`, `"VSU"`, `"VPO"`); must be unique within the array |
 | `description` | string | ✓ | Human-readable description |
-| `classificationPoints` | array of 2 integers | ✓ | Points awarded to [winner, loser] (e.g., `[5, 0]` or `[4, 0]`) |
+| `classificationPoints` | object | ✓ | Points awarded to winner and loser (see Classification Points Format below) |
 | `condition` | object | optional | Condition object specifying when this victory type applies (see Condition Format below) |
+
+#### Classification points format
+
+`classificationPoints` is an object with two fields: `winner` and `looser` (note: kept as `looser` for consistency with the codebase).
+
+Each of `winner` and `looser` can be:
+- **A number**: Points awarded unconditionally (e.g., `4`).
+- **An array of conditional entries**: Each entry is a two-element array `[points, { "when": <condition> }]`. Entries are evaluated in order at bout completion; the first matching condition determines the points. If no condition matches, `0` is awarded.
+
+**Examples:**
+
+Unconditional:
+```json
+"classificationPoints": { "winner": 4, "looser": 0 }
+```
+
+Conditional (points depend on score difference):
+```json
+"classificationPoints": {
+  "winner": [
+    [3, { "when": { "scoreDifference": { "gte": 8, "lte": 14 } } }],
+    [2, { "when": { "scoreDifference": { "gte": 3, "lte": 7 } } }],
+    [1, { "when": { "scoreDifference": { "gte": 0, "lte": 2 } } }]
+  ],
+  "looser": 0
+}
+```
 
 #### Condition format
 
@@ -300,22 +327,25 @@ Match when passivity count is greater than 1 (i.e., 2 or more).
     {
       "type": "VFA",
       "description": "Sieg durch Schultersieg",
-      "classificationPoints": [5, 0]
+      "classificationPoints": { "winner": 5, "looser": 0 }
     },
     {
       "type": "VSU",
       "description": "Sieg durch technische Überlegenheit",
-      "classificationPoints": [5, 0],
+      "classificationPoints": { "winner": 5, "looser": 0 },
       "condition": {
         "scoreDifference": { "gte": 15 }
       }
     },
     {
-      "type": "VPO1",
-      "description": "Sieg nach Punkten (1-7 Punkte)",
-      "classificationPoints": [3, 0],
-      "condition": {
-        "scoreDifference": { "gte": 1, "lte": 7 }
+      "type": "VPO",
+      "description": "Sieg nach Punkten",
+      "classificationPoints": {
+        "winner": [
+          [3, { "when": { "scoreDifference": { "gte": 8, "lte": 14 } } }],
+          [1, { "when": { "scoreDifference": { "gte": 1, "lte": 7 } } }]
+        ],
+        "looser": 0
       }
     }
   ]
