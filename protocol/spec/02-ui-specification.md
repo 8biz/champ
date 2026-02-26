@@ -100,22 +100,49 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 
 ## States of the UI
 
-The application has two primary interactive states that determine which controls are editable and which actions are available:
+The application has five states that determine which controls are interactive and which actions are available:
 
-- Idle: the scoresheet is not released for recording (either still preparing or already completed). No bout events can be recorded.
-- Recording: the scoresheet is released and the user may record bout events in real time.
+| State | Description |
+|---|---|
+| **New** | Initial state — scoresheet not yet released for recording |
+| **Recording** | Scoresheet released — timer and event recording active |
+| **Completing** | User is filling in the completion details (winner, victory type) |
+| **Completed** | Bout completed and locked — ready for export or correction |
+| **Re-released** | Completed scoresheet re-released for editing completion details or top-bar info |
 
-### Idle
+### Overview table
 
-When the UI is in the Idle state the interface is primarily editable for preparation or post‑bout review. Appearance and behaviour in this state:
+| UI Element | New | Recording | Completing | Completed | Re-released |
+|---|---|---|---|---|---|
+| `bout-info` | ✓ enabled | ✗ locked | ✗ locked | ✗ locked | ✓ enabled |
+| `style-select` | ✓ enabled | ✗ locked | ✗ locked | ✗ locked | ✓ enabled |
+| `ruleset-select` | ✓ enabled | ✗ locked | ✗ locked | ✗ locked | ✓ enabled |
+| `.event-btn` (event buttons) | ✗ disabled | ✓ enabled | ✓ enabled | ✗ disabled | ✓ enabled¹ |
+| `bout-time-button` | ✗ disabled | ✓ enabled | ✓ enabled | ✗ disabled | ✓ enabled¹ |
+| `injury-time-red/blue` | ✓ enabled | ✓ enabled | ✓ enabled | ✓ enabled | ✓ enabled |
+| `blood-time-red/blue` | ✓ enabled | ✓ enabled | ✓ enabled | ✓ enabled | ✓ enabled |
+| `compl-winner` | ✗ disabled | ✗ disabled | ✓ enabled | ✗ disabled | ✓ enabled |
+| `compl-victory-type` | ✗ disabled | ✗ disabled | ✓ enabled | ✗ disabled | ✓ enabled |
+| `compl-points-red` | ✗ disabled | ✗ disabled | ✓ enabled | ✗ disabled | ✓ enabled |
+| `compl-points-blue` | ✗ disabled | ✗ disabled | ✓ enabled | ✗ disabled | ✓ enabled |
+| `release-complete-button` | ✓ "Freigeben [F4]" | ✓ "Fertigstellen [F4]" | ✓ "Abschließen [F4]" | ✓ "Korrigieren [F4]" | ✓ "Abschließen [F4]" |
+| `export-button` | hidden | hidden | hidden | ✓ visible | hidden |
+| `next-event` (timeline) | absent | present | present | absent | absent |
 
-- `top-bar` is unlocked and editable by the user.
-- `board` is unlocked and editable.
-- `buttons` are disabled for recording actions (controls appear inactive/greyed out), with two exceptions:
-    - `release-complete-button` is enabled and displays the label "Freigeben [F4]" to allow releasing the scoresheet for recording. This is also valid when the scoresheet is already completed, allowing to re-release it for corrections.
-- `timeline` contains no event entries; the `next-event` entry is not present in the DOM while Idle.
+¹ In Re-released state, event buttons and `bout-time-button` are visually enabled but recording new bout events is not active — only the completion form editing is functional.
 
-On opening a new scoresheet the UI displays following default values:
+### New
+
+Initial state on page load. The scoresheet is being prepared before any recording begins.
+
+- `top-bar` fields (`bout-info`, `style-select`, `ruleset-select`) are enabled and editable.
+- Event buttons and `bout-time-button` are disabled.
+- Completion form controls are disabled.
+- `release-complete-button` shows "Freigeben [F4]" — clicking it transitions to **Recording**.
+- `export-button` is hidden.
+- `next-event` entry is absent from the timeline.
+
+Default values on opening a new scoresheet:
 - `bout-info`: "Freundschaftskampf"
 - `style-select`: "Freistil" selected, "Griech.-röm." available
 - `ruleset-select`: "beiliegendes Regelwerk" available
@@ -125,13 +152,47 @@ On opening a new scoresheet the UI displays following default values:
 
 ### Recording
 
-When the scoresheet is released the UI enters the Recording state and is optimized for fast, reliable event entry:
+The scoresheet is released for live bout recording.
 
-- `top-bar` is locked and no longer editable to prevent accidental changes while recording.
-- `board` is locked so wrestler info and scoresheet metadata cannot be changed during recording.
-- `buttons` are enabled and ready for input (injury timers, blood timers, event buttons, and the bout time control).
-    - `release-complete-button` is enabled and displays the label "Abschließen [F4]" to allow completing the scoresheet (even if the scoresheet is re-released).
-- `timeline` displays the `next-event` entry block at the end of the timeline and accepts new bout events; this block is the active cursor position for entering events.
+- `top-bar` fields are locked and no longer editable.
+- Event buttons and `bout-time-button` are enabled for live input.
+- Completion form controls are disabled.
+- `release-complete-button` shows "Fertigstellen [F4]" — clicking it stops the timer (if running) and transitions to **Completing**.
+- `export-button` is hidden.
+- `next-event` entry is present at the end of the timeline, serving as the active insert position.
+
+### Completing
+
+The timer has been stopped and the user fills in the final bout result.
+
+- `top-bar` fields remain locked.
+- Event buttons and `bout-time-button` remain enabled (additional events can still be recorded).
+- Completion form controls (`compl-winner`, `compl-victory-type`, `compl-points-red`, `compl-points-blue`) are enabled.
+- `release-complete-button` shows "Abschließen [F4]" — clicking it saves the completion details and transitions to **Completed**.
+- `export-button` is hidden.
+- `next-event` entry remains present in the timeline.
+
+### Completed
+
+The scoresheet is fully completed and locked.
+
+- `top-bar` fields remain locked.
+- Event buttons and `bout-time-button` are disabled.
+- Completion form controls are disabled.
+- `release-complete-button` shows "Korrigieren [F4]" — clicking it transitions to **Re-released**.
+- `export-button` is visible and allows downloading the JSON export ([F8]).
+- `next-event` entry is absent from the timeline.
+
+### Re-released
+
+A completed scoresheet re-released to correct the top-bar information or completion details.
+
+- `top-bar` fields are unlocked and editable again.
+- Event buttons and `bout-time-button` are visually enabled but recording new bout events is not active.
+- Completion form controls are enabled for editing.
+- `release-complete-button` shows "Abschließen [F4]" — clicking it saves the updated completion details and transitions back to **Completed**.
+- `export-button` is hidden.
+- `next-event` entry is absent from the timeline.
 
 
 
