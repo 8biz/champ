@@ -742,7 +742,7 @@
         ruleset.victoryTypes.forEach(vt => {
           const option = document.createElement('option');
           option.value = vt.type;
-          option.textContent = `(${vt.type}) ${vt.description}`;
+          option.textContent = `${vt.type}-${vt.description}`;
           option.dataset.classificationPoints = JSON.stringify(vt.classificationPoints);
           option.dataset.description = vt.description;
           victoryTypeSelect.appendChild(option);
