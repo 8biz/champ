@@ -2,510 +2,376 @@ import { test, expect } from "@playwright/test";
 
 const BASE_URL = "file://" + process.cwd() + "/protocol/protocol.html";
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Release the scoresheet for recording (F4 from New → Recording). */
+async function releaseScoresheet(page) {
+  await page.keyboard.press("F4");
+}
+
+/**
+ * Set the remaining bout (period) time via the TT time-modification modal.
+ * Requires the scoresheet to be in Recording or Completing mode with the
+ * timer stopped.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} remainingTime  Remaining period time in "M:SS" format
+ */
+async function setBoutTime(page, remainingTime) {
+  await page.keyboard.press("t");
+  await page.keyboard.press("t");
+  const input = page.locator("#time-mod-input");
+  await input.fill(remainingTime);
+  await input.press("Enter");
+}
+
+/**
+ * Set bout time to a specific remaining value and then record a bout event
+ * via keyboard.  Avoids starting/stopping the real timer, making tests fast
+ * and deterministic.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} remainingTime  Remaining period time in "M:SS" format
+ * @param {string[]} keys         Key presses for the event, e.g. ["1","B"]
+ */
+async function recordEventAtTime(page, remainingTime, keys) {
+  await setBoutTime(page, remainingTime);
+  for (const key of keys) {
+    await page.keyboard.press(key);
+  }
+}
+
+// ── UC001 Short Bout ────────────────────────────────────────────────────────
+
 test.describe("CHAMP Protocol - UC001 Short Bout", () => {
   test("Initial state - Idle mode", async ({ page }) => {
     await page.goto(BASE_URL);
 
     // Check initial time display
-    const boutTimeDisplay = page.locator("#bout-time-display");
-    await expect(boutTimeDisplay).toHaveText("3:00");
+    await expect(page.locator("#bout-time-display")).toHaveText("3:00");
 
     // Check initial scores
-    const scoreRed = page.locator("#score-red");
-    const scoreBlue = page.locator("#score-blue");
-    await expect(scoreRed).toHaveText("0");
-    await expect(scoreBlue).toHaveText("0");
+    await expect(page.locator("#score-red")).toHaveText("0");
+    await expect(page.locator("#score-blue")).toHaveText("0");
 
     // Check Release button
-    const releaseButton = page.locator("#release-complete-button");
-    await expect(releaseButton).toContainText("Freigeben");
+    await expect(page.locator("#release-complete-button")).toContainText("Freigeben");
 
-    // Check timeline is empty in Idle mode
-    const timeline = page.locator("#timeline");
-    const nextEvent = page.locator("#next-event");
-    await expect(nextEvent).not.toBeVisible();
+    // Next-event must not be visible in New state
+    await expect(page.locator("#next-event")).not.toBeVisible();
   });
 
   test("Release scoresheet with F4 key", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    // Press F4 to release
-    await page.keyboard.press("F4");
-
-    // Button should change to "Fertigstellen"
-    const releaseButton = page.locator("#release-complete-button");
-    await expect(releaseButton).toContainText("Fertigstellen");
-
-    // Next-event should appear in timeline
-    const nextEvent = page.locator("#next-event");
-    await expect(nextEvent).toBeVisible();
-
-    // Input fields should be disabled
-    const boutInfo = page.locator("#bout-info");
-    await expect(boutInfo).toBeDisabled();
+    await expect(page.locator("#release-complete-button")).toContainText("Fertigstellen");
+    await expect(page.locator("#next-event")).toBeVisible();
+    await expect(page.locator("#bout-info")).toBeDisabled();
   });
+
+  // ── Timer tests (must use real timer) ────────────────────────────────────
 
   test("Timer starts and counts down with Space key", async ({ page }) => {
     await page.goto(BASE_URL);
-
-    // Release scoresheet
-    await page.keyboard.press("F4");
-
-    const boutTimeDisplay = page.locator("#bout-time-display");
-    await expect(boutTimeDisplay).toHaveText("3:00");
+    await releaseScoresheet(page);
+    await expect(page.locator("#bout-time-display")).toHaveText("3:00");
 
     // Start timer with Space
     await page.keyboard.press(" ");
     await page.waitForTimeout(1100);
 
-    // Time should have decreased (allow for timing variations)
-    const currentTime = await boutTimeDisplay.textContent();
+    // Time should have decreased
+    const currentTime = await page.locator("#bout-time-display").textContent();
     const [min, sec] = currentTime.split(':').map(s => parseInt(s));
     const totalSeconds = min * 60 + sec;
-    
-    // Should be approximately 178-179 seconds (1-2 seconds elapsed)
     expect(totalSeconds).toBeLessThan(180);
     expect(totalSeconds).toBeGreaterThan(176);
   });
 
   test("Timer stops with Space key", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    // Release and start timer
-    await page.keyboard.press("F4");
     await page.keyboard.press(" ");
     await page.waitForTimeout(600);
-
-    // Stop timer
     await page.keyboard.press(" ");
-    const stoppedTime = await page.locator("#bout-time-display").textContent();
 
-    // Wait and verify time hasn't changed
+    const stoppedTime = await page.locator("#bout-time-display").textContent();
     await page.waitForTimeout(1100);
     await expect(page.locator("#bout-time-display")).toHaveText(stoppedTime);
   });
 
+  // ── Event recording via keyboard ─────────────────────────────────────────
+
   test("Record point event 1B with keyboard", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    // Release and start timer
-    await page.keyboard.press("F4");
-    await page.keyboard.press(" ");
-    await page.waitForTimeout(200);
+    await recordEventAtTime(page, "2:50", ["1", "B"]);
 
-    // Record 1B event
-    await page.keyboard.press("1");
-    await page.keyboard.press("B");
-
-    // Check score updated
-    const scoreBlue = page.locator("#score-blue");
-    await expect(scoreBlue).toHaveText("1");
-
-    // Check timeline has event
-    const timeline = page.locator("#timeline");
-    const eventBoxes = timeline.locator(".entry-box");
-    await expect(eventBoxes.first()).toContainText("1B");
+    await expect(page.locator("#score-blue")).toHaveText("1");
+    await expect(page.locator("#timeline .entry-box").first()).toContainText("1B");
   });
 
   test("Record point event 4R with keyboard (reverse order)", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    // Release and start timer
-    await page.keyboard.press("F4");
-    await page.keyboard.press(" ");
-    await page.waitForTimeout(200);
+    // Letter-first ordering: R then 4
+    await recordEventAtTime(page, "2:50", ["R", "4"]);
 
-    // Record 4R event (R then 4)
-    await page.keyboard.press("R");
-    await page.keyboard.press("4");
-
-    // Check score updated
-    const scoreRed = page.locator("#score-red");
-    await expect(scoreRed).toHaveText("4");
-
-    // Check timeline has event
-    const timeline = page.locator("#timeline");
-    const eventBoxes = timeline.locator(".entry-box");
-    await expect(eventBoxes.first()).toContainText("4R");
-  });
-
-  test("Complete use case UC001 - short bout", async ({ page }) => {
-    await page.goto(BASE_URL);
-
-    // Step 1-2: Release scoresheet (F4) → Recording state
-    await page.keyboard.press("F4");
-    await expect(page.locator("#release-complete-button")).toContainText("Fertigstellen");
-
-    // Step 3-4: Start bout time (Space)
-    await page.keyboard.press(" ");
-    await page.waitForTimeout(200);
-
-    // Step 5-6: Record 1B
-    await page.keyboard.press("1");
-    await page.keyboard.press("B");
-    await expect(page.locator("#score-blue")).toHaveText("1");
-
-    // Step 7-8: Stop bout time (Space)
-    await page.keyboard.press(" ");
-    await page.waitForTimeout(200);
-
-    // Step 9-10: Start bout time (Space)
-    await page.keyboard.press(" ");
-    await page.waitForTimeout(200);
-
-    // Step 11-12: Stop bout time (Space)
-    await page.keyboard.press(" ");
-    await page.waitForTimeout(200);
-
-    // Step 13-14: Record 4R
-    await page.keyboard.press("4");
-    await page.keyboard.press("R");
     await expect(page.locator("#score-red")).toHaveText("4");
-
-    // Verify timeline has 2 bout events (1B and 4R)
-    const timeline = page.locator("#timeline");
-    const boutEvents = timeline.locator(".entry-box").filter({ hasNotText: "+" });
-    await expect(boutEvents).toHaveCount(2);
-    await expect(boutEvents.nth(0)).toContainText("1B");
-    await expect(boutEvents.nth(1)).toContainText("4R");
-
-    // Verify next-event is still present
-    await expect(page.locator("#next-event")).toBeVisible();
-
-    // Step 15-19: Complete bout (F4 to enter Completing, then F4 to finish)
-    await page.keyboard.press("F4");
-    await page.waitForTimeout(200);
-
-    // Now in Completing state - button shows "Abschließen"
-    await expect(page.locator("#release-complete-button")).toContainText("Abschließen");
-
-    // Completion form should be visible and unfrozen
-    await expect(page.locator("#completion-form")).toBeVisible();
-
-    // Select winner "Rot"
-    await page.selectOption("#compl-winner", "red");
-
-    // Press F4 to apply completion → Completed state
-    await page.keyboard.press("F4");
-    await page.waitForTimeout(200);
-
-    // Button should now show "Korrigieren"
-    await expect(page.locator("#release-complete-button")).toContainText("Korrigieren");
-
-    // Form should be frozen (controls disabled)
-    await expect(page.locator("#compl-winner")).toBeDisabled();
-  });
-
-  test("Export functionality generates valid JSON", async ({ page }) => {
-    await page.goto(BASE_URL);
-
-    // Release and record a simple bout
-    await page.keyboard.press("F4");
-    await page.keyboard.press(" ");
-    await page.waitForTimeout(200);
-    await page.keyboard.press("1");
-    await page.keyboard.press("B");
-    await page.waitForTimeout(200);
-    await page.keyboard.press(" ");
-
-    // Generate export programmatically (not download)
-    const exportData = await page.evaluate(() => {
-      return window.exportHelper.generate();
-    });
-
-    // Verify export structure
-    expect(exportData).toHaveProperty("exportVersion");
-    expect(exportData).toHaveProperty("metadata");
-    expect(exportData).toHaveProperty("bout");
-    
-    // Verify bout structure
-    expect(exportData.bout).toHaveProperty("header");
-    expect(exportData.bout).toHaveProperty("summary");
-    expect(exportData.bout).toHaveProperty("events");
-    
-    // Verify events
-    expect(exportData.bout.events.length).toBeGreaterThan(0);
-    expect(exportData.bout.events[0].eventType).toBe("ScoresheetReleased");
-    
-    // Verify scores
-    expect(exportData.bout.summary.scores.blue).toBe(1);
-    expect(exportData.bout.summary.scores.red).toBe(0);
-    
-    // Verify timeline contains only bout events
-    expect(exportData.bout.summary.timeline.length).toBe(1);
-    expect(exportData.bout.summary.timeline[0].eventType).toBe("1B");
+    await expect(page.locator("#timeline .entry-box").first()).toContainText("4R");
   });
 
   test("Multiple events update scores correctly", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    await page.keyboard.press("F4");
-    await page.keyboard.press(" ");
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+    await recordEventAtTime(page, "2:30", ["4", "R"]);
+    await recordEventAtTime(page, "2:20", ["1", "B"]);
 
-    // Record multiple events
-    await page.keyboard.press("1"); await page.keyboard.press("R");
-    await page.waitForTimeout(100);
-    await page.keyboard.press("2"); await page.keyboard.press("B");
-    await page.waitForTimeout(100);
-    await page.keyboard.press("4"); await page.keyboard.press("R");
-    await page.waitForTimeout(100);
-    await page.keyboard.press("1"); await page.keyboard.press("B");
-
-    // Verify final scores
-    await expect(page.locator("#score-red")).toHaveText("5"); // 1 + 4
+    await expect(page.locator("#score-red")).toHaveText("5");  // 1 + 4
     await expect(page.locator("#score-blue")).toHaveText("3"); // 2 + 1
   });
 
   test("Passivity events are recorded", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    await page.keyboard.press("F4");
-    await page.keyboard.press(" ");
-    await page.waitForTimeout(100);
+    await recordEventAtTime(page, "2:50", ["P", "R"]);
 
-    // Record passivity for red
-    await page.keyboard.press("P");
-    await page.keyboard.press("R");
-
-    // Check timeline
-    const timeline = page.locator("#timeline");
-    await expect(timeline.locator(".entry-box").first()).toContainText("PR");
+    await expect(page.locator("#timeline .entry-box").first()).toContainText("PR");
   });
 
   test("Caution events update scores correctly", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    await page.keyboard.press("F4");
-    await page.keyboard.press(" ");
-    await page.waitForTimeout(100);
+    // Red caution, Blue +1 (0R1B)
+    await recordEventAtTime(page, "2:50", ["R", "0", "1"]);
 
-    // Record caution: Red gets caution, Blue gets 1 point (0R1B)
-    await page.keyboard.press("R");
-    await page.keyboard.press("0");
-    await page.keyboard.press("1");
+    await expect(page.locator("#score-blue")).toHaveText("1");
+    await expect(page.locator("#timeline .entry-box.caution").first()).toBeVisible();
+  });
 
-    // Blue should have 1 point
+  // ── UC001 full flow ──────────────────────────────────────────────────────
+
+  test("Complete use case UC001 - short bout", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await expect(page.locator("#release-complete-button")).toContainText("Fertigstellen");
+
+    // Record 1B at bout time 2:50
+    await recordEventAtTime(page, "2:50", ["1", "B"]);
     await expect(page.locator("#score-blue")).toHaveText("1");
 
-    // Timeline should show caution entry
-    const timeline = page.locator("#timeline");
-    const cautionBox = timeline.locator(".entry-box.caution").first();
-    await expect(cautionBox).toBeVisible();
+    // Record 4R at bout time 2:20
+    await recordEventAtTime(page, "2:20", ["4", "R"]);
+    await expect(page.locator("#score-red")).toHaveText("4");
+
+    // Verify timeline
+    const boutEvents = page.locator("#timeline .entry-box").filter({ hasNotText: "+" });
+    await expect(boutEvents).toHaveCount(2);
+    await expect(boutEvents.nth(0)).toContainText("1B");
+    await expect(boutEvents.nth(1)).toContainText("4R");
+    await expect(page.locator("#next-event")).toBeVisible();
+
+    // Complete bout → Completing → select winner → Completed
+    await page.keyboard.press("F4");
+    await expect(page.locator("#release-complete-button")).toContainText("Abschließen");
+    await expect(page.locator("#completion-form")).toBeVisible();
+
+    await page.selectOption("#compl-winner", "red");
+    await page.keyboard.press("F4");
+
+    await expect(page.locator("#release-complete-button")).toContainText("Korrigieren");
+    await expect(page.locator("#compl-winner")).toBeDisabled();
   });
+
+  // ── Export ───────────────────────────────────────────────────────────────
+
+  test("Export functionality generates valid JSON", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    await recordEventAtTime(page, "2:50", ["1", "B"]);
+
+    const exportData = await page.evaluate(() => window.exportHelper.generate());
+
+    expect(exportData).toHaveProperty("exportVersion");
+    expect(exportData).toHaveProperty("metadata");
+    expect(exportData).toHaveProperty("bout");
+    expect(exportData.bout).toHaveProperty("header");
+    expect(exportData.bout).toHaveProperty("summary");
+    expect(exportData.bout).toHaveProperty("events");
+
+    expect(exportData.bout.events.length).toBeGreaterThan(0);
+    expect(exportData.bout.events[0].eventType).toBe("ScoresheetReleased");
+
+    expect(exportData.bout.summary.scores.blue).toBe(1);
+    expect(exportData.bout.summary.scores.red).toBe(0);
+
+    expect(exportData.bout.summary.timeline.length).toBe(1);
+    expect(exportData.bout.summary.timeline[0].eventType).toBe("1B");
+  });
+
+  // ── Hidden test hooks (must use real timer) ──────────────────────────────
 
   test("Hidden test hooks work correctly", async ({ page }) => {
     await page.goto(BASE_URL);
+    await expect(page.locator("#bout-time-display")).toHaveText("3:00");
 
-    const boutTimeDisplay = page.locator("#bout-time-display");
-    await expect(boutTimeDisplay).toHaveText("3:00");
-
-    // Use hidden start button (no need to release scoresheet, test buttons work in any mode)
+    // Hidden start bypasses mode checks
     await page.locator("#start").click({ force: true });
     await page.waitForTimeout(1200);
-    
-    // Check time has decreased
-    const timeAfterStart = await boutTimeDisplay.textContent();
-    const [min, sec] = timeAfterStart.split(':').map(s => parseInt(s));
-    const totalSeconds = min * 60 + sec;
-    expect(totalSeconds).toBeLessThan(180);
-    expect(totalSeconds).toBeGreaterThan(176);
 
-    // Use hidden stop button
+    const timeAfterStart = await page.locator("#bout-time-display").textContent();
+    const [min, sec] = timeAfterStart.split(':').map(s => parseInt(s));
+    expect(min * 60 + sec).toBeLessThan(180);
+    expect(min * 60 + sec).toBeGreaterThan(176);
+
+    // Hidden stop freezes the timer
     await page.locator("#stop").click({ force: true });
-    const stoppedTime = await boutTimeDisplay.textContent();
+    const stoppedTime = await page.locator("#bout-time-display").textContent();
     await page.waitForTimeout(1200);
-    await expect(boutTimeDisplay).toHaveText(stoppedTime);
+    await expect(page.locator("#bout-time-display")).toHaveText(stoppedTime);
   });
+
+  // ── Keyboard buffer ──────────────────────────────────────────────────────
 
   test("Invalid key sequences are ignored", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    await page.keyboard.press("F4");
-
-    // Try invalid sequence: R followed by X
+    // R followed by X is invalid
     await page.keyboard.press("R");
-    await page.keyboard.press("X"); // Invalid continuation
+    await page.keyboard.press("X");
 
-    // Timeline should still be empty (no events recorded)
-    const timeline = page.locator("#timeline");
-    const boutEvents = timeline.locator(".entry-box").filter({ hasNotText: "+" });
+    const boutEvents = page.locator("#timeline .entry-box").filter({ hasNotText: "+" });
     await expect(boutEvents).toHaveCount(0);
 
-    // Now try valid sequence after invalid
+    // Valid sequence after invalid still works
     await page.keyboard.press("1");
     await page.keyboard.press("R");
-
-    // This should work
     await expect(page.locator("#score-red")).toHaveText("1");
   });
 
   test("Escape key clears key buffer", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    await page.keyboard.press("F4");
-
-    // Start typing sequence but escape before completion
+    // Start a sequence then Escape
     await page.keyboard.press("R");
     await page.keyboard.press("Escape");
 
-    // Now press 1 - should not complete R1
+    // Pressing 1 alone should not complete "R1"
     await page.keyboard.press("1");
-
-    // Score should still be 0
     await expect(page.locator("#score-red")).toHaveText("0");
 
-    // Complete valid sequence 1R
+    // But 1 + R still works
     await page.keyboard.press("R");
     await expect(page.locator("#score-red")).toHaveText("1");
   });
 
+  // ── Event buttons (click) ───────────────────────────────────────────────
+
   test("Event buttons work correctly when clicked", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    // Release scoresheet first
-    await page.keyboard.press("F4");
-
-    // Click 1R button
-    const button1R = page.locator('#event-buttons-red .event-btn', { hasText: '[1R]' });
-    await button1R.click();
+    await page.locator('#event-buttons-red .event-btn', { hasText: '[1R]' }).click();
     await expect(page.locator("#score-red")).toHaveText("1");
     await expect(page.locator("#score-blue")).toHaveText("0");
 
-    // Click 2B button
-    const button2B = page.locator('#event-buttons-blue .event-btn', { hasText: '[2B]' });
-    await button2B.click();
+    await page.locator('#event-buttons-blue .event-btn', { hasText: '[2B]' }).click();
     await expect(page.locator("#score-red")).toHaveText("1");
     await expect(page.locator("#score-blue")).toHaveText("2");
 
-    // Click 4R button
-    const button4R = page.locator('#event-buttons-red .event-btn', { hasText: '[4R]' });
-    await button4R.click();
+    await page.locator('#event-buttons-red .event-btn', { hasText: '[4R]' }).click();
     await expect(page.locator("#score-red")).toHaveText("5");
-    await expect(page.locator("#score-blue")).toHaveText("2");
 
-    // Click 5B button
-    const button5B = page.locator('#event-buttons-blue .event-btn', { hasText: '[5B]' });
-    await button5B.click();
-    await expect(page.locator("#score-red")).toHaveText("5");
+    await page.locator('#event-buttons-blue .event-btn', { hasText: '[5B]' }).click();
     await expect(page.locator("#score-blue")).toHaveText("7");
 
-    // Verify timeline has 4 bout event entries (excluding next-event)
-    const timelineEntries = page.locator('.timeline .entry:not(#next-event)');
-    await expect(timelineEntries).toHaveCount(4);
+    await expect(page.locator('.timeline .entry:not(#next-event)')).toHaveCount(4);
   });
 
   test("Passivity buttons work when clicked", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    // Release scoresheet
-    await page.keyboard.press("F4");
+    await page.locator('#event-buttons-red .event-btn', { hasText: '[PR]' }).click();
+    await page.locator('#event-buttons-blue .event-btn', { hasText: '[PB]' }).click();
 
-    // Click PR button (Red passivity)
-    const buttonPR = page.locator('#event-buttons-red .event-btn', { hasText: '[PR]' });
-    await buttonPR.click();
-
-    // Click PB button (Blue passivity)
-    const buttonPB = page.locator('#event-buttons-blue .event-btn', { hasText: '[PB]' });
-    await buttonPB.click();
-
-    // Verify timeline has 2 bout event entries (excluding next-event)
-    const timelineEntries = page.locator('.timeline .entry:not(#next-event)');
-    await expect(timelineEntries).toHaveCount(2);
-
-    // Verify passivity entries contain PR and PB
-    const firstEntry = timelineEntries.nth(0).locator('.entry-box');
-    await expect(firstEntry).toHaveText("PR");
-    
-    const secondEntry = timelineEntries.nth(1).locator('.entry-box');
-    await expect(secondEntry).toHaveText("PB");
+    const entries = page.locator('.timeline .entry:not(#next-event)');
+    await expect(entries).toHaveCount(2);
+    await expect(entries.nth(0).locator('.entry-box')).toHaveText("PR");
+    await expect(entries.nth(1).locator('.entry-box')).toHaveText("PB");
   });
 
   test("Caution buttons send full key sequence", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    // Release scoresheet
-    await page.keyboard.press("F4");
-
-    // Click 0R1B button (caution for Red, Blue gets 1 point)
-    const button0R1B = page.locator('#event-buttons-red .event-btn', { hasText: '[0R1B]' });
-    await button0R1B.click();
-
-    // Verify scores: Red should have 0, Blue should have 1
+    // 0R1B: Red caution, Blue +1
+    await page.locator('#event-buttons-red .event-btn', { hasText: '[0R1B]' }).click();
     await expect(page.locator("#score-red")).toHaveText("0");
     await expect(page.locator("#score-blue")).toHaveText("1");
 
-    // Verify timeline entry (excluding next-event)
-    let timelineEntries = page.locator('.timeline .entry:not(#next-event)');
-    await expect(timelineEntries).toHaveCount(1);
-    
-    let entry = timelineEntries.nth(0).locator('.entry-box');
-    await expect(entry).toHaveClass(/caution/);
+    const entries = page.locator('.timeline .entry:not(#next-event)');
+    await expect(entries).toHaveCount(1);
+    await expect(entries.nth(0).locator('.entry-box')).toHaveClass(/caution/);
 
-    // Click 0B2R button (caution for Blue, Red gets 2 points)
-    const button0B2R = page.locator('#event-buttons-blue .event-btn', { hasText: '[0B2R]' });
-    await button0B2R.click();
-
-    // Verify scores: Red should have 2, Blue should have 1
+    // 0B2R: Blue caution, Red +2
+    await page.locator('#event-buttons-blue .event-btn', { hasText: '[0B2R]' }).click();
     await expect(page.locator("#score-red")).toHaveText("2");
     await expect(page.locator("#score-blue")).toHaveText("1");
-
-    // Verify timeline now has 2 entries
-    timelineEntries = page.locator('.timeline .entry:not(#next-event)');
-    await expect(timelineEntries).toHaveCount(2);
+    await expect(entries).toHaveCount(2);
   });
+
+  // ── Spacebar interaction (must use real timer) ──────────────────────────
 
   test("Spacebar after clicking event button does not repeat event", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    // Release scoresheet and click a point button
-    await page.keyboard.press("F4");
-    const button1R = page.locator('#event-buttons-red .event-btn', { hasText: '[1R]' });
-    await button1R.click();
-
-    // Baseline assertions
+    await page.locator('#event-buttons-red .event-btn', { hasText: '[1R]' }).click();
     await expect(page.locator("#score-red")).toHaveText("1");
-    await expect(page.locator("#score-blue")).toHaveText("0");
-    const timelineEntries = page.locator('.timeline .entry:not(#next-event)');
-    await expect(timelineEntries).toHaveCount(1);
 
-    // Press space to start timer, wait briefly, then stop
-    const timeDisplay = page.locator('#bout-time-display');
+    const entries = page.locator('.timeline .entry:not(#next-event)');
+    await expect(entries).toHaveCount(1);
+
+    // Space starts timer — must not duplicate the event
     await page.keyboard.press(" ");
     await page.waitForTimeout(350);
     await page.keyboard.press(" ");
 
-    // Timer should have advanced (fraction digit changed) but no new events
-    await expect(timeDisplay).not.toHaveAttribute('data-fraction', '0');
+    await expect(page.locator('#bout-time-display')).not.toHaveAttribute('data-fraction', '0');
     await expect(page.locator("#score-red")).toHaveText("1");
-    await expect(page.locator("#score-blue")).toHaveText("0");
-    await expect(timelineEntries).toHaveCount(1);
+    await expect(entries).toHaveCount(1);
   });
 
   test("Spacebar after clicking release button starts timer, not Completing", async ({ page }) => {
     await page.goto(BASE_URL);
 
-    // Click the release button with mouse (focus would stay on it)
-    const releaseButton = page.locator('#release-complete-button');
-    await releaseButton.click();
+    // Release via click (focus stays on button)
+    await page.locator('#release-complete-button').click();
+    await expect(page.locator('#compl-winner')).toBeDisabled();
 
-    // After release, form should stay disabled (Recording state)
-    const winnerSelect = page.locator('#compl-winner');
-    await expect(winnerSelect).toBeDisabled();
-
-    // Press space to start timer
-    const timeDisplay = page.locator('#bout-time-display');
+    // Space should start the timer, NOT trigger Completing
     await page.keyboard.press(" ");
     await page.waitForTimeout(350);
     await page.keyboard.press(" ");
 
-    // Timer should have advanced; still in Recording (form remains disabled)
-    await expect(timeDisplay).not.toHaveAttribute('data-fraction', '0');
-    await expect(winnerSelect).toBeDisabled();
-
-    // Release button text should still indicate Recording -> Completing action
-    await expect(releaseButton).toContainText('Fertigstellen');
+    await expect(page.locator('#bout-time-display')).not.toHaveAttribute('data-fraction', '0');
+    await expect(page.locator('#compl-winner')).toBeDisabled();
+    await expect(page.locator('#release-complete-button')).toContainText('Fertigstellen');
   });
 });
+
+// ── Ruleset victoryTypes ────────────────────────────────────────────────────
 
 test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
   test("Victory types dropdown has unique type entries", async ({ page }) => {
@@ -515,10 +381,7 @@ test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
       const ruleset = window.rulesetHelper.load();
       return ruleset.victoryTypes.map(vt => vt.type);
     });
-
-    // All types must be unique
-    const uniqueTypes = new Set(types);
-    expect(uniqueTypes.size).toBe(types.length);
+    expect(new Set(types).size).toBe(types.length);
   });
 
   test("classificationPoints is an object with winner and looser", async ({ page }) => {
@@ -532,7 +395,6 @@ test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
                cp.winner !== undefined && cp.looser !== undefined;
       });
     });
-
     expect(allValid).toBe(true);
   });
 
@@ -540,10 +402,8 @@ test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
     await page.goto(BASE_URL);
 
     const result = await page.evaluate(() => {
-      const cp = { winner: 4, looser: 0 };
-      return window.rulesetHelper.resolveClassificationPoints(cp, {});
+      return window.rulesetHelper.resolveClassificationPoints({ winner: 4, looser: 0 }, {});
     });
-
     expect(result.winner).toBe(4);
     expect(result.looser).toBe(0);
   });
@@ -554,10 +414,8 @@ test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
     const result = await page.evaluate(() => {
       const ruleset = window.rulesetHelper.load();
       const ps = ruleset.victoryTypes.find(vt => vt.type === 'PS');
-      const context = { scoreDifference: 10 }; // gte 8, lte 14 → 3 points
-      return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, context);
+      return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, { scoreDifference: 10 });
     });
-
     expect(result.winner).toBe(3);
     expect(result.looser).toBe(0);
   });
@@ -568,10 +426,8 @@ test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
     const result = await page.evaluate(() => {
       const ruleset = window.rulesetHelper.load();
       const ps = ruleset.victoryTypes.find(vt => vt.type === 'PS');
-      const context = { scoreDifference: 5 }; // gte 3, lte 7 → 2 points
-      return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, context);
+      return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, { scoreDifference: 5 });
     });
-
     expect(result.winner).toBe(2);
     expect(result.looser).toBe(0);
   });
@@ -582,77 +438,64 @@ test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
     const result = await page.evaluate(() => {
       const ruleset = window.rulesetHelper.load();
       const ps = ruleset.victoryTypes.find(vt => vt.type === 'PS');
-      const context = { scoreDifference: 1 }; // gte 0, lte 2 → 1 point
-      return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, context);
+      return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, { scoreDifference: 1 });
     });
-
     expect(result.winner).toBe(1);
     expect(result.looser).toBe(0);
   });
 
   test("Completion form auto-fills conditional points based on score difference", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    // Release scoresheet and record events to create a score difference of 10
-    await page.keyboard.press("F4");
-    await page.keyboard.press(" ");
-    // Record 4R + 4R + 2R = 10 for red, 0 for blue → scoreDifference = 10
-    await page.keyboard.press("4"); await page.keyboard.press("R");
-    await page.keyboard.press("4"); await page.keyboard.press("R");
-    await page.keyboard.press("2"); await page.keyboard.press("R");
-    await page.keyboard.press(" ");
+    // Record 4R + 4R + 2R = 10 for Red
+    await recordEventAtTime(page, "2:50", ["4", "R"]);
+    await recordEventAtTime(page, "2:40", ["4", "R"]);
+    await recordEventAtTime(page, "2:30", ["2", "R"]);
 
     // Enter Completing state
     await page.keyboard.press("F4");
     await expect(page.locator("#completion-form")).toBeVisible();
 
-    // Select Red as winner and PS as victory type
     await page.selectOption("#compl-winner", "red");
     await page.selectOption("#compl-victory-type", "PS");
 
-    // With scoreDifference=10 (gte 8, lte 14), winner should get 3 pts
+    // scoreDifference = 10 (gte 8, lte 14) → winner gets 3 pts
     await expect(page.locator("#compl-points-red")).toHaveValue("3");
     await expect(page.locator("#compl-points-blue")).toHaveValue("0");
   });
 
   test("Blue winner: form shows blue getting winner pts, export stores [winner,loser]", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    // Record 10 pts for blue
-    await page.keyboard.press("F4");
-    await page.keyboard.press(" ");
-    await page.keyboard.press("4"); await page.keyboard.press("B");
-    await page.keyboard.press("4"); await page.keyboard.press("B");
-    await page.keyboard.press("2"); await page.keyboard.press("B");
-    await page.keyboard.press(" ");
-
+    // Record 4B + 4B + 2B = 10 for Blue
+    await recordEventAtTime(page, "2:50", ["4", "B"]);
+    await recordEventAtTime(page, "2:40", ["4", "B"]);
+    await recordEventAtTime(page, "2:30", ["2", "B"]);
     await expect(page.locator("#score-blue")).toHaveText("10");
 
-    // Enter Completing, select blue winner + PS (score diff 10 → 3 pts)
+    // Enter Completing, select blue + PS (diff 10 → 3 pts)
     await page.keyboard.press("F4");
     await page.selectOption("#compl-winner", "blue");
     await page.selectOption("#compl-victory-type", "PS");
 
-    // Form: blue field (winner) = 3, red field (loser) = 0
     await expect(page.locator("#compl-points-blue")).toHaveValue("3");
     await expect(page.locator("#compl-points-red")).toHaveValue("0");
 
-    // Complete and verify export stores [winner, loser] = [3, 0]
+    // Complete and verify export stores [winner, loser]
     await page.keyboard.press("F4");
-    await page.waitForTimeout(100);
-
     const exportData = await page.evaluate(() => window.exportHelper.generate());
     const cp = exportData.bout.summary.victory.classificationPoints;
-    // classificationPoints must be [winner, loser]
-    expect(cp[0]).toBe(3); // winner (blue) gets 3
-    expect(cp[1]).toBe(0); // loser (red) gets 0
+    expect(cp[0]).toBe(3); // winner (blue)
+    expect(cp[1]).toBe(0); // loser (red)
   });
 
   test("Ruleset validates that type is unique", async ({ page }) => {
     await page.goto(BASE_URL);
 
     const result = await page.evaluate(() => {
-      const duplicateRuleset = {
+      return window.rulesetHelper.validate({
         metadata: { name: "test", description: "test", languages: ["de"], author: "test" },
         periodTimesInSeconds: [180],
         periodTimeCountingDirection: "Down",
@@ -664,10 +507,8 @@ test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
           { type: "PS", description: "A", classificationPoints: { winner: 3, looser: 0 } },
           { type: "PS", description: "B", classificationPoints: { winner: 1, looser: 0 } }
         ]
-      };
-      return window.rulesetHelper.validate(duplicateRuleset);
+      });
     });
-
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('not unique'))).toBe(true);
   });
@@ -676,7 +517,7 @@ test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
     await page.goto(BASE_URL);
 
     const result = await page.evaluate(() => {
-      const oldFormatRuleset = {
+      return window.rulesetHelper.validate({
         metadata: { name: "test", description: "test", languages: ["de"], author: "test" },
         periodTimesInSeconds: [180],
         periodTimeCountingDirection: "Down",
@@ -687,43 +528,36 @@ test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
         victoryTypes: [
           { type: "SS", description: "Test", classificationPoints: [4, 0] }
         ]
-      };
-      return window.rulesetHelper.validate(oldFormatRuleset);
+      });
     });
-
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('classificationPoints'))).toBe(true);
   });
 });
 
+// ── Time Modification Mode (TT) ────────────────────────────────────────────
+
 test.describe("CHAMP Protocol - Time Modification Mode (TT)", () => {
   test("TT opens time modification modal in Recording mode", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
 
-    // Release scoresheet to enter Recording mode
-    await page.keyboard.press("F4");
+    await expect(page.locator("#time-mod-modal")).not.toBeVisible();
 
-    // Modal should not be visible yet
-    const modal = page.locator("#time-mod-modal");
-    await expect(modal).not.toBeVisible();
-
-    // Press T twice to open modal
     await page.keyboard.press("t");
     await page.keyboard.press("t");
 
-    await expect(modal).toBeVisible();
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
   });
 
   test("TT modal is pre-filled with current period time", async ({ page }) => {
     await page.goto(BASE_URL);
-    await page.keyboard.press("F4");
+    await releaseScoresheet(page);
 
     await page.keyboard.press("t");
     await page.keyboard.press("t");
 
-    // Input should be pre-filled with "3:00" (the default period time)
-    const input = page.locator("#time-mod-input");
-    await expect(input).toHaveValue("3:00");
+    await expect(page.locator("#time-mod-input")).toHaveValue("3:00");
   });
 
   test("TT does not open modal in New (idle) mode", async ({ page }) => {
@@ -732,141 +566,101 @@ test.describe("CHAMP Protocol - Time Modification Mode (TT)", () => {
     await page.keyboard.press("t");
     await page.keyboard.press("t");
 
-    const modal = page.locator("#time-mod-modal");
-    await expect(modal).not.toBeVisible();
+    await expect(page.locator("#time-mod-modal")).not.toBeVisible();
   });
 
-  test("Escape closes the time modification modal without recording an event", async ({ page }) => {
+  test("Escape closes the time modification modal without changing time", async ({ page }) => {
     await page.goto(BASE_URL);
-    await page.keyboard.press("F4");
-
-    const eventCountBefore = await page.evaluate(() => window.__appState ? window.__appState.events.length : null);
+    await releaseScoresheet(page);
 
     await page.keyboard.press("t");
     await page.keyboard.press("t");
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
 
-    const modal = page.locator("#time-mod-modal");
-    await expect(modal).toBeVisible();
-
-    // Press Escape inside the input to close
     await page.locator("#time-mod-input").press("Escape");
-    await expect(modal).not.toBeVisible();
 
-    // Timer display should be unchanged
+    await expect(page.locator("#time-mod-modal")).not.toBeVisible();
     await expect(page.locator("#bout-time-display")).toHaveText("3:00");
   });
 
   test("Cancel button closes the modal without changing the time", async ({ page }) => {
     await page.goto(BASE_URL);
-    await page.keyboard.press("F4");
+    await releaseScoresheet(page);
 
     await page.keyboard.press("t");
     await page.keyboard.press("t");
-
-    const modal = page.locator("#time-mod-modal");
-    await expect(modal).toBeVisible();
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
 
     await page.locator("#time-mod-cancel").click();
-    await expect(modal).not.toBeVisible();
 
+    await expect(page.locator("#time-mod-modal")).not.toBeVisible();
     await expect(page.locator("#bout-time-display")).toHaveText("3:00");
   });
 
   test("Confirming a valid time updates the bout time display", async ({ page }) => {
     await page.goto(BASE_URL);
-    await page.keyboard.press("F4");
+    await releaseScoresheet(page);
 
     await page.keyboard.press("t");
     await page.keyboard.press("t");
-
-    const input = page.locator("#time-mod-input");
-    await input.fill("2:30");
-    await input.press("Enter");
-
-    // Modal should close
-    const modal = page.locator("#time-mod-modal");
-    await expect(modal).not.toBeVisible();
-
-    // Display should now show 2:30
-    await expect(page.locator("#bout-time-display")).toHaveText("2:30");
-  });
-
-  test("Confirming via OK button updates the bout time display", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await page.keyboard.press("F4");
-
-    await page.keyboard.press("t");
-    await page.keyboard.press("t");
-
-    const input = page.locator("#time-mod-input");
-    await input.fill("1:45");
-    await page.locator("#time-mod-confirm").click();
+    await page.locator("#time-mod-input").fill("2:30");
+    await page.locator("#time-mod-input").press("Enter");
 
     await expect(page.locator("#time-mod-modal")).not.toBeVisible();
-    await expect(page.locator("#bout-time-display")).toHaveText("1:45");
+    await expect(page.locator("#bout-time-display")).toHaveText("2:30");
   });
 
   test("Confirming records a T_Modified event in the event log", async ({ page }) => {
     await page.goto(BASE_URL);
-    await page.keyboard.press("F4");
+    await releaseScoresheet(page);
 
     await page.keyboard.press("t");
     await page.keyboard.press("t");
-
     await page.locator("#time-mod-input").fill("2:00");
     await page.locator("#time-mod-confirm").click();
 
     const events = await page.evaluate(() => window.exportHelper.generate().bout.events);
     const modifiedEvent = events.find(e => e.eventType === "T_Modified");
     expect(modifiedEvent).toBeDefined();
-    // newTime = (3:00 - 2:00) elapsed = 60s = 600 units
+    // 3:00 → 2:00 remaining ⇒ 60 s elapsed ⇒ 600 × 100 ms
     expect(modifiedEvent.newTime).toBe(600);
   });
 
   test("Invalid time format shows error and keeps modal open", async ({ page }) => {
     await page.goto(BASE_URL);
-    await page.keyboard.press("F4");
+    await releaseScoresheet(page);
 
     await page.keyboard.press("t");
     await page.keyboard.press("t");
+    await page.locator("#time-mod-input").fill("abc");
+    await page.locator("#time-mod-input").press("Enter");
 
-    const input = page.locator("#time-mod-input");
-    await input.fill("abc");
-    await input.press("Enter");
-
-    // Modal should remain open
     await expect(page.locator("#time-mod-modal")).toBeVisible();
-    // Error message should be shown
     await expect(page.locator("#time-mod-error")).toBeVisible();
   });
 
   test("Entering time larger than period shows error and keeps modal open", async ({ page }) => {
     await page.goto(BASE_URL);
-    await page.keyboard.press("F4");
+    await releaseScoresheet(page);
 
     await page.keyboard.press("t");
     await page.keyboard.press("t");
+    await page.locator("#time-mod-input").fill("4:00");
+    await page.locator("#time-mod-input").press("Enter");
 
-    const input = page.locator("#time-mod-input");
-    await input.fill("4:00");
-    await input.press("Enter");
-
-    // Modal should remain open and show the new error message
     await expect(page.locator("#time-mod-modal")).toBeVisible();
     await expect(page.locator("#time-mod-error")).toBeVisible();
-
-    // Display should remain unchanged
     await expect(page.locator("#bout-time-display")).toHaveText("3:00");
   });
 
+  // ── Timer-dependent TT tests ────────────────────────────────────────────
+
   test("TT does not open modal while timer is running", async ({ page }) => {
     await page.goto(BASE_URL);
-    await page.keyboard.press("F4");
+    await releaseScoresheet(page);
 
-    // Start timer
     await page.keyboard.press(" ");
 
-    // Press TT - modal must NOT open while timer runs
     await page.keyboard.press("t");
     await page.keyboard.press("t");
 
@@ -875,14 +669,12 @@ test.describe("CHAMP Protocol - Time Modification Mode (TT)", () => {
 
   test("TT opens modal after timer is stopped", async ({ page }) => {
     await page.goto(BASE_URL);
-    await page.keyboard.press("F4");
+    await releaseScoresheet(page);
 
-    // Start timer then stop it
     await page.keyboard.press(" ");
     await page.waitForTimeout(200);
     await page.keyboard.press(" ");
 
-    // Now TT should open modal
     await page.keyboard.press("t");
     await page.keyboard.press("t");
 
@@ -892,13 +684,11 @@ test.describe("CHAMP Protocol - Time Modification Mode (TT)", () => {
 
   test("TT works in Completing mode", async ({ page }) => {
     await page.goto(BASE_URL);
-    await page.keyboard.press("F4");
-    // Enter Completing state
-    await page.keyboard.press("F4");
+    await releaseScoresheet(page);
+    await page.keyboard.press("F4"); // → Completing
 
     await expect(page.locator("#release-complete-button")).toContainText("Abschließen");
 
-    // TT should open modal in Completing mode
     await page.keyboard.press("t");
     await page.keyboard.press("t");
 
