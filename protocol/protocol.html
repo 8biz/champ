@@ -828,7 +828,11 @@
       const redPoints = parseInt(redInput.value) || 0;
       const bluePoints = parseInt(blueInput.value) || 0;
 
-      completeScoresheet(winner, victoryType, victoryDescription, [redPoints, bluePoints]);
+      // Store as [winner, loser] regardless of which colour side won
+      const winnerPoints = winner === 'blue' ? bluePoints : redPoints;
+      const loserPoints  = winner === 'blue' ? redPoints  : bluePoints;
+
+      completeScoresheet(winner, victoryType, victoryDescription, [winnerPoints, loserPoints]);
     }
 
     function completeScoresheet(winner, victoryType, victoryDescription, classificationPoints) {

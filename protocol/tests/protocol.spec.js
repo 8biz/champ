@@ -615,6 +615,39 @@ test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
     await expect(page.locator("#compl-points-blue")).toHaveValue("0");
   });
 
+  test("Blue winner: form shows blue getting winner pts, export stores [winner,loser]", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    // Record 10 pts for blue
+    await page.keyboard.press("F4");
+    await page.keyboard.press(" ");
+    await page.keyboard.press("4"); await page.keyboard.press("B");
+    await page.keyboard.press("4"); await page.keyboard.press("B");
+    await page.keyboard.press("2"); await page.keyboard.press("B");
+    await page.keyboard.press(" ");
+
+    await expect(page.locator("#score-blue")).toHaveText("10");
+
+    // Enter Completing, select blue winner + PS (score diff 10 → 3 pts)
+    await page.keyboard.press("F4");
+    await page.selectOption("#compl-winner", "blue");
+    await page.selectOption("#compl-victory-type", "PS");
+
+    // Form: blue field (winner) = 3, red field (loser) = 0
+    await expect(page.locator("#compl-points-blue")).toHaveValue("3");
+    await expect(page.locator("#compl-points-red")).toHaveValue("0");
+
+    // Complete and verify export stores [winner, loser] = [3, 0]
+    await page.keyboard.press("F4");
+    await page.waitForTimeout(100);
+
+    const exportData = await page.evaluate(() => window.exportHelper.generate());
+    const cp = exportData.bout.summary.victory.classificationPoints;
+    // classificationPoints must be [winner, loser]
+    expect(cp[0]).toBe(3); // winner (blue) gets 3
+    expect(cp[1]).toBe(0); // loser (red) gets 0
+  });
+
   test("Ruleset validates that type is unique", async ({ page }) => {
     await page.goto(BASE_URL);
 
