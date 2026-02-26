@@ -862,16 +862,25 @@
       const seconds = parseInt(match[2]);
       const newPeriodTime100ms = (minutes * 60 + seconds) * 10;
 
-      // Clamp to valid range [0, maxPeriodTime]
+      // Validate against ruleset-defined period length. If the entered
+      // remaining time exceeds the configured period length, show an error
+      // and keep the modal open so the user can correct the value.
       const ruleset = loadEmbeddedRuleset();
       const maxPeriodTime100ms = (ruleset?.periodTimesInSeconds?.[0] ?? 180) * 10;
-      const clampedPeriodTime100ms = Math.max(0, Math.min(maxPeriodTime100ms, newPeriodTime100ms));
-      const newBoutTime100ms = maxPeriodTime100ms - clampedPeriodTime100ms;
+      if (newPeriodTime100ms > maxPeriodTime100ms) {
+        input.classList.add('invalid');
+        error.textContent = 'Eingegebene Zeit überschreitet die Periodenlänge.';
+        error.style.display = '';
+        input.focus();
+        input.select();
+        return;
+      }
 
+      const newBoutTime100ms = maxPeriodTime100ms - newPeriodTime100ms;
       const oldBoutTime100ms = appState.boutTime100ms;
 
       appState.boutTime100ms = newBoutTime100ms;
-      appState.periodTime100ms = clampedPeriodTime100ms;
+      appState.periodTime100ms = newPeriodTime100ms;
       updateBoutTimeDisplay();
 
       recordEvent({

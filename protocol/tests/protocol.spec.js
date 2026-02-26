@@ -840,6 +840,25 @@ test.describe("CHAMP Protocol - Time Modification Mode (TT)", () => {
     await expect(page.locator("#time-mod-error")).toBeVisible();
   });
 
+  test("Entering time larger than period shows error and keeps modal open", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.keyboard.press("F4");
+
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    const input = page.locator("#time-mod-input");
+    await input.fill("4:00");
+    await input.press("Enter");
+
+    // Modal should remain open and show the new error message
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
+    await expect(page.locator("#time-mod-error")).toBeVisible();
+
+    // Display should remain unchanged
+    await expect(page.locator("#bout-time-display")).toHaveText("3:00");
+  });
+
   test("TT does not open modal while timer is running", async ({ page }) => {
     await page.goto(BASE_URL);
     await page.keyboard.press("F4");
