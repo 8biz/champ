@@ -695,3 +695,186 @@ test.describe("CHAMP Protocol - Ruleset victoryTypes", () => {
     expect(result.errors.some(e => e.includes('classificationPoints'))).toBe(true);
   });
 });
+
+test.describe("CHAMP Protocol - Time Modification Mode (TT)", () => {
+  test("TT opens time modification modal in Recording mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    // Release scoresheet to enter Recording mode
+    await page.keyboard.press("F4");
+
+    // Modal should not be visible yet
+    const modal = page.locator("#time-mod-modal");
+    await expect(modal).not.toBeVisible();
+
+    // Press T twice to open modal
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    await expect(modal).toBeVisible();
+  });
+
+  test("TT modal is pre-filled with current period time", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.keyboard.press("F4");
+
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    // Input should be pre-filled with "3:00" (the default period time)
+    const input = page.locator("#time-mod-input");
+    await expect(input).toHaveValue("3:00");
+  });
+
+  test("TT does not open modal in New (idle) mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    const modal = page.locator("#time-mod-modal");
+    await expect(modal).not.toBeVisible();
+  });
+
+  test("Escape closes the time modification modal without recording an event", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.keyboard.press("F4");
+
+    const eventCountBefore = await page.evaluate(() => window.__appState ? window.__appState.events.length : null);
+
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    const modal = page.locator("#time-mod-modal");
+    await expect(modal).toBeVisible();
+
+    // Press Escape inside the input to close
+    await page.locator("#time-mod-input").press("Escape");
+    await expect(modal).not.toBeVisible();
+
+    // Timer display should be unchanged
+    await expect(page.locator("#bout-time-display")).toHaveText("3:00");
+  });
+
+  test("Cancel button closes the modal without changing the time", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.keyboard.press("F4");
+
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    const modal = page.locator("#time-mod-modal");
+    await expect(modal).toBeVisible();
+
+    await page.locator("#time-mod-cancel").click();
+    await expect(modal).not.toBeVisible();
+
+    await expect(page.locator("#bout-time-display")).toHaveText("3:00");
+  });
+
+  test("Confirming a valid time updates the bout time display", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.keyboard.press("F4");
+
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    const input = page.locator("#time-mod-input");
+    await input.fill("2:30");
+    await input.press("Enter");
+
+    // Modal should close
+    const modal = page.locator("#time-mod-modal");
+    await expect(modal).not.toBeVisible();
+
+    // Display should now show 2:30
+    await expect(page.locator("#bout-time-display")).toHaveText("2:30");
+  });
+
+  test("Confirming via OK button updates the bout time display", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.keyboard.press("F4");
+
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    const input = page.locator("#time-mod-input");
+    await input.fill("1:45");
+    await page.locator("#time-mod-confirm").click();
+
+    await expect(page.locator("#time-mod-modal")).not.toBeVisible();
+    await expect(page.locator("#bout-time-display")).toHaveText("1:45");
+  });
+
+  test("Confirming records a T_Modified event in the event log", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.keyboard.press("F4");
+
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    await page.locator("#time-mod-input").fill("2:00");
+    await page.locator("#time-mod-confirm").click();
+
+    const events = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const modifiedEvent = events.find(e => e.eventType === "T_Modified");
+    expect(modifiedEvent).toBeDefined();
+    // newTime = (3:00 - 2:00) elapsed = 60s = 600 units
+    expect(modifiedEvent.newTime).toBe(600);
+  });
+
+  test("Invalid time format shows error and keeps modal open", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.keyboard.press("F4");
+
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    const input = page.locator("#time-mod-input");
+    await input.fill("abc");
+    await input.press("Enter");
+
+    // Modal should remain open
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
+    // Error message should be shown
+    await expect(page.locator("#time-mod-error")).toBeVisible();
+  });
+
+  test("TT stops the timer before opening the modal", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.keyboard.press("F4");
+
+    // Start timer
+    await page.keyboard.press(" ");
+
+    // Open modal with TT - timer should stop
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
+
+    // Cancel modal
+    await page.locator("#time-mod-cancel").click();
+
+    // Timer should remain stopped (wait 500ms and check time hasn't changed)
+    const timeAfterClose = await page.locator("#bout-time-display").textContent();
+    await page.waitForTimeout(500);
+    await expect(page.locator("#bout-time-display")).toHaveText(timeAfterClose);
+  });
+
+  test("TT works in Completing mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.keyboard.press("F4");
+    // Enter Completing state
+    await page.keyboard.press("F4");
+
+    await expect(page.locator("#release-complete-button")).toContainText("Abschließen");
+
+    // TT should open modal in Completing mode
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
+    await page.locator("#time-mod-cancel").click();
+  });
+});

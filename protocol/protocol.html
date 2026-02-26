@@ -443,6 +443,92 @@
       background: #fff;
     }
 
+    /* ------------------------------------------------------------------ */
+    /* Time modification modal                                              */
+    /* ------------------------------------------------------------------ */
+    #time-mod-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    #time-mod-popup {
+      background: #fff;
+      border: 0.125rem solid var(--neutral-3);
+      border-radius: 0.5rem;
+      padding: 1rem 1.25rem;
+      min-width: 14rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      box-shadow: 0 0.25rem 1.5rem rgba(0, 0, 0, 0.25);
+    }
+
+    #time-mod-title {
+      font-weight: 700;
+      font-size: 1.05em;
+    }
+
+    #time-mod-hint {
+      font-size: 0.82em;
+      color: var(--neutral-3);
+    }
+
+    #time-mod-input {
+      font-size: 1.75em;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      border: 0.125rem solid var(--border);
+      border-radius: 0.375rem;
+      padding: 0.2rem 0.5rem;
+      width: 100%;
+    }
+
+    #time-mod-input:focus {
+      outline: none;
+      border-color: var(--neutral-3);
+    }
+
+    #time-mod-input.invalid {
+      border-color: var(--red);
+    }
+
+    #time-mod-error {
+      color: var(--red);
+      font-size: 0.8em;
+    }
+
+    #time-mod-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+      margin-top: 0.25rem;
+    }
+
+    #time-mod-cancel {
+      padding: 0.375rem 0.75rem;
+      border: 0.0625rem solid var(--border);
+      border-radius: 0.375rem;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+
+    #time-mod-confirm {
+      padding: 0.375rem 0.875rem;
+      border: 0.0625rem solid var(--neutral-3);
+      border-radius: 0.375rem;
+      background: var(--neutral-3);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+
   </style>
 </head>
 <body>
@@ -531,6 +617,20 @@
       </article>
     </section>
   </main>
+
+  <!-- Bout time modification modal -->
+  <div id="time-mod-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="time-mod-title">
+    <div id="time-mod-popup">
+      <div id="time-mod-title">Kampfzeit ändern [TT]</div>
+      <div id="time-mod-hint">Verbleibende Zeit eingeben (M:SS)</div>
+      <input id="time-mod-input" type="text" pattern="\d+:[0-5]\d" placeholder="M:SS" maxlength="5" autocomplete="off" />
+      <div id="time-mod-error" style="display:none;">Ungültiges Format. Bitte M:SS eingeben.</div>
+      <div id="time-mod-actions">
+        <button id="time-mod-cancel" type="button">Abbrechen [Esc]</button>
+        <button id="time-mod-confirm" type="button">OK [Enter]</button>
+      </div>
+    </div>
+  </div>
 
   <div style="position: fixed; top: 0; left: 0; opacity: 0; width: 0.625rem; height: 0.625rem;">
     <button id="start" type="button">Start</button>
@@ -703,6 +803,102 @@
     stopButton.addEventListener("click", testStopTimer);
     boutTimeButton.addEventListener("click", toggleTimer);
     updateBoutTimeDisplay();
+
+    // ===================================================================
+    // TIME MODIFICATION MODE
+    // ===================================================================
+    function isTimeModModalOpen() {
+      return document.getElementById('time-mod-modal').style.display !== 'none';
+    }
+
+    function openTimeModModal() {
+      if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return;
+
+      // Stop timer while editing so time does not drift
+      if (appState.timerRunning) {
+        stopTimer();
+      }
+
+      const modal = document.getElementById('time-mod-modal');
+      const input = document.getElementById('time-mod-input');
+      const error = document.getElementById('time-mod-error');
+
+      // Pre-fill with remaining period time in M:SS
+      const totalSeconds = Math.floor(appState.periodTime100ms / 10);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      input.value = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      input.classList.remove('invalid');
+      error.style.display = 'none';
+
+      modal.style.display = 'flex';
+      input.focus();
+      input.select();
+
+      appState.keyBuffer = [];
+    }
+
+    function closeTimeModModal() {
+      document.getElementById('time-mod-modal').style.display = 'none';
+      appState.keyBuffer = [];
+    }
+
+    function confirmTimeModChange() {
+      const input = document.getElementById('time-mod-input');
+      const error = document.getElementById('time-mod-error');
+      const val = input.value.trim();
+
+      const match = val.match(/^(\d+):([0-5]\d)$/);
+      if (!match) {
+        input.classList.add('invalid');
+        error.style.display = '';
+        input.focus();
+        input.select();
+        return;
+      }
+
+      const minutes = parseInt(match[1]);
+      const seconds = parseInt(match[2]);
+      const newPeriodTime100ms = (minutes * 60 + seconds) * 10;
+
+      // Clamp to valid range [0, maxPeriodTime]
+      const ruleset = loadEmbeddedRuleset();
+      const maxPeriodTime100ms = (ruleset?.periodTimesInSeconds?.[0] ?? 180) * 10;
+      const clampedPeriodTime100ms = Math.max(0, Math.min(maxPeriodTime100ms, newPeriodTime100ms));
+      const newBoutTime100ms = maxPeriodTime100ms - clampedPeriodTime100ms;
+
+      const oldBoutTime100ms = appState.boutTime100ms;
+
+      appState.boutTime100ms = newBoutTime100ms;
+      appState.periodTime100ms = clampedPeriodTime100ms;
+      updateBoutTimeDisplay();
+
+      recordEvent({
+        eventType: 'T_Modified',
+        boutTime100ms: oldBoutTime100ms,
+        newTime: newBoutTime100ms
+      });
+
+      closeTimeModModal();
+    }
+
+    document.getElementById('time-mod-confirm').addEventListener('click', confirmTimeModChange);
+    document.getElementById('time-mod-cancel').addEventListener('click', closeTimeModModal);
+
+    // Handle Enter / Escape inside the modal input without propagating to
+    // the main keydown handler.
+    document.getElementById('time-mod-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        confirmTimeModChange();
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeTimeModModal();
+      }
+    });
 
     // ===================================================================
     // EVENT RECORDING
@@ -1036,6 +1232,12 @@
       // Only process bout events in Recording or Completing mode
       if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return false;
       
+      // TT: open time modification modal
+      if (seq === 'TT') {
+        openTimeModModal();
+        return true;
+      }
+
       // Space: Toggle timer (only in Recording mode)
       if (seq === ' ') {
         const isRecording = appState.mode === 'Recording';
@@ -1092,7 +1294,7 @@
       
       // Empty buffer - accept most keys
       if (buffer.length === 0) {
-        return ['R', 'B', 'P', '1', '2', '4', '5', '0', ' '].includes(newKey);
+        return ['R', 'B', 'P', '1', '2', '4', '5', '0', ' ', 'T'].includes(newKey);
       }
       
       // Single key sequences
@@ -1102,6 +1304,7 @@
         if (seq === 'P') return ['R', 'B'].includes(newKey);
         if (['1', '2', '4', '5'].includes(seq)) return ['R', 'B'].includes(newKey);
         if (seq === '0') return ['R', 'B'].includes(newKey);
+        if (seq === 'T') return newKey === 'T';
       }
       
       // Two key sequences
@@ -1117,6 +1320,10 @@
 
     document.addEventListener('keydown', (e) => {
       const key = e.key;
+
+      // If the time modification modal is open, let the modal input handle
+      // its own keystrokes. Block F4/F8 and all other shortcuts.
+      if (isTimeModModalOpen()) return;
       
       // Handle function keys directly (F4, F8)
       if (key === 'F4') {
@@ -1151,8 +1358,11 @@
       
       // Try to process sequence
       if (processKeySequence(appState.keyBuffer)) {
-        // Sequence processed - clear buffer
+        // Sequence processed - clear buffer and suppress default key action so
+        // the key character is not typed into any newly-focused input (e.g.
+        // the time-modification modal input that may be opened by TT).
         appState.keyBuffer = [];
+        e.preventDefault();
         console.log('Sequence processed, buffer cleared');
       }
     });

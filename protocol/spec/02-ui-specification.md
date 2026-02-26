@@ -268,6 +268,7 @@ A completed scoresheet re-released to correct the top-bar information or complet
 | `0R2B` | `R` + `0` + `2` / `0` + `R` + `2` | Red caution, Blue +2 (0R2B) |
 | `0B1R` | `B` + `0` + `1` / `0` + `B` + `1` | Blue caution, Red +1 (0B1R) |
 | `0B2R` | `B` + `0` + `2` / `0` + `B` + `2` | Blue caution, Red +2 (0B2R) |
+| `T_Modified` | `T` + `T` | Open **Time modification mode** modal to edit the current bout (period) time; enter new remaining time in M:SS format; `Enter` confirms, `Escape` cancels |
 | `T_IR_Started` / `T_IR_Stopped` | `R` + `,` / `,` + `R` | Start/stop Red injury time |
 | `T_BR_Started` / `T_BR_Stopped` | `R` + `.` / `.` + `R` | Start/stop Red blood time |
 | `T_IB_Started` / `T_IB_Stopped` | `B` + `,` / `,` + `B` | Start/stop Blue injury time |
