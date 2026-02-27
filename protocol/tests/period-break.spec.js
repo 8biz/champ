@@ -154,4 +154,88 @@ test.describe("CHAMP Protocol - Period Break", () => {
     expect(state.breakTimerRunning).toBe(false);
     await expect(page.locator('#bout-time-button .time-label')).toHaveText('Kampfzeit');
   });
+
+  test("Bout time button disabled after last period ends", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Advance to last period
+    await page.evaluate(() => window.testHelper.triggerPeriodBreak(30));
+    await page.keyboard.press(' '); // abort break → period 2
+
+    // Set minimal period time so the timer ends quickly
+    await page.evaluate(() => window.testHelper.setPeriodTime100ms(1));
+
+    // Start timer and wait for period end
+    await page.keyboard.press(' ');
+    await page.waitForTimeout(300);
+
+    await expect(page.locator('#bout-time-button')).toBeDisabled();
+  });
+
+  test("Timeline shows cumulated bout time across periods", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Set period time to 1700 (170s remaining → 10s elapsed in a 180s period)
+    await page.evaluate(() => {
+      window.testHelper.setPeriodTime100ms(1700);
+    });
+    await page.keyboard.press('1');
+    await page.keyboard.press('R');
+
+    // Trigger period break and abort
+    await page.evaluate(() => window.testHelper.triggerPeriodBreak(30));
+    await page.keyboard.press(' '); // abort break → period 2 loaded
+
+    // Record event in period 2 (boutTime100ms should still be > 0 from period 1)
+    await page.keyboard.press('2');
+    await page.keyboard.press('B');
+
+    // Parse timeline entry times and verify cumulation
+    const times = await page.evaluate(() => {
+      const entries = document.querySelectorAll('.timeline .entry:not(#next-event) .entry-time');
+      return Array.from(entries).map(el => el.textContent);
+    });
+    // Should have 3 entries: 1R, PeriodEnd, 2B
+    expect(times.length).toBe(3);
+    // The 2B event time (period 2) should be numerically >= the PeriodEnd time (end of period 1)
+    const parseTime = (t) => {
+      const [minsec, frac] = t.split('.');
+      const [m, s] = minsec.split(':').map(Number);
+      return m * 600 + s * 10 + Number(frac);
+    };
+    expect(parseTime(times[2])).toBeGreaterThanOrEqual(parseTime(times[1]));
+  });
+
+  test("PeriodEnd shows period score not total score", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Record 4R in period 1
+    await page.keyboard.press('4');
+    await page.keyboard.press('R');
+
+    // End period 1
+    await page.evaluate(() => window.testHelper.triggerPeriodBreak(30));
+    await page.keyboard.press(' '); // abort break → period 2
+
+    // Record 2B in period 2
+    await page.keyboard.press('2');
+    await page.keyboard.press('B');
+
+    // End period 2 by injecting event
+    await page.evaluate(() => {
+      window.testHelper.injectEvent({ eventType: 'PeriodEnd', boutTime100ms: 3600, sequence: 99 });
+    });
+
+    // Period 1 end entry should show 4:0 (only period 1 score)
+    const periodEndEntries = page.locator('.timeline .entry-box.period-end');
+    const firstPeriodEnd = periodEndEntries.nth(0);
+    await expect(firstPeriodEnd.locator('.caution-row').last()).toContainText('4:0');
+
+    // Period 2 end entry should show 0:2 (only period 2 score)
+    const secondPeriodEnd = periodEndEntries.nth(1);
+    await expect(secondPeriodEnd.locator('.caution-row').last()).toContainText('0:2');
+  });
 });

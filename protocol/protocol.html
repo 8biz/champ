@@ -800,6 +800,8 @@
           if (ruleset && nextPeriodIndex < ruleset.periodTimesInSeconds.length) {
             appState.currentPeriodIndex = nextPeriodIndex;
             startPeriodBreak(ruleset.periodBreakTimeInSeconds);
+          } else {
+            boutTimeButton.disabled = true;
           }
         }
       }
@@ -837,7 +839,6 @@
       appState.breakTimerRunning = false;
       const ruleset = loadEmbeddedRuleset();
       const nextPeriodTime = ruleset.periodTimesInSeconds[appState.currentPeriodIndex] ?? 180;
-      appState.boutTime100ms = 0;
       appState.periodTime100ms = nextPeriodTime * 10;
       boutTimeButton.classList.remove('break-mode');
       boutTimeButton.querySelector('.time-label').textContent = 'Kampfzeit';
@@ -1266,24 +1267,26 @@
         e.eventType !== 'ScoresheetCompleted'
       );
       
-      let runningRed = 0, runningBlue = 0, periodCount = 0;
+      let runningRed = 0, runningBlue = 0, periodRed = 0, periodBlue = 0, periodCount = 0;
       boutEvents.forEach(event => {
         const pointMatch = event.eventType.match(/^([1245])(R|B)$/);
         if (pointMatch) {
           const pts = parseInt(pointMatch[1]);
-          if (pointMatch[2] === 'R') runningRed += pts;
-          else runningBlue += pts;
+          if (pointMatch[2] === 'R') { runningRed += pts; periodRed += pts; }
+          else { runningBlue += pts; periodBlue += pts; }
         }
         const cautionMatch = event.eventType.match(/^0([RB])([12])([RB])$/);
         if (cautionMatch) {
           const pts = parseInt(cautionMatch[2]);
-          if (cautionMatch[3] === 'R') runningRed += pts;
-          else runningBlue += pts;
+          if (cautionMatch[3] === 'R') { runningRed += pts; periodRed += pts; }
+          else { runningBlue += pts; periodBlue += pts; }
         }
         let context = null;
         if (event.eventType === 'PeriodEnd') {
           periodCount++;
-          context = { periodNumber: periodCount, scoreRed: runningRed, scoreBlue: runningBlue };
+          context = { periodNumber: periodCount, scoreRed: periodRed, scoreBlue: periodBlue };
+          periodRed = 0;
+          periodBlue = 0;
         }
         const entry = createTimelineEntry(event, context);
         timeline.appendChild(entry);
