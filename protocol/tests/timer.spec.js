@@ -1,13 +1,5 @@
 import { test, expect } from "@playwright/test";
-
-const BASE_URL = "file://" + process.cwd() + "/protocol/protocol.html";
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Release the scoresheet for recording (F4 from New → Recording). */
-async function releaseScoresheet(page) {
-  await page.keyboard.press("F4");
-}
+import { BASE_URL, releaseScoresheet } from "./helpers.js";
 
 // ── Timer (Real Timer) ──────────────────────────────────────────────────────
 

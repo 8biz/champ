@@ -1,19 +1,5 @@
 import { test, expect } from "@playwright/test";
-
-const BASE_URL = "file://" + process.cwd() + "/protocol/protocol.html";
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-async function releaseScoresheet(page) {
-  await page.keyboard.press("F4");
-}
-
-/** Locates the primary entry-box inside #next-event. */
-function nextEventBox(page) {
-  // For caution sequences there are inner .caution-row elements; the
-  // outer .entry-box is still the first child.
-  return page.locator("#next-event .entry-box").first();
-}
+import { BASE_URL, releaseScoresheet, nextEventBox } from "./helpers.js";
 
 // ── Next-event presence ─────────────────────────────────────────────────────
 
