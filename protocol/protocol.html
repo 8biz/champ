@@ -837,11 +837,13 @@
       input.select();
 
       appState.keyBuffer = [];
+      updateNextEventDisplay();
     }
 
     function closeTimeModModal() {
       document.getElementById('time-mod-modal').style.display = 'none';
       appState.keyBuffer = [];
+      updateNextEventDisplay();
     }
 
     function confirmTimeModChange() {

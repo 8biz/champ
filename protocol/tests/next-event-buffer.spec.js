@@ -286,6 +286,20 @@ test.describe("Edge cases", () => {
     await expect(box).toHaveClass(/next/);
   });
 
+  test("TT opens time modification modal and resets next-event", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    await page.keyboard.press("t");
+    await expect(nextEventBox(page)).toHaveText("T");
+    await expect(nextEventBox(page)).toHaveClass(/next/);
+
+    await page.keyboard.press("t");
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
+    await expect(nextEventBox(page)).toHaveText("+");
+    await expect(nextEventBox(page)).toHaveClass(/next/);
+  });
+
   test("next-event is absent after scoresheet is completed", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
