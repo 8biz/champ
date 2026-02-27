@@ -105,7 +105,7 @@ test.describe("CHAMP Protocol - Core UI & Flow", () => {
     await page.keyboard.press("R");
     await page.keyboard.press("X");
 
-    const boutEvents = page.locator("#timeline .entry-box").filter({ hasNotText: "+" });
+    const boutEvents = page.locator("#timeline > div:not(#next-event) .entry-box");
     await expect(boutEvents).toHaveCount(0);
 
     await page.keyboard.press("1");

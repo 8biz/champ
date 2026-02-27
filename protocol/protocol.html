@@ -837,11 +837,13 @@
       input.select();
 
       appState.keyBuffer = [];
+      updateNextEventDisplay();
     }
 
     function closeTimeModModal() {
       document.getElementById('time-mod-modal').style.display = 'none';
       appState.keyBuffer = [];
+      updateNextEventDisplay();
     }
 
     function confirmTimeModChange() {
@@ -1193,11 +1195,13 @@
         const nextEventEntry = document.createElement('div');
         nextEventEntry.id = 'next-event';
         nextEventEntry.className = 'entry';
+        // Placeholder – will be filled by updateNextEventDisplay()
         nextEventEntry.innerHTML = `
           <div class="entry-box next cursor">+</div>
           <div class="entry-time">Next</div>
         `;
         timeline.appendChild(nextEventEntry);
+        updateNextEventDisplay();
       }
     }
 
@@ -1231,6 +1235,67 @@
       `;
       
       return entry;
+    }
+
+    // ===================================================================
+    // NEXT-EVENT DISPLAY
+    // ===================================================================
+    /**
+     * Derive display data from the current key buffer.
+     * Returns an object describing how to render the next-event entry-box.
+     */
+    function getNextEventDisplayData(buffer) {
+      if (buffer.length === 0) {
+        return { type: 'neutral', text: '+' };
+      }
+
+      const seq = buffer.map(k => k.toUpperCase()).join('');
+      const hasR = seq.includes('R');
+      const hasB = seq.includes('B');
+      const has0 = seq.includes('0');
+
+      // Caution sequence: color has been identified and 0 is present
+      if (has0 && (hasR || hasB)) {
+        const cautionColor = hasR ? 'red' : 'blue';
+        const cautionKey   = hasR ? 'R'   : 'B';
+        const oppColor     = hasR ? 'blue' : 'red';
+        const oppKey       = hasR ? 'B'   : 'R';
+        return { type: 'caution', cautionColor, cautionLabel: '0' + cautionKey, oppColor, oppLabel: oppKey };
+      }
+
+      // Color identified without 0: use the color   
+      if (hasR) return { type: 'color', color: 'red',  text: seq };
+      if (hasB) return { type: 'color', color: 'blue', text: seq };
+
+      // Neutral: digit alone, P alone, 0 alone, T alone
+      return { type: 'neutral', text: seq };
+    }
+
+    /**
+     * Update the #next-event entry to reflect the current key buffer state.
+     * Called after every buffer mutation and when the timeline is rebuilt.
+     */
+    function updateNextEventDisplay() {
+      const nextEvent = document.getElementById('next-event');
+      if (!nextEvent) return;
+
+      const data = getNextEventDisplayData(appState.keyBuffer);
+      let boxHtml;
+
+      if (data.type === 'caution') {
+        boxHtml = `
+          <div class="entry-box caution ${data.cautionColor} cursor">
+            <div class="caution-row ${data.cautionColor}">${data.cautionLabel}</div>
+            <div class="caution-row ${data.oppColor}">${data.oppLabel}</div>
+          </div>`;
+      } else if (data.type === 'color') {
+        boxHtml = `<div class="entry-box ${data.color} cursor">${data.text}</div>`;
+      } else {
+        boxHtml = `<div class="entry-box next cursor">${data.text}</div>`;
+      }
+
+      nextEvent.innerHTML = `${boxHtml}
+        <div class="entry-time">Next</div>`;
     }
 
     // ===================================================================
@@ -1351,6 +1416,7 @@
       // Escape clears buffer
       if (key === 'Escape') {
         appState.keyBuffer = [];
+        updateNextEventDisplay();
         console.log('Key buffer cleared');
         return;
       }
@@ -1364,6 +1430,7 @@
       
       // Add to buffer
       appState.keyBuffer.push(key);
+      updateNextEventDisplay();
       console.log('Key buffer:', appState.keyBuffer);
       
       // Try to process sequence
@@ -1372,6 +1439,7 @@
         // the key character is not typed into any newly-focused input (e.g.
         // the time-modification modal input that may be opened by TT).
         appState.keyBuffer = [];
+        updateNextEventDisplay();
         e.preventDefault();
         console.log('Sequence processed, buffer cleared');
       }

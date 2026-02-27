@@ -215,14 +215,25 @@ A completed scoresheet re-released to correct the top-bar information or complet
         - row 2: colored blue displaying "1B" or "2B"
         - vice versa for a caution for blue wrestler
     - The bout time of the event is shown below the block in "M:SS.f" format.
-- A **bout event insert entry** like the **Next event entry** is represented as
-    - an empty, neutral, light colored block with a light neutral colored, dashed border. (with cursor on it, it is colored dark neutral, but dashed)
-    - Typing a color key (`R` or `B`) changes the block and border color to Red or Blue
-    - Typing an event type key (e.g., '1', 'P', '01') changes the characters inside the block accordingly.
-        - example1: user types `R`, then `1`: the block becomes a red with a red border at first, then "1" inside.
-        - example2: user types `P`, then `B`: the block shows "P", then it becomes blue with a blue border.
-        - example3: user types `0`, then `B`, then `2`: The block shows "0", then it becomes a gradient from blue to red with a blue border, then the block shows "02".
-        - example4: user types `R`, then `0`, then `B`, then `1`: the block becomes red with a red border, then it shows "0" and it becomes a gradient from red to blue with a red border, then `B` is ignored because it is invalid, then the block shows "01".
+- A **bout event insert entry** — the **`next-event` entry** — reflects the current key sequence buffer in real time:
+    - **Empty buffer** (initial/reset state): neutral, light-colored block with a dashed neutral border containing `+`. The cursor ring is shown.
+    - **After typing a color key** (`R` or `B`):
+        - The block background and border change to the corresponding color (Red / Blue).
+        - The label inside shows the key (`R` or `B`).
+        - Example: pressing `R` → block turns red and shows `R`.
+    - **After typing a neutral key first** (`P`, `0`, or a digit):
+        - The block remains neutral/dashed.
+        - The label shows the key typed so far (`P`, `0`, `1`, …).
+        - Example: pressing `P` → shows `P` (neutral); pressing `0` → shows `0` (neutral).
+    - **After a color + `0` combination** (caution sequence started):
+        - The block changes to a two-row caution layout, identical to a recorded caution entry.
+        - Row 1 is colored for the cautioned wrestler and shows `0R` or `0B`.
+        - Row 2 is colored for the opponent and shows only the opponent key (`B` or `R`) as a placeholder until the point digit is typed.
+        - The display is normalized to canonical order regardless of input order: e.g., pressing `B` then `0` shows `0B` in row 1.
+        - Example A: `0` → `R` → block becomes red caution, row 1 = `0R`, row 2 = `B` (blue).
+        - Example B: `B` → `0` → block becomes blue caution, row 1 = `0B`, row 2 = `R` (red).
+    - **After a complete sequence is processed** (event recorded): next-event resets to the empty-buffer state.
+    - **`Escape`**: clears the buffer and resets next-event to the empty-buffer state.
 - A **period end entry** is represented as
     - a white colored block with a light neutral colored solid border
     - the red colored score of Red wrestler
@@ -238,7 +249,7 @@ A completed scoresheet re-released to correct the top-bar information or complet
 - Invalid continuation keys are ignored (e.g., after R0, only '1' or '2' are accepted; other keys are ignored).
 - Invalid keys are ignored and do not mutate the buffer.
 - Keys are case-insensitive.
-- Give feedback for current buffer content
+- The current buffer content is reflected in real time in the **`next-event`** timeline entry (see Timeline Design Guidelines).
 
 ### Key sequences for scoresheet preparation
 | `eventType` | Key Sequence | Action |
