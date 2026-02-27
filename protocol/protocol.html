@@ -950,7 +950,7 @@
       // remaining time exceeds the configured period length, show an error
       // and keep the modal open so the user can correct the value.
       const ruleset = loadEmbeddedRuleset();
-      const maxPeriodTime100ms = (ruleset?.periodTimesInSeconds?.[0] ?? 180) * 10;
+      const maxPeriodTime100ms = (ruleset?.periodTimesInSeconds?.[appState.currentPeriodIndex] ?? 180) * 10;
       if (newPeriodTime100ms > maxPeriodTime100ms) {
         input.classList.add('invalid');
         error.textContent = 'Eingegebene Zeit überschreitet die Periodenlänge.';
@@ -960,7 +960,9 @@
         return;
       }
 
-      const newBoutTime100ms = maxPeriodTime100ms - newPeriodTime100ms;
+      // Compute cumulated boutTime by adjusting the current elapsed offset:
+      // newBoutTime = boutTime + (oldRemainingPeriodTime - newRemainingPeriodTime)
+      const newBoutTime100ms = appState.boutTime100ms + appState.periodTime100ms - newPeriodTime100ms;
       const oldBoutTime100ms = appState.boutTime100ms;
 
       appState.boutTime100ms = newBoutTime100ms;
@@ -2000,6 +2002,7 @@
         boutTime100ms: appState.boutTime100ms,
       }),
       setPeriodTime100ms: (value) => { appState.periodTime100ms = value; updateBoutTimeDisplay(); },
+      setBoutTime100ms: (value) => { appState.boutTime100ms = value; },
       triggerPeriodBreak: (breakSeconds) => {
         recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.boutTime100ms });
         const ruleset = loadEmbeddedRuleset();

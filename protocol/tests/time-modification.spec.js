@@ -92,6 +92,29 @@ test.describe("CHAMP Protocol - Time Modification Mode (TT)", () => {
     expect(modifiedEvent.newTime).toBe(600);
   });
 
+  test("Time modification in period 2 produces cumulated boutTime", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Simulate period 1 fully elapsed: boutTime100ms = 1800, periodTime100ms = 1800 (new period)
+    await page.evaluate(() => {
+      window.testHelper.setBoutTime100ms(1800);
+    });
+    await page.evaluate(() => window.testHelper.triggerPeriodBreak(1));
+    await page.waitForFunction(() => !window.testHelper.getState().breakTimerRunning);
+
+    // Now in period 2: boutTime100ms = 1800, periodTime100ms = 1800
+    // Modify time to 2:50 remaining in period 2
+    await page.keyboard.press("t");
+    await page.keyboard.press("t");
+    await page.locator("#time-mod-input").fill("2:50");
+    await page.locator("#time-mod-confirm").click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    // Cumulated: 1800 (period 1) + 100 (10s into period 2) = 1900
+    expect(state.boutTime100ms).toBe(1900);
+  });
+
   test("Invalid time format shows error and keeps modal open", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);

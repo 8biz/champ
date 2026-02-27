@@ -177,35 +177,43 @@ test.describe("CHAMP Protocol - Period Break", () => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
 
-    // Set period time to 1700 (170s remaining → 10s elapsed in a 180s period)
+    // Simulate that period 1 ran for 1800 units (180 seconds):
+    // event at 100 units (0:10.0) into period 1
     await page.evaluate(() => {
+      window.testHelper.setBoutTime100ms(100);
       window.testHelper.setPeriodTime100ms(1700);
     });
     await page.keyboard.press('1');
     await page.keyboard.press('R');
 
-    // Trigger period break and abort
+    // Simulate period 1 ending at boutTime100ms = 1800
+    await page.evaluate(() => {
+      window.testHelper.setBoutTime100ms(1800);
+      window.testHelper.setPeriodTime100ms(0);
+    });
     await page.evaluate(() => window.testHelper.triggerPeriodBreak(30));
-    await page.keyboard.press(' '); // abort break → period 2 loaded
+    await page.keyboard.press(' '); // abort break → period 2 loaded (boutTime100ms stays 1800)
 
-    // Record event in period 2 (boutTime100ms should still be > 0 from period 1)
+    // Record an event at 100 units into period 2 (cumulated = 1900)
+    await page.evaluate(() => {
+      window.testHelper.setBoutTime100ms(1900);
+    });
     await page.keyboard.press('2');
     await page.keyboard.press('B');
 
-    // Parse timeline entry times and verify cumulation
+    // Parse timeline entry times
     const times = await page.evaluate(() => {
       const entries = document.querySelectorAll('.timeline .entry:not(#next-event) .entry-time');
       return Array.from(entries).map(el => el.textContent);
     });
     // Should have 3 entries: 1R, PeriodEnd, 2B
     expect(times.length).toBe(3);
-    // The 2B event time (period 2) should be numerically >= the PeriodEnd time (end of period 1)
-    const parseTime = (t) => {
-      const [minsec, frac] = t.split('.');
-      const [m, s] = minsec.split(':').map(Number);
-      return m * 600 + s * 10 + Number(frac);
-    };
-    expect(parseTime(times[2])).toBeGreaterThanOrEqual(parseTime(times[1]));
+    // 1R at 100 units → "0:10.0"
+    expect(times[0]).toBe('0:10.0');
+    // PeriodEnd at 1800 units → "3:00.0"
+    expect(times[1]).toBe('3:00.0');
+    // 2B at 1900 units → "3:10.0" (cumulated, not "0:10.0" which would be period-relative)
+    expect(times[2]).toBe('3:10.0');
   });
 
   test("PeriodEnd shows period score not total score", async ({ page }) => {
