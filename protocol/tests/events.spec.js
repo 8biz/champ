@@ -1,39 +1,5 @@
 import { test, expect } from "@playwright/test";
-
-const BASE_URL = "file://" + process.cwd() + "/protocol/protocol.html";
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Release the scoresheet for recording (F4 from New → Recording). */
-async function releaseScoresheet(page) {
-  await page.keyboard.press("F4");
-}
-
-/**
- * Set the remaining bout (period) time via the TT time-modification modal.
- * @param {import('@playwright/test').Page} page
- * @param {string} remainingTime  Remaining period time in "M:SS" format
- */
-async function setBoutTime(page, remainingTime) {
-  await page.keyboard.press("t");
-  await page.keyboard.press("t");
-  const input = page.locator("#time-mod-input");
-  await input.fill(remainingTime);
-  await input.press("Enter");
-}
-
-/**
- * Set bout time then record a bout event via keyboard.
- * @param {import('@playwright/test').Page} page
- * @param {string} remainingTime  Remaining period time in "M:SS" format
- * @param {string[]} keys         Key presses for the event, e.g. ["1","B"]
- */
-async function recordEventAtTime(page, remainingTime, keys) {
-  await setBoutTime(page, remainingTime);
-  for (const key of keys) {
-    await page.keyboard.press(key);
-  }
-}
+import { BASE_URL, releaseScoresheet, setBoutTime, recordEventAtTime } from "./helpers.js";
 
 // ── Event Recording ─────────────────────────────────────────────────────────
 
