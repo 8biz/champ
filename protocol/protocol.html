@@ -333,6 +333,20 @@
       background: var(--red);
     }
 
+    .caution-row.neutral {
+      background: var(--neutral-1);
+      color: var(--neutral-3);
+    }
+
+    .entry-box.period-end {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      padding: 0;
+      overflow: hidden;
+      background: var(--neutral-1);
+      border-color: var(--neutral-3);
+    }
+
     .entry-box.red {
       background: var(--red);
       border-color: var(--red);
@@ -1185,8 +1199,26 @@
         e.eventType !== 'ScoresheetCompleted'
       );
       
+      let runningRed = 0, runningBlue = 0, periodCount = 0;
       boutEvents.forEach(event => {
-        const entry = createTimelineEntry(event);
+        const pointMatch = event.eventType.match(/^([1245])(R|B)$/);
+        if (pointMatch) {
+          const pts = parseInt(pointMatch[1]);
+          if (pointMatch[2] === 'R') runningRed += pts;
+          else runningBlue += pts;
+        }
+        const cautionMatch = event.eventType.match(/^0([RB])([12])([RB])$/);
+        if (cautionMatch) {
+          const pts = parseInt(cautionMatch[2]);
+          if (cautionMatch[3] === 'R') runningRed += pts;
+          else runningBlue += pts;
+        }
+        let context = null;
+        if (event.eventType === 'PeriodEnd') {
+          periodCount++;
+          context = { periodNumber: periodCount, scoreRed: runningRed, scoreBlue: runningBlue };
+        }
+        const entry = createTimelineEntry(event, context);
         timeline.appendChild(entry);
       });
       
@@ -1205,28 +1237,40 @@
       }
     }
 
-    function createTimelineEntry(event) {
+    function createTimelineEntry(event, context) {
       const entry = document.createElement('div');
       entry.className = 'entry';
       
       const eventType = event.eventType;
       let boxHtml = '';
       
-      // Check if it's a caution event (0R1B, 0R2B, 0B1R, 0B2R)
-      const cautionMatch = eventType.match(/^0([RB])([12])([RB])$/);
-      if (cautionMatch) {
-        const cautionSide = cautionMatch[1] === 'R' ? 'red' : 'blue';
-        const pointSide = cautionMatch[3] === 'R' ? 'red' : 'blue';
+      // Check if it's a PeriodEnd event
+      if (eventType === 'PeriodEnd' && context) {
+        const { periodNumber, scoreRed, scoreBlue } = context;
+        const winnerClass = scoreRed > scoreBlue ? 'red' : (scoreBlue > scoreRed ? 'blue' : 'neutral');
         boxHtml = `
-          <div class="entry-box caution ${cautionSide === 'red' ? 'red' : 'blue'}">
-            <div class="caution-row ${cautionSide}">0${cautionMatch[1]}</div>
-            <div class="caution-row ${pointSide}">${cautionMatch[2]}${cautionMatch[3]}</div>
+          <div class="entry-box period-end">
+            <div class="caution-row neutral">#${periodNumber}</div>
+            <div class="caution-row ${winnerClass}">${scoreRed}:${scoreBlue}</div>
           </div>
         `;
       } else {
-        // Regular event (points or passivity)
-        const colorClass = eventType.includes('R') ? 'red' : (eventType.includes('B') ? 'blue' : 'next');
-        boxHtml = `<div class="entry-box ${colorClass}">${eventType}</div>`;
+        // Check if it's a caution event (0R1B, 0R2B, 0B1R, 0B2R)
+        const cautionMatch = eventType.match(/^0([RB])([12])([RB])$/);
+        if (cautionMatch) {
+          const cautionSide = cautionMatch[1] === 'R' ? 'red' : 'blue';
+          const pointSide = cautionMatch[3] === 'R' ? 'red' : 'blue';
+          boxHtml = `
+            <div class="entry-box caution ${cautionSide === 'red' ? 'red' : 'blue'}">
+              <div class="caution-row ${cautionSide}">0${cautionMatch[1]}</div>
+              <div class="caution-row ${pointSide}">${cautionMatch[2]}${cautionMatch[3]}</div>
+            </div>
+          `;
+        } else {
+          // Regular event (points or passivity)
+          const colorClass = eventType.includes('R') ? 'red' : (eventType.includes('B') ? 'blue' : 'next');
+          boxHtml = `<div class="entry-box ${colorClass}">${eventType}</div>`;
+        }
       }
       
       entry.innerHTML = `
@@ -1869,6 +1913,10 @@
     window.exportHelper = {
       generate: generateExport,
       download: downloadExport
+    };
+
+    window.testHelper = {
+      injectEvent: (evt) => { appState.events.push(evt); updateTimeline(); }
     };
 
     // ===================================================================

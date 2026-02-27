@@ -111,4 +111,26 @@ test.describe("CHAMP Protocol - Event Recording", () => {
     await expect(page.locator("#score-blue")).toHaveText("1");
     await expect(entries).toHaveCount(2);
   });
+
+  test("PeriodEnd event shows period number and score in timeline", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Record some points: red gets 4, blue gets 1
+    await recordEventAtTime(page, "2:50", ["4", "R"]);
+    await recordEventAtTime(page, "2:40", ["1", "B"]);
+
+    // Inject a PeriodEnd event directly
+    await page.evaluate(() => {
+      window.testHelper.injectEvent({ eventType: 'PeriodEnd', boutTime100ms: 100, sequence: 99 });
+    });
+
+    const periodEndEntry = page.locator('.timeline .entry:not(#next-event)').last();
+    const box = periodEndEntry.locator('.entry-box');
+    await expect(box).toHaveClass(/period-end/);
+    await expect(box.locator('.caution-row').first()).toContainText('#1');
+    await expect(box.locator('.caution-row').last()).toContainText('4:1');
+    // Red wins, so the score row should have red background
+    await expect(box.locator('.caution-row').last()).toHaveClass(/red/);
+  });
 });
