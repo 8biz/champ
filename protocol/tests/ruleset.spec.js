@@ -160,4 +160,136 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('classificationPoints'))).toBe(true);
   });
+
+  // ── Automatic victory type determination ──────────────────────────────────
+
+  test("Auto-detects TÜ victory type and winner when score difference >= 15", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // 5R + 5R + 5R = 15 for Red, Blue = 0 → scoreDifference = 15
+    await recordEventAtTime(page, "2:50", ["5", "R"]);
+    await recordEventAtTime(page, "2:40", ["5", "R"]);
+    await recordEventAtTime(page, "2:30", ["5", "R"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    await expect(page.locator("#compl-winner")).toHaveValue("red");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("TÜ");
+    await expect(page.locator("#compl-points-red")).toHaveValue("4");
+    await expect(page.locator("#compl-points-blue")).toHaveValue("0");
+  });
+
+  test("Auto-detects DV victory type and winner when caution count >= 3", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // 3 cautions for Red (each awards 1 point to Blue → Blue wins)
+    await recordEventAtTime(page, "2:50", ["R", "0", "1"]); // 0R1B
+    await recordEventAtTime(page, "2:40", ["R", "0", "1"]); // 0R1B
+    await recordEventAtTime(page, "2:30", ["R", "0", "1"]); // 0R1B
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    await expect(page.locator("#compl-winner")).toHaveValue("blue");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("DV");
+  });
+
+  test("Auto-detects PS victory type when score difference falls in conditional points band (diff=5)", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Red 6, Blue 1 → diff=5 → PS with 2 classification points for red
+    await recordEventAtTime(page, "2:50", ["4", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "R"]);
+    await recordEventAtTime(page, "2:30", ["1", "B"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    await expect(page.locator("#compl-winner")).toHaveValue("red");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("PS");
+    await expect(page.locator("#compl-points-red")).toHaveValue("2");
+    await expect(page.locator("#compl-points-blue")).toHaveValue("0");
+  });
+
+  test("Auto-detects PS with 1 classification point when score difference is in 0-2 band", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Red 1, Blue 0 → diff=1 → PS with 1 classification point
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    await expect(page.locator("#compl-winner")).toHaveValue("red");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("PS");
+    await expect(page.locator("#compl-points-red")).toHaveValue("1");
+    await expect(page.locator("#compl-points-blue")).toHaveValue("0");
+  });
+
+  test("Auto-detects PS with 3 classification points when score difference is in 8-14 band", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Red 10, Blue 0 → diff=10 → PS with 3 classification points
+    await recordEventAtTime(page, "2:50", ["5", "R"]);
+    await recordEventAtTime(page, "2:40", ["5", "R"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    await expect(page.locator("#compl-winner")).toHaveValue("red");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("PS");
+    await expect(page.locator("#compl-points-red")).toHaveValue("3");
+    await expect(page.locator("#compl-points-blue")).toHaveValue("0");
+  });
+
+  test("TÜ takes priority over PS when score difference >= 15", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Red 15, Blue 0 → diff=15 → TÜ (not PS)
+    await recordEventAtTime(page, "2:50", ["5", "R"]);
+    await recordEventAtTime(page, "2:40", ["5", "R"]);
+    await recordEventAtTime(page, "2:30", ["5", "R"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    await expect(page.locator("#compl-winner")).toHaveValue("red");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("TÜ");
+  });
+
+  test("No auto-detected victory type when scores are equal", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Equal scores → no winner → no auto-detection
+    await recordEventAtTime(page, "2:50", ["2", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    await expect(page.locator("#compl-winner")).toHaveValue("-");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("-");
+  });
+
+  test("Auto-update switches from TÜ to PS when condition no longer holds after new event", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Bring Red to 15 → TÜ auto-detected
+    await recordEventAtTime(page, "2:50", ["5", "R"]);
+    await recordEventAtTime(page, "2:40", ["5", "R"]);
+    await recordEventAtTime(page, "2:30", ["5", "R"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+    await expect(page.locator("#compl-victory-type")).toHaveValue("TÜ");
+
+    // Blue scores 5 → diff drops to 10 → TÜ no longer applies, PS (3 pts) applies
+    await recordEventAtTime(page, "2:20", ["5", "B"]);
+
+    await expect(page.locator("#compl-winner")).toHaveValue("red");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("PS");
+    await expect(page.locator("#compl-points-red")).toHaveValue("3");
+    await expect(page.locator("#compl-points-blue")).toHaveValue("0");
+  });
 });

@@ -1193,6 +1193,42 @@
       form.classList.toggle('winner-blue', winner === 'blue');
     }
 
+    function autoUpdateCompletionForm() {
+      const ruleset = loadEmbeddedRuleset();
+      if (!ruleset) return;
+
+      const scores = calculateScores(appState.events);
+      const context = getBoutContext();
+
+      // Determine winner from scores
+      let winner = '-';
+      if (scores.red > scores.blue) winner = 'red';
+      else if (scores.blue > scores.red) winner = 'blue';
+
+      // 1. Find the first victory type whose top-level condition is met (skip types without conditions).
+      // The ruleset array order determines priority when multiple conditions could match.
+      let matchingVT = ruleset.victoryTypes.find(vt => {
+        if (!vt.condition) return false;
+        return evaluateCondition(vt.condition, context);
+      });
+
+      // 2. If no top-level condition matched and there is a winner, check victory types whose
+      //    classificationPoints.winner is conditional (an array) – the resolved value > 0 means
+      //    the current score difference falls within one of those defined bands.
+      if (!matchingVT && winner !== '-') {
+        matchingVT = ruleset.victoryTypes.find(vt => {
+          if (vt.condition) return false; // already handled above
+          const cp = vt.classificationPoints;
+          if (!cp || !Array.isArray(cp.winner)) return false;
+          return resolveClassificationPoints(cp, context).winner > 0;
+        });
+      }
+
+      document.getElementById('compl-winner').value = winner;
+      document.getElementById('compl-victory-type').value = matchingVT ? matchingVT.type : '-';
+      updateCompletionPoints();
+    }
+
     document.getElementById('compl-winner').addEventListener('change', updateCompletionPoints);
     document.getElementById('compl-victory-type').addEventListener('change', updateCompletionPoints);
     exportButton.addEventListener('click', downloadExport);
@@ -1253,6 +1289,7 @@
       const scores = calculateScores(appState.events);
       scoreRedDisplay.textContent = scores.red;
       scoreBlueDisplay.textContent = scores.blue;
+      autoUpdateCompletionForm();
     }
 
     // ===================================================================
