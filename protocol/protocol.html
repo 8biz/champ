@@ -1205,12 +1205,24 @@
       if (scores.red > scores.blue) winner = 'red';
       else if (scores.blue > scores.red) winner = 'blue';
 
-      // Find the first victory type whose condition is met (skip types without conditions).
+      // 1. Find the first victory type whose top-level condition is met (skip types without conditions).
       // The ruleset array order determines priority when multiple conditions could match.
-      const matchingVT = ruleset.victoryTypes.find(vt => {
+      let matchingVT = ruleset.victoryTypes.find(vt => {
         if (!vt.condition) return false;
         return evaluateCondition(vt.condition, context);
       });
+
+      // 2. If no top-level condition matched and there is a winner, check victory types whose
+      //    classificationPoints.winner is conditional (an array) – the resolved value > 0 means
+      //    the current score difference falls within one of those defined bands.
+      if (!matchingVT && winner !== '-') {
+        matchingVT = ruleset.victoryTypes.find(vt => {
+          if (vt.condition) return false; // already handled above
+          const cp = vt.classificationPoints;
+          if (!cp || !Array.isArray(cp.winner)) return false;
+          return resolveClassificationPoints(cp, context).winner > 0;
+        });
+      }
 
       document.getElementById('compl-winner').value = winner;
       document.getElementById('compl-victory-type').value = matchingVT ? matchingVT.type : '-';
