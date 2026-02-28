@@ -160,4 +160,70 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('classificationPoints'))).toBe(true);
   });
+
+  // ── Automatic victory type determination ──────────────────────────────────
+
+  test("Auto-detects TÜ victory type and winner when score difference >= 15", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // 5R + 5R + 5R = 15 for Red, Blue = 0 → scoreDifference = 15
+    await recordEventAtTime(page, "2:50", ["5", "R"]);
+    await recordEventAtTime(page, "2:40", ["5", "R"]);
+    await recordEventAtTime(page, "2:30", ["5", "R"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    await expect(page.locator("#compl-winner")).toHaveValue("red");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("TÜ");
+    await expect(page.locator("#compl-points-red")).toHaveValue("4");
+    await expect(page.locator("#compl-points-blue")).toHaveValue("0");
+  });
+
+  test("Auto-detects DV victory type and winner when caution count >= 3", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // 3 cautions for Red (each awards 1 point to Blue → Blue wins)
+    await recordEventAtTime(page, "2:50", ["R", "0", "1"]); // 0R1B
+    await recordEventAtTime(page, "2:40", ["R", "0", "1"]); // 0R1B
+    await recordEventAtTime(page, "2:30", ["R", "0", "1"]); // 0R1B
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    await expect(page.locator("#compl-winner")).toHaveValue("blue");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("DV");
+  });
+
+  test("No auto-detected victory type when no condition matches", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Score diff = 5, less than 15 threshold; cautions = 0 → no condition matches
+    await recordEventAtTime(page, "2:50", ["5", "R"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    await expect(page.locator("#compl-winner")).toHaveValue("red");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("-");
+  });
+
+  test("Auto-update removes TÜ when condition no longer holds after new event", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Bring Red to 15 → TÜ auto-detected
+    await recordEventAtTime(page, "2:50", ["5", "R"]);
+    await recordEventAtTime(page, "2:40", ["5", "R"]);
+    await recordEventAtTime(page, "2:30", ["5", "R"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+    await expect(page.locator("#compl-victory-type")).toHaveValue("TÜ");
+
+    // Blue scores 5 → diff drops to 10 → TÜ no longer applies
+    await recordEventAtTime(page, "2:20", ["5", "B"]);
+
+    await expect(page.locator("#compl-winner")).toHaveValue("red");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("-");
+  });
 });

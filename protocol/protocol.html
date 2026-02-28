@@ -1193,6 +1193,30 @@
       form.classList.toggle('winner-blue', winner === 'blue');
     }
 
+    function autoUpdateCompletionForm() {
+      const ruleset = loadEmbeddedRuleset();
+      if (!ruleset) return;
+
+      const scores = calculateScores(appState.events);
+      const context = getBoutContext();
+
+      // Determine winner from scores
+      let winner = '-';
+      if (scores.red > scores.blue) winner = 'red';
+      else if (scores.blue > scores.red) winner = 'blue';
+
+      // Find the first victory type whose condition is met (skip types without conditions).
+      // The ruleset array order determines priority when multiple conditions could match.
+      const matchingVT = ruleset.victoryTypes.find(vt => {
+        if (!vt.condition) return false;
+        return evaluateCondition(vt.condition, context);
+      });
+
+      document.getElementById('compl-winner').value = winner;
+      document.getElementById('compl-victory-type').value = matchingVT ? matchingVT.type : '-';
+      updateCompletionPoints();
+    }
+
     document.getElementById('compl-winner').addEventListener('change', updateCompletionPoints);
     document.getElementById('compl-victory-type').addEventListener('change', updateCompletionPoints);
     exportButton.addEventListener('click', downloadExport);
@@ -1253,6 +1277,7 @@
       const scores = calculateScores(appState.events);
       scoreRedDisplay.textContent = scores.red;
       scoreBlueDisplay.textContent = scores.blue;
+      autoUpdateCompletionForm();
     }
 
     // ===================================================================
