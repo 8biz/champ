@@ -2027,6 +2027,14 @@
       
       // Initialize event button click handlers
       initializeEventButtons();
+
+      // Reset completion form explicitly (browser may restore values after reload)
+      const complForm = document.getElementById('completion-form');
+      complForm.classList.remove('winner-red', 'winner-blue');
+      document.getElementById('compl-winner').value = '-';
+      document.getElementById('compl-victory-type').value = '-';
+      document.getElementById('compl-points-red').value = '0';
+      document.getElementById('compl-points-blue').value = '0';
       
       // Apply initial state
       applyState('New');
