@@ -12,6 +12,7 @@
     :root {
       --red: #d33131;
       --blue: #1975d2;
+      --break: #00A550;
       --neutral-1: #f5f5f5;
       --neutral-2: #9e9e9e;
       --neutral-3: #616161;
@@ -186,6 +187,17 @@
       border-color: var(--neutral-2) !important;
       cursor: not-allowed;
       pointer-events: none;
+    }
+
+    .bout-time.break-mode {
+      background: var(--break);
+      border-color: var(--break);
+      color: #fff;
+    }
+
+    .bout-time.break-mode .time-label,
+    .bout-time.break-mode .time-note {
+      color: #fff;
     }
 
     .center {
@@ -722,7 +734,10 @@
       victoryType: null,
       victoryDescription: null,
       classificationPoints: null,
-      keyBuffer: []
+      keyBuffer: [],
+      currentPeriodIndex: 0,
+      breakTimerRunning: false,
+      breakTime100ms: 0
     };
 
     // ===================================================================
@@ -780,8 +795,55 @@
         stopTimer();
         if (appState.mode === 'Recording') {
           recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.boutTime100ms });
+          const ruleset = loadEmbeddedRuleset();
+          const nextPeriodIndex = appState.currentPeriodIndex + 1;
+          if (ruleset && nextPeriodIndex < ruleset.periodTimesInSeconds.length) {
+            appState.currentPeriodIndex = nextPeriodIndex;
+            startPeriodBreak(ruleset.periodBreakTimeInSeconds);
+          } else {
+            boutTimeButton.disabled = true;
+          }
         }
       }
+    }
+
+    function updateBreakTimeDisplay() {
+      const totalSeconds = Math.floor(appState.breakTime100ms / 10);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      boutTimeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+      boutTimeDisplay.dataset.fraction = String(Math.floor(appState.breakTime100ms % 10));
+    }
+
+    function startPeriodBreak(breakSeconds) {
+      appState.breakTime100ms = breakSeconds * 10;
+      appState.breakTimerRunning = true;
+      boutTimeButton.classList.add('break-mode');
+      boutTimeButton.querySelector('.time-label').textContent = 'Kampfpause';
+      boutTimeButton.querySelector('.time-note').textContent = '[Leertaste] → Abbruch';
+      updateBreakTimeDisplay();
+      appState.timerIntervalId = setInterval(tickBreak, 100);
+    }
+
+    function tickBreak() {
+      appState.breakTime100ms--;
+      updateBreakTimeDisplay();
+      if (appState.breakTime100ms <= 0) {
+        endPeriodBreak();
+      }
+    }
+
+    function endPeriodBreak() {
+      clearInterval(appState.timerIntervalId);
+      appState.timerIntervalId = null;
+      appState.breakTimerRunning = false;
+      const ruleset = loadEmbeddedRuleset();
+      const nextPeriodTime = ruleset.periodTimesInSeconds[appState.currentPeriodIndex] ?? 180;
+      appState.periodTime100ms = nextPeriodTime * 10;
+      boutTimeButton.classList.remove('break-mode');
+      boutTimeButton.querySelector('.time-label').textContent = 'Kampfzeit';
+      boutTimeButton.querySelector('.time-note').textContent = '[Leertaste]';
+      updateBoutTimeDisplay();
     }
 
     function startTimer() {
@@ -815,7 +877,13 @@
 
     startButton.addEventListener("click", testStartTimer);
     stopButton.addEventListener("click", testStopTimer);
-    boutTimeButton.addEventListener("click", toggleTimer);
+    boutTimeButton.addEventListener("click", () => {
+      if (appState.breakTimerRunning) {
+        endPeriodBreak();
+      } else {
+        toggleTimer();
+      }
+    });
     updateBoutTimeDisplay();
 
     // ===================================================================
@@ -882,7 +950,7 @@
       // remaining time exceeds the configured period length, show an error
       // and keep the modal open so the user can correct the value.
       const ruleset = loadEmbeddedRuleset();
-      const maxPeriodTime100ms = (ruleset?.periodTimesInSeconds?.[0] ?? 180) * 10;
+      const maxPeriodTime100ms = (ruleset?.periodTimesInSeconds?.[appState.currentPeriodIndex] ?? 180) * 10;
       if (newPeriodTime100ms > maxPeriodTime100ms) {
         input.classList.add('invalid');
         error.textContent = 'Eingegebene Zeit überschreitet die Periodenlänge.';
@@ -892,7 +960,9 @@
         return;
       }
 
-      const newBoutTime100ms = maxPeriodTime100ms - newPeriodTime100ms;
+      // Compute cumulated boutTime by adjusting the current elapsed offset:
+      // newBoutTime = boutTime + (oldRemainingPeriodTime - newRemainingPeriodTime)
+      const newBoutTime100ms = appState.boutTime100ms + appState.periodTime100ms - newPeriodTime100ms;
       const oldBoutTime100ms = appState.boutTime100ms;
 
       appState.boutTime100ms = newBoutTime100ms;
@@ -1199,24 +1269,26 @@
         e.eventType !== 'ScoresheetCompleted'
       );
       
-      let runningRed = 0, runningBlue = 0, periodCount = 0;
+      let runningRed = 0, runningBlue = 0, periodRed = 0, periodBlue = 0, periodCount = 0;
       boutEvents.forEach(event => {
         const pointMatch = event.eventType.match(/^([1245])(R|B)$/);
         if (pointMatch) {
           const pts = parseInt(pointMatch[1]);
-          if (pointMatch[2] === 'R') runningRed += pts;
-          else runningBlue += pts;
+          if (pointMatch[2] === 'R') { runningRed += pts; periodRed += pts; }
+          else { runningBlue += pts; periodBlue += pts; }
         }
         const cautionMatch = event.eventType.match(/^0([RB])([12])([RB])$/);
         if (cautionMatch) {
           const pts = parseInt(cautionMatch[2]);
-          if (cautionMatch[3] === 'R') runningRed += pts;
-          else runningBlue += pts;
+          if (cautionMatch[3] === 'R') { runningRed += pts; periodRed += pts; }
+          else { runningBlue += pts; periodBlue += pts; }
         }
         let context = null;
         if (event.eventType === 'PeriodEnd') {
           periodCount++;
-          context = { periodNumber: periodCount, scoreRed: runningRed, scoreBlue: runningBlue };
+          context = { periodNumber: periodCount, scoreRed: periodRed, scoreBlue: periodBlue };
+          periodRed = 0;
+          periodBlue = 0;
         }
         const entry = createTimelineEntry(event, context);
         timeline.appendChild(entry);
@@ -1357,8 +1429,12 @@
         return true;
       }
 
-      // Space: Toggle timer (only in Recording mode)
+      // Space: abort period break if active, otherwise toggle timer (only in Recording mode)
       if (seq === ' ') {
+        if (appState.breakTimerRunning) {
+          endPeriodBreak();
+          return true;
+        }
         const isRecording = appState.mode === 'Recording';
         if (isRecording) toggleTimer();
         return isRecording;
@@ -1916,7 +1992,24 @@
     };
 
     window.testHelper = {
-      injectEvent: (evt) => { appState.events.push(evt); updateTimeline(); }
+      injectEvent: (evt) => { appState.events.push(evt); updateTimeline(); },
+      getState: () => ({
+        mode: appState.mode,
+        breakTimerRunning: appState.breakTimerRunning,
+        breakTime100ms: appState.breakTime100ms,
+        currentPeriodIndex: appState.currentPeriodIndex,
+        periodTime100ms: appState.periodTime100ms,
+        boutTime100ms: appState.boutTime100ms,
+      }),
+      setPeriodTime100ms: (value) => { appState.periodTime100ms = value; updateBoutTimeDisplay(); },
+      setBoutTime100ms: (value) => { appState.boutTime100ms = value; },
+      triggerPeriodBreak: (breakSeconds) => {
+        recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.boutTime100ms });
+        const ruleset = loadEmbeddedRuleset();
+        appState.currentPeriodIndex++;
+        const seconds = breakSeconds !== undefined ? breakSeconds : ruleset.periodBreakTimeInSeconds;
+        startPeriodBreak(seconds);
+      }
     };
 
     // ===================================================================
