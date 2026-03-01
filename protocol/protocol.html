@@ -1577,6 +1577,19 @@
         console.log('Key buffer cleared');
         return;
       }
+
+      // Space: abort period break or toggle timer (only in Recording mode).
+      // Works regardless of key buffer state; does not touch the buffer.
+      if (key === ' ') {
+        if (appState.breakTimerRunning) {
+          endPeriodBreak();
+          e.preventDefault();
+        } else if (appState.mode === 'Recording') {
+          toggleTimer();
+          e.preventDefault();
+        }
+        return;
+      }
       
       // Check if key is valid continuation
       if (!isValidContinuation(appState.keyBuffer, key)) {
