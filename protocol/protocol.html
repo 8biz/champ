@@ -701,10 +701,10 @@
             [3, { "when": { "scoreDifference": { "gte": 8, "lte": 14 } } }],
             [2, { "when": { "scoreDifference": { "gte": 3, "lte": 7 } } }],
             [1, { "when": { "scoreDifference": { "gte": 1, "lte": 2 } } }],
-            [1, { "when": { "award5WinnerDiff": { "gt": 0 } } }],
-            [1, { "when": { "award4WinnerDiff": { "gt": 0 } } }],
-            [1, { "when": { "award2WinnerDiff": { "gt": 0 } } }],
-            [1, { "when": { "lastAwardIsWinner": { "eq": 1 } } }]
+            [1, { "when": { "award5Difference": { "gt": 0 } } }],
+            [1, { "when": { "award4Difference": { "gt": 0 } } }],
+            [1, { "when": { "award2Difference": { "gt": 0 } } }],
+            [1, { "when": { "lastAward": { "eq": 1 } } }]
           ],
           "looser": 0
         }
@@ -1825,10 +1825,10 @@
       };
       if (winnerSide === 'red' || winnerSide === 'blue') {
         const loserSide = winnerSide === 'red' ? 'blue' : 'red';
-        context.award5WinnerDiff = stats[winnerSide].technicalPoints["5"] - stats[loserSide].technicalPoints["5"];
-        context.award4WinnerDiff = stats[winnerSide].technicalPoints["4"] - stats[loserSide].technicalPoints["4"];
-        context.award2WinnerDiff = stats[winnerSide].technicalPoints["2"] - stats[loserSide].technicalPoints["2"];
-        context.lastAwardIsWinner = getLastAwardSide(appState.events) === winnerSide ? 1 : 0;
+        context.award5Difference = stats[winnerSide].technicalPoints["5"] - stats[loserSide].technicalPoints["5"];
+        context.award4Difference = stats[winnerSide].technicalPoints["4"] - stats[loserSide].technicalPoints["4"];
+        context.award2Difference = stats[winnerSide].technicalPoints["2"] - stats[loserSide].technicalPoints["2"];
+        context.lastAward = getLastAwardSide(appState.events) === winnerSide ? 1 : 0;
       }
       return context;
     }
