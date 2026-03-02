@@ -199,6 +199,13 @@
       pointer-events: none;
     }
 
+    .bout-time.running {
+      background: #fff9c4;
+      border-color: #f9a825;
+      color: #000;
+      font-weight: 700;
+    }
+
     .bout-time.break-mode {
       background: var(--break);
       border-color: var(--break);
@@ -960,6 +967,7 @@
       
       appState.timerRunning = true;
       appState.timerIntervalId = setInterval(tick, 100); // 100ms intervals
+      boutTimeButton.classList.add('running');
       recordEvent({ eventType: 'T_Started', boutTime100ms: appState.boutTime100ms });
     }
 
@@ -969,7 +977,7 @@
       clearInterval(appState.timerIntervalId);
       appState.timerIntervalId = null;
       appState.timerRunning = false;
-      
+      boutTimeButton.classList.remove('running');
       recordEvent({ eventType: 'T_Stopped', boutTime100ms: appState.boutTime100ms });
     }
 
