@@ -74,6 +74,18 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
     expect(result.looser).toBe(0);
   });
 
+  test("resolveClassificationPoints returns 0 winner pts for score diff 0 without tiebreak context", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    const result = await page.evaluate(() => {
+      const ruleset = window.rulesetHelper.load();
+      const ps = ruleset.victoryTypes.find(vt => vt.type === 'PS');
+      return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, { scoreDifference: 0 });
+    });
+    expect(result.winner).toBe(0);
+    expect(result.looser).toBe(0);
+  });
+
   test("Completion form auto-fills conditional points based on score difference", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
@@ -212,7 +224,7 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
     await expect(page.locator("#compl-points-blue")).toHaveValue("0");
   });
 
-  test("Auto-detects PS with 1 classification point when score difference is in 0-2 band", async ({ page }) => {
+  test("Auto-detects PS with 1 classification point when score difference is in 1-2 band", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
 
@@ -258,18 +270,118 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
     await expect(page.locator("#compl-victory-type")).toHaveValue("TÜ");
   });
 
-  test("No auto-detected victory type when scores are equal", async ({ page }) => {
+  test("No auto-detected winner when scores and all tiebreakers are equal (no scoring events)", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
 
-    // Equal scores → no winner → no auto-detection
-    await recordEventAtTime(page, "2:50", ["2", "R"]);
-    await recordEventAtTime(page, "2:40", ["2", "B"]);
-
+    // No scoring events → 0-0 tie with no tiebreaker
     await page.keyboard.press("F4"); // Enter Completing mode
 
     await expect(page.locator("#compl-winner")).toHaveValue("-");
     await expect(page.locator("#compl-victory-type")).toHaveValue("-");
+  });
+
+  test("Auto-detects PS winner by last-award tiebreak when 5s and 2s are equal (equal score)", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Red: 5+2=7, Blue: 5+2=7 → scores equal, award5 equal, award2 equal
+    // last award is blue's 2B → blue wins
+    await recordEventAtTime(page, "2:50", ["5", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "R"]);
+    await recordEventAtTime(page, "2:30", ["5", "B"]);
+    await recordEventAtTime(page, "2:20", ["2", "B"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    // Scores: 7-7 (equal). 5-awards: 1R vs 1B (equal). 4-awards: 0 vs 0 (equal).
+    // 2-awards: 1R vs 1B (equal). Last award: 2B → Blue wins.
+    await expect(page.locator("#compl-winner")).toHaveValue("blue");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("PS");
+    await expect(page.locator("#compl-points-blue")).toHaveValue("1");
+    await expect(page.locator("#compl-points-red")).toHaveValue("0");
+  });
+
+  test("Auto-detects PS winner by tiebreak on 5-award diff when 5-awards differ (equal score)", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Red: 5+2+1=8, Blue: 4+4=8 → scores equal, Red has 1 five-award, Blue has 0 → Red wins
+    await recordEventAtTime(page, "2:50", ["5", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "R"]);
+    await recordEventAtTime(page, "2:30", ["1", "R"]);
+    await recordEventAtTime(page, "2:20", ["4", "B"]);
+    await recordEventAtTime(page, "2:10", ["4", "B"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    // Scores: 8-8 (equal). 5-awards: 1R vs 0B → Red wins by 5-award tiebreak.
+    await expect(page.locator("#compl-winner")).toHaveValue("red");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("PS");
+    await expect(page.locator("#compl-points-red")).toHaveValue("1");
+    await expect(page.locator("#compl-points-blue")).toHaveValue("0");
+  });
+
+  test("Auto-detects PS winner by tiebreak on 4-award diff when 5s equal (equal score)", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Red: 5+4=9, Blue: 5+2+2=9 → equal scores, 5-awards equal (1 each), Red has more 4-awards → Red wins
+    await recordEventAtTime(page, "2:50", ["5", "R"]);
+    await recordEventAtTime(page, "2:40", ["4", "R"]);
+    await recordEventAtTime(page, "2:30", ["5", "B"]);
+    await recordEventAtTime(page, "2:20", ["2", "B"]);
+    await recordEventAtTime(page, "2:10", ["2", "B"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    // Scores: 9-9. 5-awards: 1 each (equal). 4-awards: 1R vs 0B → Red wins.
+    await expect(page.locator("#compl-winner")).toHaveValue("red");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("PS");
+    await expect(page.locator("#compl-points-red")).toHaveValue("1");
+    await expect(page.locator("#compl-points-blue")).toHaveValue("0");
+  });
+
+  test("Auto-detects PS winner by tiebreak on 2-award diff when 5s,4s equal (equal score)", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Red: 5+4+2=11, Blue: 5+4+1+1=11 → equal scores, 5-awards 1 each, 4-awards 1 each,
+    // Red has more 2-awards (1 vs 0) → Red wins
+    await recordEventAtTime(page, "2:50", ["5", "R"]);
+    await recordEventAtTime(page, "2:40", ["4", "R"]);
+    await recordEventAtTime(page, "2:30", ["2", "R"]);
+    await recordEventAtTime(page, "2:20", ["5", "B"]);
+    await recordEventAtTime(page, "2:10", ["4", "B"]);
+    await recordEventAtTime(page, "2:00", ["1", "B"]);
+    await recordEventAtTime(page, "1:50", ["1", "B"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    // Scores: 11-11. 5-awards: 1 each. 4-awards: 1 each. 2-awards: 1R vs 0B → Red wins.
+    await expect(page.locator("#compl-winner")).toHaveValue("red");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("PS");
+    await expect(page.locator("#compl-points-red")).toHaveValue("1");
+    await expect(page.locator("#compl-points-blue")).toHaveValue("0");
+  });
+
+  test("Auto-detects PS winner by last-award tiebreak (equal score, equal award counts)", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Red: 2+2=4, Blue: 2+2=4 → equal scores, equal 2-awards, last event is 2B → Blue wins
+    await recordEventAtTime(page, "2:50", ["2", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "R"]);
+    await recordEventAtTime(page, "2:30", ["2", "B"]);
+    await recordEventAtTime(page, "2:20", ["2", "B"]);
+
+    await page.keyboard.press("F4"); // Enter Completing mode
+
+    // Scores: 4-4. All award counts equal. Last award is 2B → Blue wins.
+    await expect(page.locator("#compl-winner")).toHaveValue("blue");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("PS");
+    await expect(page.locator("#compl-points-blue")).toHaveValue("1");
+    await expect(page.locator("#compl-points-red")).toHaveValue("0");
   });
 
   test("Auto-update switches from TÜ to PS when condition no longer holds after new event", async ({ page }) => {
