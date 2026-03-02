@@ -1647,8 +1647,9 @@
       
       // Try to process sequence
       if (processKeySequence(appState.keyBuffer)) {
-        // Sequence processed - clear buffer
+        // Sequence processed - clear buffer and reset next-event display
         appState.keyBuffer = [];
+        updateNextEventDisplay();
         console.log('Sequence processed, buffer cleared');
       }
     }
