@@ -700,7 +700,11 @@
           "winner": [
             [3, { "when": { "scoreDifference": { "gte": 8, "lte": 14 } } }],
             [2, { "when": { "scoreDifference": { "gte": 3, "lte": 7 } } }],
-            [1, { "when": { "scoreDifference": { "gte": 0, "lte": 2 } } }]
+            [1, { "when": { "scoreDifference": { "gte": 1, "lte": 2 } } }],
+            [1, { "when": { "award5WinnerDiff": { "gt": 0 } } }],
+            [1, { "when": { "award4WinnerDiff": { "gt": 0 } } }],
+            [1, { "when": { "award2WinnerDiff": { "gt": 0 } } }],
+            [1, { "when": { "lastAwardIsWinner": { "eq": 1 } } }]
           ],
           "looser": 0
         }
@@ -1166,10 +1170,11 @@
 
       let winnerPts = 0;
       let loserPts = 0;
+      const winner = winnerSelect.value;
       try {
         const cp = JSON.parse(selectedOption.dataset.classificationPoints || 'null');
         if (cp) {
-          const context = getBoutContext();
+          const context = getBoutContext(winner !== '-' ? winner : undefined);
           const resolved = resolveClassificationPoints(cp, context);
           winnerPts = resolved.winner;
           loserPts = resolved.looser;
@@ -1177,8 +1182,6 @@
       } catch (e) {
         // ignore parse errors
       }
-
-      const winner = winnerSelect.value;
 
       if (winner === 'blue') {
         redInput.value = loserPts;
@@ -1198,12 +1201,17 @@
       if (!ruleset) return;
 
       const scores = calculateScores(appState.events);
-      const context = getBoutContext();
 
-      // Determine winner from scores
+      // Determine winner from scores; apply tie-breaking when equal
       let winner = '-';
       if (scores.red > scores.blue) winner = 'red';
       else if (scores.blue > scores.red) winner = 'blue';
+      else {
+        const tbWinner = findTiebreakWinner(appState.events);
+        if (tbWinner) winner = tbWinner;
+      }
+
+      const context = getBoutContext(winner !== '-' ? winner : undefined);
 
       // 1. Find the first victory type whose top-level condition is met (skip types without conditions).
       // The ruleset array order determines priority when multiple conditions could match.
@@ -1783,16 +1791,46 @@
       };
     }
 
-    function getBoutContext() {
+    function getLastAwardSide(events) {
+      for (let i = events.length - 1; i >= 0; i--) {
+        const e = events[i];
+        const pointMatch = e.eventType.match(/^([1245])(R|B)$/);
+        if (pointMatch) return pointMatch[2] === 'R' ? 'red' : 'blue';
+        const cautionMatch = e.eventType.match(/^0([RB])([12])([RB])$/);
+        if (cautionMatch) return cautionMatch[3] === 'R' ? 'red' : 'blue';
+      }
+      return null;
+    }
+
+    function findTiebreakWinner(events) {
+      const stats = calculateStatistics(events);
+      const diff5 = stats.red.technicalPoints["5"] - stats.blue.technicalPoints["5"];
+      if (diff5 !== 0) return diff5 > 0 ? 'red' : 'blue';
+      const diff4 = stats.red.technicalPoints["4"] - stats.blue.technicalPoints["4"];
+      if (diff4 !== 0) return diff4 > 0 ? 'red' : 'blue';
+      const diff2 = stats.red.technicalPoints["2"] - stats.blue.technicalPoints["2"];
+      if (diff2 !== 0) return diff2 > 0 ? 'red' : 'blue';
+      return getLastAwardSide(events);
+    }
+
+    function getBoutContext(winnerSide) {
       const scores = calculateScores(appState.events);
       const stats = calculateStatistics(appState.events);
-      return {
+      const context = {
         scoreDifference: Math.abs(scores.red - scores.blue),
         scoreRed: scores.red,
         scoreBlue: scores.blue,
         cautionCount: stats.red.cautions + stats.blue.cautions,
         passivityCount: stats.red.passivity + stats.blue.passivity
       };
+      if (winnerSide === 'red' || winnerSide === 'blue') {
+        const loserSide = winnerSide === 'red' ? 'blue' : 'red';
+        context.award5WinnerDiff = stats[winnerSide].technicalPoints["5"] - stats[loserSide].technicalPoints["5"];
+        context.award4WinnerDiff = stats[winnerSide].technicalPoints["4"] - stats[loserSide].technicalPoints["4"];
+        context.award2WinnerDiff = stats[winnerSide].technicalPoints["2"] - stats[loserSide].technicalPoints["2"];
+        context.lastAwardIsWinner = getLastAwardSide(appState.events) === winnerSide ? 1 : 0;
+      }
+      return context;
     }
 
     // Expose helper
@@ -1802,7 +1840,9 @@
       evaluateCondition,
       findMatchingVictoryTypes,
       resolveClassificationPoints,
-      getBoutContext
+      getBoutContext,
+      getLastAwardSide,
+      findTiebreakWinner
     };
 
     // Auto-load and validate at startup (logs result)
