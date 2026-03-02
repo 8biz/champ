@@ -299,3 +299,32 @@ test.describe("Edge cases", () => {
     await expect(page.locator("#next-event")).not.toBeVisible();
   });
 });
+
+// ── Button click resets next-event ──────────────────────────────────────────
+
+test.describe("Button click resets next-event", () => {
+  test("clicking R1 button records event and resets next-event to '+'", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Click the [1R] award button directly (no pre-existing buffer)
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[1R]" }).click();
+
+    const box = nextEventBox(page);
+    await expect(box).toHaveText("+");
+    await expect(box).toHaveClass(/next/);
+    await expect(page.locator("#score-red")).toHaveText("1");
+  });
+
+  test("clicking B2 button records event and resets next-event to '+'", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "[2B]" }).click();
+
+    const box = nextEventBox(page);
+    await expect(box).toHaveText("+");
+    await expect(box).toHaveClass(/next/);
+    await expect(page.locator("#score-blue")).toHaveText("2");
+  });
+});
