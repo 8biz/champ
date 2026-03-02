@@ -661,7 +661,7 @@
     </section>
   </main>
 
-  <!-- Bout time modification modal -->
+  <!-- Time modification modal (bout time and injury/blood timers) -->
   <div id="time-mod-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="time-mod-title">
     <div id="time-mod-popup">
       <div id="time-mod-title">Kampfzeit ändern [TT]</div>
@@ -764,7 +764,8 @@
         IB: { running: false, time100ms: 0, intervalId: null },
         BR: { running: false, time100ms: 0, intervalId: null },
         BB: { running: false, time100ms: 0, intervalId: null }
-      }
+      },
+      timeModTarget: null  // null = bout time, 'IR'/'IB'/'BR'/'BB' = injury timer
     };
 
     // ===================================================================
@@ -1009,24 +1010,40 @@
       return document.getElementById('time-mod-modal').style.display !== 'none';
     }
 
-    function openTimeModModal() {
+    function openTimeModModal(timerKey = null) {
       if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return;
 
-      // Only allow opening the time modification modal when the bout timer
-      // is stopped. This prevents race conditions and ambiguous edits.
-      if (appState.timerRunning) {
+      // For bout time only: require timer to be stopped to avoid race conditions.
+      if (!timerKey && appState.timerRunning) {
         return;
       }
+
+      appState.timeModTarget = timerKey;
 
       const modal = document.getElementById('time-mod-modal');
       const input = document.getElementById('time-mod-input');
       const error = document.getElementById('time-mod-error');
+      const title = document.getElementById('time-mod-title');
 
-      // Pre-fill with remaining period time in M:SS
-      const totalSeconds = Math.floor(appState.periodTime100ms / 10);
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = totalSeconds % 60;
-      input.value = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      if (timerKey) {
+        // Injury / blood time modification — pre-fill with current elapsed time
+        title.textContent = `${INJURY_TIMER_LABELS[timerKey]} ändern`;
+        document.getElementById('time-mod-hint').textContent = 'Abgelaufene Zeit eingeben (M:SS)';
+        const currentTime100ms = appState.injuryTimers[timerKey].time100ms;
+        const totalSeconds = Math.floor(currentTime100ms / 10);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        input.value = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      } else {
+        // Bout (period) time modification — pre-fill with remaining period time
+        title.textContent = 'Kampfzeit ändern [TT]';
+        document.getElementById('time-mod-hint').textContent = 'Verbleibende Zeit eingeben (M:SS)';
+        const totalSeconds = Math.floor(appState.periodTime100ms / 10);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        input.value = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      }
+
       input.classList.remove('invalid');
       error.style.display = 'none';
 
@@ -1052,6 +1069,7 @@
       const match = val.match(/^(\d+):([0-5]\d)$/);
       if (!match) {
         input.classList.add('invalid');
+        error.textContent = 'Ungültiges Format. Bitte M:SS eingeben.';
         error.style.display = '';
         input.focus();
         input.select();
@@ -1060,36 +1078,62 @@
 
       const minutes = parseInt(match[1]);
       const seconds = parseInt(match[2]);
-      const newPeriodTime100ms = (minutes * 60 + seconds) * 10;
+      const newTime100ms = (minutes * 60 + seconds) * 10;
 
-      // Validate against ruleset-defined period length. If the entered
-      // remaining time exceeds the configured period length, show an error
-      // and keep the modal open so the user can correct the value.
-      const ruleset = loadEmbeddedRuleset();
-      const maxPeriodTime100ms = (ruleset?.periodTimesInSeconds?.[appState.currentPeriodIndex] ?? 180) * 10;
-      if (newPeriodTime100ms > maxPeriodTime100ms) {
-        input.classList.add('invalid');
-        error.textContent = 'Eingegebene Zeit überschreitet die Periodenlänge.';
-        error.style.display = '';
-        input.focus();
-        input.select();
-        return;
+      const timerKey = appState.timeModTarget;
+
+      if (timerKey) {
+        // Injury / blood time modification
+        const maxTime100ms = getInjuryTimerMax(timerKey);
+        if (newTime100ms > maxTime100ms) {
+          input.classList.add('invalid');
+          error.textContent = 'Eingegebene Zeit überschreitet die Maximalzeit.';
+          error.style.display = '';
+          input.focus();
+          input.select();
+          return;
+        }
+
+        const oldTime100ms = appState.injuryTimers[timerKey].time100ms;
+        appState.injuryTimers[timerKey].time100ms = newTime100ms;
+        updateInjuryTimerDisplay(timerKey);
+
+        recordEvent({
+          eventType: `T_${timerKey}_Modified`,
+          boutTime100ms: oldTime100ms,
+          newTime: newTime100ms
+        });
+      } else {
+        // Bout (period) time modification
+        // Validate against ruleset-defined period length. If the entered
+        // remaining time exceeds the configured period length, show an error
+        // and keep the modal open so the user can correct the value.
+        const ruleset = loadEmbeddedRuleset();
+        const maxPeriodTime100ms = (ruleset?.periodTimesInSeconds?.[appState.currentPeriodIndex] ?? 180) * 10;
+        if (newTime100ms > maxPeriodTime100ms) {
+          input.classList.add('invalid');
+          error.textContent = 'Eingegebene Zeit überschreitet die Periodenlänge.';
+          error.style.display = '';
+          input.focus();
+          input.select();
+          return;
+        }
+
+        // Compute cumulated boutTime by adjusting the current elapsed offset:
+        // newBoutTime = boutTime + (oldRemainingPeriodTime - newRemainingPeriodTime)
+        const newBoutTime100ms = appState.boutTime100ms + appState.periodTime100ms - newTime100ms;
+        const oldBoutTime100ms = appState.boutTime100ms;
+
+        appState.boutTime100ms = newBoutTime100ms;
+        appState.periodTime100ms = newTime100ms;
+        updateBoutTimeDisplay();
+
+        recordEvent({
+          eventType: 'T_Modified',
+          boutTime100ms: oldBoutTime100ms,
+          newTime: newBoutTime100ms
+        });
       }
-
-      // Compute cumulated boutTime by adjusting the current elapsed offset:
-      // newBoutTime = boutTime + (oldRemainingPeriodTime - newRemainingPeriodTime)
-      const newBoutTime100ms = appState.boutTime100ms + appState.periodTime100ms - newPeriodTime100ms;
-      const oldBoutTime100ms = appState.boutTime100ms;
-
-      appState.boutTime100ms = newBoutTime100ms;
-      appState.periodTime100ms = newPeriodTime100ms;
-      updateBoutTimeDisplay();
-
-      recordEvent({
-        eventType: 'T_Modified',
-        boutTime100ms: oldBoutTime100ms,
-        newTime: newBoutTime100ms
-      });
 
       closeTimeModModal();
     }
@@ -1580,11 +1624,17 @@
       // Only process bout events in Recording or Completing mode
       if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return false;
       
-      // TT: open time modification modal
+      // TT: open time modification modal for bout time
       if (seq === 'TT') {
         openTimeModModal();
         return true;
       }
+
+      // T + injury timer sequence: open time modification modal for injury/blood time
+      if (seq === 'TR,' || seq === 'T,R') { openTimeModModal('IR'); return true; }
+      if (seq === 'TB,' || seq === 'T,B') { openTimeModModal('IB'); return true; }
+      if (seq === 'TR.' || seq === 'T.R') { openTimeModModal('BR'); return true; }
+      if (seq === 'TB.' || seq === 'T.B') { openTimeModModal('BB'); return true; }
 
       // Space: abort period break if active, otherwise toggle timer (only in Recording mode)
       if (seq === ' ') {
@@ -1664,7 +1714,7 @@
         if (seq === 'P') return ['R', 'B'].includes(newKey);
         if (['1', '2', '4', '5'].includes(seq)) return ['R', 'B'].includes(newKey);
         if (seq === '0') return ['R', 'B'].includes(newKey);
-        if (seq === 'T') return newKey === 'T';
+        if (seq === 'T') return ['T', 'R', 'B', ',', '.'].includes(newKey);
         if (seq === ',') return ['R', 'B'].includes(newKey);
         if (seq === '.') return ['R', 'B'].includes(newKey);
       }
@@ -1675,6 +1725,9 @@
         if (seq === 'B0') return ['1', '2'].includes(newKey);
         if (seq === '0R') return ['1', '2'].includes(newKey);
         if (seq === '0B') return ['1', '2'].includes(newKey);
+        // T + color or T + separator → expect the remaining part of the injury timer sequence
+        if (seq === 'TR' || seq === 'TB') return [',', '.'].includes(newKey);
+        if (seq === 'T,' || seq === 'T.') return ['R', 'B'].includes(newKey);
       }
       
       return false;
