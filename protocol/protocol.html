@@ -147,6 +147,16 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .button-side.red  { --side-color: var(--red); }
+    .button-side.blue { --side-color: var(--blue); }
+
+    .button-side .mini-time.running {
+      background: #fff9c4;
+      border-color: #f9a825;
+      color: #000;
+      font-weight: 700;
+    }
+
     .event-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -187,6 +197,13 @@
       border-color: var(--neutral-2) !important;
       cursor: not-allowed;
       pointer-events: none;
+    }
+
+    .bout-time.running {
+      background: #fff9c4;
+      border-color: #f9a825;
+      color: #000;
+      font-weight: 700;
     }
 
     .bout-time.break-mode {
@@ -741,7 +758,13 @@
       keyBuffer: [],
       currentPeriodIndex: 0,
       breakTimerRunning: false,
-      breakTime100ms: 0
+      breakTime100ms: 0,
+      injuryTimers: {
+        IR: { running: false, time100ms: 0, intervalId: null },
+        IB: { running: false, time100ms: 0, intervalId: null },
+        BR: { running: false, time100ms: 0, intervalId: null },
+        BB: { running: false, time100ms: 0, intervalId: null }
+      }
     };
 
     // ===================================================================
@@ -850,12 +873,101 @@
       updateBoutTimeDisplay();
     }
 
+    // ===================================================================
+    // INJURY TIMER LOGIC
+    // ===================================================================
+    const INJURY_TIMER_LABELS = { IR: 'TIR', IB: 'TIB', BR: 'TBR', BB: 'TBB' };
+    const INJURY_TIMER_IDS    = { IR: 'injury-time-red', IB: 'injury-time-blue', BR: 'blood-time-red', BB: 'blood-time-blue' };
+
+    function getInjuryTimerMax(timerKey) {
+      const ruleset = loadEmbeddedRuleset();
+      if (!ruleset) return 1200; // 120s fallback
+      if (timerKey === 'IR' || timerKey === 'IB') {
+        return (ruleset.injuryTimeWithoutBloodInSeconds ?? 120) * 10;
+      }
+      return (ruleset.injuryTimeWithBloodInSeconds ?? 240) * 10;
+    }
+
+    function formatInjuryTime(time100ms) {
+      const totalSeconds = Math.floor(time100ms / 10);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    function updateInjuryTimerDisplay(timerKey) {
+      const el = document.getElementById(INJURY_TIMER_IDS[timerKey]);
+      if (!el) return;
+      const it = appState.injuryTimers[timerKey];
+      const ruleset = loadEmbeddedRuleset();
+      const direction = ruleset?.injuryTimeCountingDirection ?? 'Up';
+      let displayTime;
+      if (direction === 'Down') {
+        displayTime = getInjuryTimerMax(timerKey) - it.time100ms;
+      } else {
+        displayTime = it.time100ms;
+      }
+      el.textContent = `${INJURY_TIMER_LABELS[timerKey]} ${formatInjuryTime(displayTime)}`;
+      el.classList.toggle('running', it.running);
+    }
+
+    function tickInjuryTimer(timerKey) {
+      const it = appState.injuryTimers[timerKey];
+      if (!it.running) return;
+      it.time100ms++;
+      updateInjuryTimerDisplay(timerKey);
+      if (it.time100ms >= getInjuryTimerMax(timerKey)) {
+        stopInjuryTimer(timerKey);
+      }
+    }
+
+    function startInjuryTimer(timerKey) {
+      if (appState.timerRunning) return;
+      const it = appState.injuryTimers[timerKey];
+      if (it.running) return;
+      // Stop the other injury timer for the same wrestler (only one at a time per side)
+      const sideTimers = (timerKey === 'IR' || timerKey === 'BR') ? ['IR', 'BR'] : ['IB', 'BB'];
+      sideTimers.forEach(key => {
+        if (key !== timerKey && appState.injuryTimers[key].running) {
+          stopInjuryTimer(key);
+        }
+      });
+      it.running = true;
+      it.intervalId = setInterval(() => tickInjuryTimer(timerKey), 100);
+      if (appState.mode === 'Recording' || appState.mode === 'Completing') {
+        recordEvent({ eventType: `T_${timerKey}_Started`, boutTime100ms: appState.boutTime100ms });
+      }
+      updateInjuryTimerDisplay(timerKey);
+    }
+
+    function stopInjuryTimer(timerKey) {
+      const it = appState.injuryTimers[timerKey];
+      if (!it.running) return;
+      clearInterval(it.intervalId);
+      it.intervalId = null;
+      it.running = false;
+      if (appState.mode === 'Recording' || appState.mode === 'Completing') {
+        recordEvent({ eventType: `T_${timerKey}_Stopped`, boutTime100ms: appState.boutTime100ms });
+      }
+      updateInjuryTimerDisplay(timerKey);
+    }
+
+    function toggleInjuryTimer(timerKey) {
+      if (appState.injuryTimers[timerKey].running) {
+        stopInjuryTimer(timerKey);
+      } else {
+        startInjuryTimer(timerKey);
+      }
+    }
+
     function startTimer() {
       if (appState.mode !== 'Recording') return;
       if (appState.timerIntervalId !== null) return;
+      if (Object.values(appState.injuryTimers).some(it => it.running)) return;
       
       appState.timerRunning = true;
       appState.timerIntervalId = setInterval(tick, 100); // 100ms intervals
+      boutTimeButton.classList.add('running');
       recordEvent({ eventType: 'T_Started', boutTime100ms: appState.boutTime100ms });
     }
 
@@ -865,7 +977,7 @@
       clearInterval(appState.timerIntervalId);
       appState.timerIntervalId = null;
       appState.timerRunning = false;
-      
+      boutTimeButton.classList.remove('running');
       recordEvent({ eventType: 'T_Stopped', boutTime100ms: appState.boutTime100ms });
     }
 
@@ -1524,6 +1636,14 @@
         recordEvent({ eventType: `0${cautionSide}${points}${pointSide}`, boutTime100ms: appState.boutTime100ms });
         return true;
       }
+
+      // Injury time: R, / ,R → T_IR; B, / ,B → T_IB
+      if (seq === 'R,' || seq === ',R') { toggleInjuryTimer('IR'); return true; }
+      if (seq === 'B,' || seq === ',B') { toggleInjuryTimer('IB'); return true; }
+
+      // Blood time: R. / .R → T_BR; B. / .B → T_BB
+      if (seq === 'R.' || seq === '.R') { toggleInjuryTimer('BR'); return true; }
+      if (seq === 'B.' || seq === '.B') { toggleInjuryTimer('BB'); return true; }
       
       return false;
     }
@@ -1534,17 +1654,19 @@
       
       // Empty buffer - accept most keys
       if (buffer.length === 0) {
-        return ['R', 'B', 'P', '1', '2', '4', '5', '0', ' ', 'T'].includes(newKey);
+        return ['R', 'B', 'P', '1', '2', '4', '5', '0', ' ', 'T', ',', '.'].includes(newKey);
       }
       
       // Single key sequences
       if (buffer.length === 1) {
-        if (seq === 'R') return ['1', '2', '4', '5', 'P', '0'].includes(newKey);
-        if (seq === 'B') return ['1', '2', '4', '5', 'P', '0'].includes(newKey);
+        if (seq === 'R') return ['1', '2', '4', '5', 'P', '0', ',', '.'].includes(newKey);
+        if (seq === 'B') return ['1', '2', '4', '5', 'P', '0', ',', '.'].includes(newKey);
         if (seq === 'P') return ['R', 'B'].includes(newKey);
         if (['1', '2', '4', '5'].includes(seq)) return ['R', 'B'].includes(newKey);
         if (seq === '0') return ['R', 'B'].includes(newKey);
         if (seq === 'T') return newKey === 'T';
+        if (seq === ',') return ['R', 'B'].includes(newKey);
+        if (seq === '.') return ['R', 'B'].includes(newKey);
       }
       
       // Two key sequences
@@ -1939,6 +2061,12 @@
         }
       });
 
+      // Injury/blood time: read elapsed time from the live injury timer state
+      stats.red.injuryTime100ms  = appState.injuryTimers.IR.time100ms;
+      stats.blue.injuryTime100ms = appState.injuryTimers.IB.time100ms;
+      stats.red.bloodTime100ms   = appState.injuryTimers.BR.time100ms;
+      stats.blue.bloodTime100ms  = appState.injuryTimers.BB.time100ms;
+
       return stats;
     }
 
@@ -2091,9 +2219,20 @@
         currentPeriodIndex: appState.currentPeriodIndex,
         periodTime100ms: appState.periodTime100ms,
         boutTime100ms: appState.boutTime100ms,
+        timerRunning: appState.timerRunning,
+        injuryTimers: {
+          IR: { running: appState.injuryTimers.IR.running, time100ms: appState.injuryTimers.IR.time100ms },
+          IB: { running: appState.injuryTimers.IB.running, time100ms: appState.injuryTimers.IB.time100ms },
+          BR: { running: appState.injuryTimers.BR.running, time100ms: appState.injuryTimers.BR.time100ms },
+          BB: { running: appState.injuryTimers.BB.running, time100ms: appState.injuryTimers.BB.time100ms }
+        }
       }),
       setPeriodTime100ms: (value) => { appState.periodTime100ms = value; updateBoutTimeDisplay(); },
       setBoutTime100ms: (value) => { appState.boutTime100ms = value; },
+      setInjuryTime100ms: (key, value) => {
+        appState.injuryTimers[key].time100ms = value;
+        updateInjuryTimerDisplay(key);
+      },
       triggerPeriodBreak: (breakSeconds) => {
         recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.boutTime100ms });
         const ruleset = loadEmbeddedRuleset();
@@ -2119,6 +2258,18 @@
       // Initialize event button click handlers
       initializeEventButtons();
 
+      // Injury/blood timer button click handlers
+      [['injury-time-red', 'IR'], ['blood-time-red', 'BR'],
+       ['injury-time-blue', 'IB'], ['blood-time-blue', 'BB']].forEach(([id, key]) => {
+        const btn = document.getElementById(id);
+        if (btn) {
+          btn.addEventListener('click', () => {
+            if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return;
+            toggleInjuryTimer(key);
+          });
+        }
+      });
+
       // Reset completion form explicitly (browser may restore values after reload)
       const complForm = document.getElementById('completion-form');
       complForm.classList.remove('winner-red', 'winner-blue');
@@ -2129,6 +2280,9 @@
       
       // Apply initial state
       applyState('New');
+
+      // Initialize injury timer displays
+      ['IR', 'IB', 'BR', 'BB'].forEach(key => updateInjuryTimerDisplay(key));
       
       console.log('App initialized in New state');
     }
