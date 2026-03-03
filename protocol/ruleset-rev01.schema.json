@@ -74,7 +74,7 @@
           "description": { "type": "string" },
           "classificationPoints": {
             "type": "object",
-            "required": ["winner","looser"],
+            "required": ["winner","loser"],
             "properties": {
               "winner": {
                 "oneOf": [
@@ -113,7 +113,7 @@
                   }
                 ]
               },
-              "looser": {
+              "loser": {
                 "oneOf": [
                   { "type": "integer" },
                   {

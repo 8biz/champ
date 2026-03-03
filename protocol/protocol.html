@@ -703,11 +703,11 @@
       }
     },
     "victoryTypes": [
-      { "type": "SS", "description": "Schultersieg", "classificationPoints": { "winner": 4, "looser": 0 } },
+      { "type": "SS", "description": "Schultersieg", "classificationPoints": { "winner": 4, "loser": 0 } },
       {
         "type": "TÜ",
         "description": "Technische Überlegenheit",
-        "classificationPoints": { "winner": 4, "looser": 0 },
+        "classificationPoints": { "winner": 4, "loser": 0 },
         "condition": { "scoreDifference": { "gte": 15 } }
       },
       {
@@ -723,15 +723,15 @@
             [1, { "when": { "award2Difference": { "gt": 0 } } }],
             [1, { "when": { "lastAward": { "eq": 1 } } }]
           ],
-          "looser": 0
+          "loser": 0
         }
       },
-      { "type": "AS", "description": "Aufgabesieg", "classificationPoints": { "winner": 4, "looser": 0 } },
-      { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": { "winner": 4, "looser": 0 }, "condition": { "cautionCount": { "gte": 3 } } },
-      { "type": "DQ", "description": "Disqualifikation durch unfaires Verhalten", "classificationPoints": { "winner": 4, "looser": 0 } },
-      { "type": "DSQ2", "description": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": { "winner": 0, "looser": 0 } },
-      { "type": "KL", "description": "Kampfloser Sieg", "classificationPoints": { "winner": 4, "looser": 0 } },
-      { "type": "ÜG", "description": "Übergewicht", "classificationPoints": { "winner": 4, "looser": 0 } }
+      { "type": "AS", "description": "Aufgabesieg", "classificationPoints": { "winner": 4, "loser": 0 } },
+      { "type": "DV", "description": "Disqualifikation durch 3 Verwarnungen", "classificationPoints": { "winner": 4, "loser": 0 }, "condition": { "cautionCount": { "gte": 3 } } },
+      { "type": "DQ", "description": "Disqualifikation durch unfaires Verhalten", "classificationPoints": { "winner": 4, "loser": 0 } },
+      { "type": "DSQ2", "description": "Beide Ringer disqualifiziert wegen unfairem Verhalten", "classificationPoints": { "winner": 0, "loser": 0 } },
+      { "type": "KL", "description": "Kampfloser Sieg", "classificationPoints": { "winner": 4, "loser": 0 } },
+      { "type": "ÜG", "description": "Übergewicht", "classificationPoints": { "winner": 4, "loser": 0 } }
     ]
   }
   </script>
@@ -1333,7 +1333,7 @@
           const context = getBoutContext(winner !== '-' ? winner : undefined);
           const resolved = resolveClassificationPoints(cp, context);
           winnerPts = resolved.winner;
-          loserPts = resolved.looser;
+          loserPts = resolved.loser;
         }
       } catch (e) {
         // ignore parse errors
@@ -1904,10 +1904,10 @@
           }
           const cp = vt.classificationPoints;
           if (!cp || typeof cp !== 'object' || Array.isArray(cp)) {
-            errors.push(`victoryTypes[${i}].classificationPoints must be an object {winner, looser}`);
+            errors.push(`victoryTypes[${i}].classificationPoints must be an object {winner, loser}`);
           } else {
             if (cp.winner === undefined) errors.push(`victoryTypes[${i}].classificationPoints.winner required`);
-            if (cp.looser === undefined) errors.push(`victoryTypes[${i}].classificationPoints.looser required`);
+            if (cp.loser === undefined) errors.push(`victoryTypes[${i}].classificationPoints.loser required`);
           }
           if (vt.condition && typeof vt.condition === 'object') {
             Object.values(vt.condition).forEach(op => {
@@ -1962,7 +1962,7 @@
       }
       return {
         winner: resolveValue(classificationPoints.winner),
-        looser: resolveValue(classificationPoints.looser)
+        loser: resolveValue(classificationPoints.loser)
       };
     }
 
