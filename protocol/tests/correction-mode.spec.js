@@ -533,4 +533,28 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     expect(state.timerRunning).toBe(false);
     expect(state.inCorrectionMode).toBe(true); // still in correction mode
   });
+
+  // ── Victory type recalculation on confirm ────────────────────────────────
+
+  test("victory type recalculates after confirming corrections in Completing mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Record three 5R events → Red 15 pts (TÜ threshold)
+    await recordEventAtTime(page, "2:50", ["5", "R"]);
+    await recordEventAtTime(page, "2:40", ["5", "R"]);
+    await recordEventAtTime(page, "2:30", ["5", "R"]);
+
+    // Enter Completing mode and verify TÜ is auto-selected
+    await page.keyboard.press("F4");
+    await expect(page.locator("#compl-victory-type")).toHaveValue("TÜ");
+
+    // Enter correction mode and delete the last 5R event (cursor starts at it)
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("Delete"); // marks last 5R as deleted → Red becomes 10
+    await page.keyboard.press("Enter");  // confirm → returns to Completing mode
+
+    // Victory type should now be PS (10 pt difference is in 8–14 range)
+    await expect(page.locator("#compl-victory-type")).toHaveValue("PS");
+  });
 });

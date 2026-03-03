@@ -1403,14 +1403,14 @@
       const ruleset = loadEmbeddedRuleset();
       if (!ruleset) return;
 
-      const scores = calculateScores(appState.events);
+      const scores = calculateScores(getEffectiveBoutEvents());
 
       // Determine winner from scores; apply tie-breaking when equal
       let winner = '-';
       if (scores.red > scores.blue) winner = 'red';
       else if (scores.blue > scores.red) winner = 'blue';
       else {
-        const tbWinner = findTiebreakWinner(appState.events);
+        const tbWinner = findTiebreakWinner(getEffectiveBoutEvents());
         if (tbWinner) winner = tbWinner;
       }
 
@@ -2341,8 +2341,9 @@
     }
 
     function getBoutContext(winnerSide) {
-      const scores = calculateScores(appState.events);
-      const stats = calculateStatistics(appState.events);
+      const effectiveEvents = getEffectiveBoutEvents();
+      const scores = calculateScores(effectiveEvents);
+      const stats = calculateStatistics(effectiveEvents);
       const context = {
         scoreDifference: Math.abs(scores.red - scores.blue),
         scoreRed: scores.red,
@@ -2355,7 +2356,7 @@
         context.award5Difference = stats[winnerSide].technicalPoints["5"] - stats[loserSide].technicalPoints["5"];
         context.award4Difference = stats[winnerSide].technicalPoints["4"] - stats[loserSide].technicalPoints["4"];
         context.award2Difference = stats[winnerSide].technicalPoints["2"] - stats[loserSide].technicalPoints["2"];
-        context.lastAward = getLastAwardSide(appState.events) === winnerSide ? 1 : 0;
+        context.lastAward = getLastAwardSide(effectiveEvents) === winnerSide ? 1 : 0;
       }
       return context;
     }
