@@ -1001,7 +1001,44 @@
         toggleTimer();
       }
     });
+
+    // Right-click on bout-time button opens time modification modal
+    boutTimeButton.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      openTimeModModal();
+    });
+
+    // Long-press on bout-time button opens time modification modal
+    attachLongPress(boutTimeButton, () => openTimeModModal());
+
     updateBoutTimeDisplay();
+
+    // ===================================================================
+    // LONG-PRESS HELPER (touch devices)
+    // ===================================================================
+    function attachLongPress(element, callback, delay = 500) {
+      let timer = null;
+      let longPressed = false;
+      element.addEventListener('touchstart', (e) => {
+        longPressed = false;
+        timer = setTimeout(() => {
+          timer = null;
+          longPressed = true;
+          callback();
+        }, delay);
+      }, { passive: true });
+      element.addEventListener('touchend', (e) => {
+        if (timer !== null) { clearTimeout(timer); timer = null; }
+        if (longPressed) {
+          // Prevent the subsequent click event from toggling the timer
+          e.preventDefault();
+          longPressed = false;
+        }
+      });
+      element.addEventListener('touchmove', () => {
+        if (timer !== null) { clearTimeout(timer); timer = null; }
+      });
+    }
 
     // ===================================================================
     // TIME MODIFICATION MODE
@@ -2320,6 +2357,11 @@
             if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return;
             toggleInjuryTimer(key);
           });
+          btn.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            openTimeModModal(key);
+          });
+          attachLongPress(btn, () => openTimeModModal(key));
         }
       });
 
