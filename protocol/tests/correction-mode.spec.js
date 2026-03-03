@@ -448,18 +448,10 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     await page.keyboard.press("b"); // 1R → 1B
     await page.keyboard.press("Enter");
 
-    const events = await page.evaluate(() => window.appState?.events ?? []);
-    // Check for EventModified with newEventType = '1B'
-    // Note: appState is internal, use exported testHelper state instead
-    // We rely on visible score/timeline as confirmation (already tested above)
-    // Here we verify the event log via helper
-    const state = await page.evaluate(() => ({
-      events: window.testHelper?.getState ? undefined : [],
-      eventsExposed: typeof window.appState !== 'undefined'
-    }));
-    // The visible outcome (score 0:1) is sufficient evidence
+    // Visible outcome confirms EventModified was applied
     await expect(page.locator("#score-blue")).toHaveText("1");
     await expect(page.locator("#score-red")).toHaveText("0");
+    await expect(page.locator(".timeline .entry:not(#next-event)").first().locator(".entry-box")).toContainText("1B");
   });
 
   // ── Multiple events ───────────────────────────────────────────────────────

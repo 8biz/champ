@@ -1517,7 +1517,7 @@
         });
     }
 
-    /** Returns cursorbale bout events (excluding PeriodEnd entries). */
+    /** Returns cursorsable bout events (excluding PeriodEnd entries). */
     function getCursorableEvents() {
       return getEffectiveBoutEvents().filter(e => e.eventType !== 'PeriodEnd');
     }
