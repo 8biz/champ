@@ -500,4 +500,37 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
 
     await expect(page.locator("#timeline")).not.toHaveClass(/correction-mode/);
   });
+
+  // ── Space in Correction Mode ──────────────────────────────────────────────
+
+  test("Space starts timer in correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft"); // enter correction mode
+
+    await page.keyboard.press(" "); // start timer
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.timerRunning).toBe(true);
+    expect(state.inCorrectionMode).toBe(true); // still in correction mode
+  });
+
+  test("Space stops timer in correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press(" "); // start timer in normal mode
+    const stateBefore = await page.evaluate(() => window.testHelper.getState());
+    expect(stateBefore.timerRunning).toBe(true);
+
+    await page.keyboard.press("ArrowLeft"); // enter correction mode
+    await page.keyboard.press(" "); // stop timer
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.timerRunning).toBe(false);
+    expect(state.inCorrectionMode).toBe(true); // still in correction mode
+  });
 });

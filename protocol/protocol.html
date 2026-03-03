@@ -2087,6 +2087,18 @@
      */
     function handleCorrectionModeKey(e) {
       const key = e.key;
+
+      // Space: abort period break or toggle timer (same as Normal mode)
+      if (key === ' ') {
+        if (appState.breakTimerRunning) {
+          endPeriodBreak();
+        } else if (appState.mode === 'Recording') {
+          toggleTimer();
+        }
+        e.preventDefault();
+        return;
+      }
+
       e.preventDefault();
 
       if (key === 'ArrowLeft') { moveCursor(-1); return; }
