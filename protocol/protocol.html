@@ -404,6 +404,12 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .timeline.correction-mode {
+      border-color: var(--neutral-3);
+      border-width: 0.125rem;
+      background: color-mix(in srgb, var(--neutral-2) 10%, white);
+    }
+
     .correction-bar {
       display: flex;
       gap: 0.3rem;
@@ -765,7 +771,10 @@
         BR: { running: false, time100ms: 0, intervalId: null },
         BB: { running: false, time100ms: 0, intervalId: null }
       },
-      timeModTarget: null  // null = bout time, 'IR'/'IB'/'BR'/'BB' = injury timer
+      timeModTarget: null,  // null = bout time, 'IR'/'IB'/'BR'/'BB' = injury timer
+      inCorrectionMode: false,
+      cursorIndex: null,    // null = at next-event; integer = index in cursorsable bout events
+      correctionBuffer: []  // pending {refSeq, newEventType} or {refSeq, deleted:true}
     };
 
     // ===================================================================
@@ -1094,6 +1103,7 @@
 
     function closeTimeModModal() {
       document.getElementById('time-mod-modal').style.display = 'none';
+      document.getElementById('time-mod-input').blur();
       appState.keyBuffer = [];
       updateNextEventDisplay();
     }
@@ -1462,6 +1472,56 @@
     const scoreRedDisplay = document.getElementById('score-red');
     const scoreBlueDisplay = document.getElementById('score-blue');
 
+    /**
+     * Returns the effective list of bout events, applying committed
+     * EventModified / EventDeleted corrections from appState.events and
+     * any pending corrections from appState.correctionBuffer.
+     */
+    function getEffectiveBoutEvents() {
+      const rawBoutEvents = appState.events.filter(e =>
+        e.boutTime100ms !== undefined &&
+        !e.eventType.startsWith('T_') &&
+        e.eventType !== 'ScoresheetReleased' &&
+        e.eventType !== 'ScoresheetCompleted' &&
+        e.eventType !== 'EventModified' &&
+        e.eventType !== 'EventDeleted' &&
+        e.eventType !== 'EventInserted' &&
+        e.eventType !== 'EventSwapped'
+      );
+
+      const deletedSeqs = new Set();
+      const modifiedTypes = new Map();
+
+      appState.events.forEach(e => {
+        if (e.eventType === 'EventModified' && e.refSeq !== undefined && e.newEventType) {
+          modifiedTypes.set(e.refSeq, e.newEventType);
+        }
+        if (e.eventType === 'EventDeleted' && e.refSeq !== undefined) {
+          deletedSeqs.add(e.refSeq);
+        }
+      });
+
+      appState.correctionBuffer.forEach(c => {
+        if (c.deleted) {
+          deletedSeqs.add(c.refSeq);
+        } else if (c.newEventType) {
+          modifiedTypes.set(c.refSeq, c.newEventType);
+        }
+      });
+
+      return rawBoutEvents
+        .filter(e => !deletedSeqs.has(e.seq))
+        .map(e => {
+          const effectiveType = modifiedTypes.get(e.seq);
+          return effectiveType ? { ...e, eventType: effectiveType } : e;
+        });
+    }
+
+    /** Returns cursorbale bout events (excluding PeriodEnd entries). */
+    function getCursorableEvents() {
+      return getEffectiveBoutEvents().filter(e => e.eventType !== 'PeriodEnd');
+    }
+
     function calculateScores(events) {
       const scores = { red: 0, blue: 0 };
       
@@ -1487,7 +1547,7 @@
     }
 
     function updateScores() {
-      const scores = calculateScores(appState.events);
+      const scores = calculateScores(getEffectiveBoutEvents());
       scoreRedDisplay.textContent = scores.red;
       scoreBlueDisplay.textContent = scores.blue;
       autoUpdateCompletionForm();
@@ -1499,16 +1559,21 @@
     function updateTimeline() {
       timeline.innerHTML = '';
       
-      // Filter to only bout events with bout time
-      const boutEvents = appState.events.filter(e => 
-        e.boutTime100ms !== undefined && 
-        !e.eventType.startsWith('T_') &&
-        e.eventType !== 'ScoresheetReleased' &&
-        e.eventType !== 'ScoresheetCompleted'
-      );
-      
+      const effectiveBoutEvents = getEffectiveBoutEvents();
+
+      // Determine the seq of the cursored event (for cursor ring rendering)
+      let cursorSeq = null;
+      if (appState.inCorrectionMode && appState.cursorIndex !== null) {
+        const cursorableEvents = effectiveBoutEvents.filter(e => e.eventType !== 'PeriodEnd');
+        const cursorEvent = cursorableEvents[appState.cursorIndex];
+        if (cursorEvent) cursorSeq = cursorEvent.seq;
+      }
+
+      // Show correction mode indicator
+      timeline.classList.toggle('correction-mode', appState.inCorrectionMode);
+
       let runningRed = 0, runningBlue = 0, periodRed = 0, periodBlue = 0, periodCount = 0;
-      boutEvents.forEach(event => {
+      effectiveBoutEvents.forEach(event => {
         const pointMatch = event.eventType.match(/^([1245])(R|B)$/);
         if (pointMatch) {
           const pts = parseInt(pointMatch[1]);
@@ -1528,12 +1593,13 @@
           periodRed = 0;
           periodBlue = 0;
         }
-        const entry = createTimelineEntry(event, context);
+        const isCursor = event.seq === cursorSeq;
+        const entry = createTimelineEntry(event, context, isCursor);
         timeline.appendChild(entry);
       });
       
-      // Add next-event entry if in Recording or Completing mode
-      if (appState.mode === 'Recording' || appState.mode === 'Completing') {
+      // Add next-event entry if in Recording or Completing mode and NOT in correction mode
+      if (!appState.inCorrectionMode && (appState.mode === 'Recording' || appState.mode === 'Completing')) {
         const nextEventEntry = document.createElement('div');
         nextEventEntry.id = 'next-event';
         nextEventEntry.className = 'entry';
@@ -1545,13 +1611,20 @@
         timeline.appendChild(nextEventEntry);
         updateNextEventDisplay();
       }
+
+      // Scroll the cursored entry into view
+      if (appState.inCorrectionMode) {
+        const cursorEntry = timeline.querySelector('.entry-box.cursor')?.closest('.entry');
+        if (cursorEntry) cursorEntry.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
     }
 
-    function createTimelineEntry(event, context) {
+    function createTimelineEntry(event, context, isCursor = false) {
       const entry = document.createElement('div');
       entry.className = 'entry';
       
       const eventType = event.eventType;
+      const cursorClass = isCursor ? ' cursor' : '';
       let boxHtml = '';
       
       // Check if it's a PeriodEnd event
@@ -1559,7 +1632,7 @@
         const { periodNumber, scoreRed, scoreBlue } = context;
         const winnerClass = scoreRed > scoreBlue ? 'red' : (scoreBlue > scoreRed ? 'blue' : 'neutral');
         boxHtml = `
-          <div class="entry-box period-end">
+          <div class="entry-box period-end${cursorClass}">
             <div class="caution-row neutral">#${periodNumber}</div>
             <div class="caution-row ${winnerClass}">${scoreRed}:${scoreBlue}</div>
           </div>
@@ -1571,7 +1644,7 @@
           const cautionSide = cautionMatch[1] === 'R' ? 'red' : 'blue';
           const pointSide = cautionMatch[3] === 'R' ? 'red' : 'blue';
           boxHtml = `
-            <div class="entry-box caution ${cautionSide === 'red' ? 'red' : 'blue'}">
+            <div class="entry-box caution ${cautionSide === 'red' ? 'red' : 'blue'}${cursorClass}">
               <div class="caution-row ${cautionSide}">0${cautionMatch[1]}</div>
               <div class="caution-row ${pointSide}">${cautionMatch[2]}${cautionMatch[3]}</div>
             </div>
@@ -1579,7 +1652,7 @@
         } else {
           // Regular event (points or passivity)
           const colorClass = eventType.includes('R') ? 'red' : (eventType.includes('B') ? 'blue' : 'next');
-          boxHtml = `<div class="entry-box ${colorClass}">${eventType}</div>`;
+          boxHtml = `<div class="entry-box ${colorClass}${cursorClass}">${eventType}</div>`;
         }
       }
       
@@ -1789,12 +1862,26 @@
         e.preventDefault();
         return;
       }
+
+      // Route all keys to correction mode handler when active
+      if (appState.inCorrectionMode) {
+        handleCorrectionModeKey(e);
+        return;
+      }
       
       // Escape clears buffer
       if (key === 'Escape') {
         appState.keyBuffer = [];
         updateNextEventDisplay();
         console.log('Key buffer cleared');
+        return;
+      }
+
+      // ArrowLeft / Backspace: enter Correction mode (only in Recording or Completing)
+      if ((key === 'ArrowLeft' || key === 'Backspace') &&
+          (appState.mode === 'Recording' || appState.mode === 'Completing')) {
+        e.preventDefault();
+        enterCorrectionMode();
         return;
       }
 
@@ -1834,6 +1921,222 @@
         console.log('Sequence processed, buffer cleared');
       }
     });
+
+    // ===================================================================
+    // CORRECTION MODE
+    // ===================================================================
+
+    /** Returns the "main color" (R or B) of a bout event type. */
+    function getEventMainColor(eventType) {
+      const ptMatch = eventType.match(/^[1245](R|B)$/);
+      if (ptMatch) return ptMatch[1];
+      const psMatch = eventType.match(/^P(R|B)$/);
+      if (psMatch) return psMatch[1];
+      const cautMatch = eventType.match(/^0(R|B)[12](R|B)$/);
+      if (cautMatch) return cautMatch[1]; // cautioned side
+      return null;
+    }
+
+    /** Change the main color of a bout event type to newColor. */
+    function modifyEventColor(eventType, newColor) {
+      const oppColor = newColor === 'R' ? 'B' : 'R';
+      const ptMatch = eventType.match(/^([1245])(R|B)$/);
+      if (ptMatch) return ptMatch[1] + newColor;
+      const psMatch = eventType.match(/^P(R|B)$/);
+      if (psMatch) return 'P' + newColor;
+      const cautMatch = eventType.match(/^0(R|B)([12])(R|B)$/);
+      if (cautMatch) return `0${newColor}${cautMatch[2]}${oppColor}`;
+      return eventType;
+    }
+
+    /** Change the point value of a bout event type; cautions become points. */
+    function modifyEventPoints(eventType, newPoints) {
+      const ptMatch = eventType.match(/^[1245](R|B)$/);
+      if (ptMatch) return newPoints + ptMatch[1];
+      const psMatch = eventType.match(/^P(R|B)$/);
+      if (psMatch) return newPoints + psMatch[1];
+      const cautMatch = eventType.match(/^0(R|B)([12])(R|B)$/);
+      if (cautMatch) return newPoints + cautMatch[1]; // keep cautioned side color
+      return eventType;
+    }
+
+    /** Change a bout event type to passivity, keeping the main color. */
+    function modifyEventToPassivity(eventType) {
+      const ptMatch = eventType.match(/^[1245](R|B)$/);
+      if (ptMatch) return 'P' + ptMatch[1];
+      if (eventType.match(/^P(R|B)$/)) return eventType;
+      const cautMatch = eventType.match(/^0(R|B)([12])(R|B)$/);
+      if (cautMatch) return 'P' + cautMatch[1];
+      return eventType;
+    }
+
+    /** Change a bout event type to a caution with the given points, keeping the main color. */
+    function modifyEventToCaution(eventType, cautionPoints) {
+      const opp = c => c === 'R' ? 'B' : 'R';
+      const ptMatch = eventType.match(/^[1245](R|B)$/);
+      if (ptMatch) return `0${ptMatch[1]}${cautionPoints}${opp(ptMatch[1])}`;
+      const psMatch = eventType.match(/^P(R|B)$/);
+      if (psMatch) return `0${psMatch[1]}${cautionPoints}${opp(psMatch[1])}`;
+      const cautMatch = eventType.match(/^0(R|B)([12])(R|B)$/);
+      if (cautMatch) return `0${cautMatch[1]}${cautionPoints}${cautMatch[3]}`;
+      return eventType;
+    }
+
+    /** Enter Correction mode: move cursor to the last cursorsable event. */
+    function enterCorrectionMode() {
+      const cursorableEvents = getCursorableEvents();
+      if (cursorableEvents.length === 0) return;
+      appState.inCorrectionMode = true;
+      appState.cursorIndex = cursorableEvents.length - 1;
+      appState.keyBuffer = [];
+      updateTimeline();
+      console.log('Entered correction mode, cursorIndex:', appState.cursorIndex);
+    }
+
+    /**
+     * Exit Correction mode.
+     * @param {boolean} confirm - true: write correction buffer to event log; false: discard
+     */
+    function exitCorrectionMode(confirm) {
+      if (confirm && appState.correctionBuffer.length > 0) {
+        // Write all pending corrections to the event log
+        appState.correctionBuffer.forEach(c => {
+          if (c.deleted) {
+            recordEvent({ eventType: 'EventDeleted', boutTime100ms: appState.boutTime100ms, refSeq: c.refSeq });
+          } else if (c.newEventType) {
+            recordEvent({ eventType: 'EventModified', boutTime100ms: appState.boutTime100ms, refSeq: c.refSeq, newEventType: c.newEventType });
+          }
+        });
+      }
+      appState.correctionBuffer = [];
+      appState.inCorrectionMode = false;
+      appState.cursorIndex = null;
+      appState.keyBuffer = [];
+      updateTimeline();
+      updateScores();
+      updateNextEventDisplay();
+      console.log('Exited correction mode, confirmed:', confirm);
+    }
+
+    /** Move the cursor left (-1) or right (+1) within cursorsable events. */
+    function moveCursor(direction) {
+      const cursorableEvents = getCursorableEvents();
+      if (cursorableEvents.length === 0) return;
+      const newIndex = (appState.cursorIndex ?? 0) + direction;
+      if (newIndex < 0 || newIndex >= cursorableEvents.length) return; // clamp at bounds
+      appState.cursorIndex = newIndex;
+      appState.keyBuffer = [];
+      updateTimeline();
+    }
+
+    /** Apply a modification to the currently cursored event in the correction buffer. */
+    function modifyCurrentEvent(modification) {
+      const cursorableEvents = getCursorableEvents();
+      const event = cursorableEvents[appState.cursorIndex];
+      if (!event) return;
+
+      let newEventType;
+      if (modification.type === 'color') {
+        newEventType = modifyEventColor(event.eventType, modification.color);
+      } else if (modification.type === 'points') {
+        newEventType = modifyEventPoints(event.eventType, modification.points);
+      } else if (modification.type === 'passivity') {
+        newEventType = modifyEventToPassivity(event.eventType);
+      } else if (modification.type === 'caution') {
+        newEventType = modifyEventToCaution(event.eventType, modification.points);
+      }
+
+      if (!newEventType || newEventType === event.eventType) return; // no change
+
+      // Replace any existing correction for this seq with the new one
+      appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
+      appState.correctionBuffer.push({ refSeq: event.seq, newEventType });
+
+      updateTimeline();
+      updateScores();
+      console.log('Event modified in buffer:', event.seq, '->', newEventType);
+    }
+
+    /** Delete the currently cursored event (adds it to the correction buffer). */
+    function deleteCurrentEvent() {
+      const cursorableEvents = getCursorableEvents();
+      const event = cursorableEvents[appState.cursorIndex];
+      if (!event) return;
+
+      appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
+      appState.correctionBuffer.push({ refSeq: event.seq, deleted: true });
+
+      // Adjust cursor if necessary
+      const newCursorableEvents = getCursorableEvents();
+      if (newCursorableEvents.length === 0) {
+        exitCorrectionMode(true);
+        return;
+      }
+      if (appState.cursorIndex >= newCursorableEvents.length) {
+        appState.cursorIndex = newCursorableEvents.length - 1;
+      }
+
+      updateTimeline();
+      updateScores();
+      console.log('Event deleted in buffer:', event.seq);
+    }
+
+    /**
+     * Handle a keydown event while in Correction mode.
+     * Prevents default for all keys to avoid browser navigation side effects.
+     */
+    function handleCorrectionModeKey(e) {
+      const key = e.key;
+      e.preventDefault();
+
+      if (key === 'ArrowLeft') { moveCursor(-1); return; }
+      if (key === 'ArrowRight') { moveCursor(1); return; }
+
+      if (key === 'Enter') {
+        exitCorrectionMode(true);
+        return;
+      }
+
+      if (key === 'Escape') {
+        if (appState.keyBuffer.length === 0) {
+          exitCorrectionMode(false);
+        } else {
+          appState.keyBuffer = [];
+        }
+        return;
+      }
+
+      if (key === 'Delete') {
+        deleteCurrentEvent();
+        return;
+      }
+
+      const upperKey = key.toUpperCase();
+
+      // Caution sequence: first '0', then '1' or '2'
+      if (upperKey === '0' && appState.keyBuffer.length === 0) {
+        appState.keyBuffer = ['0'];
+        return;
+      }
+      if ((upperKey === '1' || upperKey === '2') && appState.keyBuffer.join('') === '0') {
+        modifyCurrentEvent({ type: 'caution', points: upperKey });
+        appState.keyBuffer = [];
+        return;
+      }
+
+      // Any other key after '0' resets the buffer (invalid continuation)
+      if (appState.keyBuffer.length > 0) {
+        appState.keyBuffer = [];
+        return;
+      }
+
+      // Single-key modification shortcuts
+      if (upperKey === 'R') { modifyCurrentEvent({ type: 'color', color: 'R' }); return; }
+      if (upperKey === 'B') { modifyCurrentEvent({ type: 'color', color: 'B' }); return; }
+      if (['1', '2', '4', '5'].includes(upperKey)) { modifyCurrentEvent({ type: 'points', points: upperKey }); return; }
+      if (upperKey === 'P') { modifyCurrentEvent({ type: 'passivity' }); return; }
+    }
+
 
     // ===================================================================
     // EVENT BUTTON CLICK HANDLERS
@@ -2304,6 +2607,9 @@
       injectEvent: (evt) => { appState.events.push(evt); updateTimeline(); },
       getState: () => ({
         mode: appState.mode,
+        inCorrectionMode: appState.inCorrectionMode,
+        cursorIndex: appState.cursorIndex,
+        correctionBuffer: appState.correctionBuffer.slice(),
         breakTimerRunning: appState.breakTimerRunning,
         breakTime100ms: appState.breakTime100ms,
         currentPeriodIndex: appState.currentPeriodIndex,
