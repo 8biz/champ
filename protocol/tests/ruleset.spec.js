@@ -14,7 +14,7 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
     expect(new Set(types).size).toBe(types.length);
   });
 
-  test("classificationPoints is an object with winner and looser", async ({ page }) => {
+  test("classificationPoints is an object with winner and loser", async ({ page }) => {
     await page.goto(BASE_URL);
 
     const allValid = await page.evaluate(() => {
@@ -22,7 +22,7 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
       return ruleset.victoryTypes.every(vt => {
         const cp = vt.classificationPoints;
         return cp && typeof cp === 'object' && !Array.isArray(cp) &&
-               cp.winner !== undefined && cp.looser !== undefined;
+               cp.winner !== undefined && cp.loser !== undefined;
       });
     });
     expect(allValid).toBe(true);
@@ -32,10 +32,10 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
     await page.goto(BASE_URL);
 
     const result = await page.evaluate(() => {
-      return window.rulesetHelper.resolveClassificationPoints({ winner: 4, looser: 0 }, {});
+      return window.rulesetHelper.resolveClassificationPoints({ winner: 4, loser: 0 }, {});
     });
     expect(result.winner).toBe(4);
-    expect(result.looser).toBe(0);
+    expect(result.loser).toBe(0);
   });
 
   test("resolveClassificationPoints evaluates conditional winner points (score diff 10 → 3pts)", async ({ page }) => {
@@ -47,7 +47,7 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
       return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, { scoreDifference: 10 });
     });
     expect(result.winner).toBe(3);
-    expect(result.looser).toBe(0);
+    expect(result.loser).toBe(0);
   });
 
   test("resolveClassificationPoints evaluates conditional winner points (score diff 5 → 2pts)", async ({ page }) => {
@@ -59,7 +59,7 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
       return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, { scoreDifference: 5 });
     });
     expect(result.winner).toBe(2);
-    expect(result.looser).toBe(0);
+    expect(result.loser).toBe(0);
   });
 
   test("resolveClassificationPoints evaluates conditional winner points (score diff 1 → 1pt)", async ({ page }) => {
@@ -71,7 +71,7 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
       return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, { scoreDifference: 1 });
     });
     expect(result.winner).toBe(1);
-    expect(result.looser).toBe(0);
+    expect(result.loser).toBe(0);
   });
 
   test("resolveClassificationPoints returns 0 winner pts for score diff 0 without tiebreak context", async ({ page }) => {
@@ -83,7 +83,7 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
       return window.rulesetHelper.resolveClassificationPoints(ps.classificationPoints, { scoreDifference: 0 });
     });
     expect(result.winner).toBe(0);
-    expect(result.looser).toBe(0);
+    expect(result.loser).toBe(0);
   });
 
   test("Completion form auto-fills conditional points based on score difference", async ({ page }) => {
@@ -143,8 +143,8 @@ test.describe("CHAMP Protocol - Ruleset & Victory Types", () => {
         injuryTimeWithBloodInSeconds: 240,
         injuryTimeCountingDirection: "Up",
         victoryTypes: [
-          { type: "PS", description: "A", classificationPoints: { winner: 3, looser: 0 } },
-          { type: "PS", description: "B", classificationPoints: { winner: 1, looser: 0 } }
+          { type: "PS", description: "A", classificationPoints: { winner: 3, loser: 0 } },
+          { type: "PS", description: "B", classificationPoints: { winner: 1, loser: 0 } }
         ]
       });
     });

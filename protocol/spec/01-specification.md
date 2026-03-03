@@ -251,9 +251,9 @@ Each victory type defines how a bout can be won, the classification points award
 
 #### Classification points format
 
-`classificationPoints` is an object with two fields: `winner` and `looser` (note: kept as `looser` for consistency with the codebase).
+`classificationPoints` is an object with two fields: `winner` and `loser`.
 
-Each of `winner` and `looser` can be:
+Each of `winner` and `loser` can be:
 - **A number**: Points awarded unconditionally (e.g., `4`).
 - **An array of conditional entries**: Each entry is a two-element array `[points, { "when": <condition> }]`. Entries are evaluated in order at bout completion; the first matching condition determines the points. If no condition matches, `0` is awarded.
 
@@ -261,7 +261,7 @@ Each of `winner` and `looser` can be:
 
 Unconditional:
 ```json
-"classificationPoints": { "winner": 4, "looser": 0 }
+"classificationPoints": { "winner": 4, "loser": 0 }
 ```
 
 Conditional (points depend on score difference):
@@ -272,7 +272,7 @@ Conditional (points depend on score difference):
     [2, { "when": { "scoreDifference": { "gte": 3, "lte": 7 } } }],
     [1, { "when": { "scoreDifference": { "gte": 0, "lte": 2 } } }]
   ],
-  "looser": 0
+  "loser": 0
 }
 ```
 
@@ -327,12 +327,12 @@ Match when passivity count is greater than 1 (i.e., 2 or more).
     {
       "type": "VFA",
       "description": "Sieg durch Schultersieg",
-      "classificationPoints": { "winner": 5, "looser": 0 }
+      "classificationPoints": { "winner": 5, "loser": 0 }
     },
     {
       "type": "VSU",
       "description": "Sieg durch technische Überlegenheit",
-      "classificationPoints": { "winner": 5, "looser": 0 },
+      "classificationPoints": { "winner": 5, "loser": 0 },
       "condition": {
         "scoreDifference": { "gte": 15 }
       }
@@ -345,7 +345,7 @@ Match when passivity count is greater than 1 (i.e., 2 or more).
           [3, { "when": { "scoreDifference": { "gte": 8, "lte": 14 } } }],
           [1, { "when": { "scoreDifference": { "gte": 1, "lte": 7 } } }]
         ],
-        "looser": 0
+        "loser": 0
       }
     }
   ]
