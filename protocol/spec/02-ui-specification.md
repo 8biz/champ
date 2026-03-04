@@ -302,7 +302,7 @@ A completed scoresheet re-released to correct the top-bar information or complet
 | `EventModified` | `0` + `1` | Change to caution +1 (keeps color; points/passivity become cautions; e.g., `2R` becomes `0R1B`) |
 | `EventModified` | `0` + `2` | Change to caution +2 (keeps color; points/passivity become cautions; e.g., `1B` becomes `0B2R`) |
 | `EventDeleted` | `Delete` | Remove current event |
-| `EventInserted` | `Insert` + (event key sequence for a bout event) | Insert a new event prior to the current event by showing a bout event insert entry. |
+| `EventInserted` | `#` + `#` + (event key sequence for a bout event) | Insert a new event prior to the current event. `#`+`#` enters **Event insert mode**; subsequent bout event key sequence states the event type (e.g. `1`+`R` or `B`+`2`). `Escape` cancels insert mode. Inserted events are shown with a dashed border. |
 | `EventSwapped` | `#` | Enter **Event swap mode** (use `Left arrow`/`Right arrow` to select the event to swap with; `Enter` confirms swapping, `Escape` cancels) |
 | `T_Modified` / `T_IR_Modified` / `T_IB_Modified` / `T_BR_Modified` / `T_BB_Modified` | `T` | Enter **Time modification mode** (enter new time in M:SS format; `Enter` confirms, `Escape` cancels) |
 

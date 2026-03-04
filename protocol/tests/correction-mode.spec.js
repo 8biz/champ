@@ -653,3 +653,225 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     expect(stateAfter.inCorrectionMode).toBe(true);
   });
 });
+
+// ── Event Insertion (## key sequence) ────────────────────────────────────────
+
+test.describe("Event Insertion in Correction Mode (##)", () => {
+
+  test("## enters insert mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft"); // enter correction mode
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inCorrectionMode).toBe(true);
+    expect(state.inInsertMode).toBe(true);
+  });
+
+  test("single # does not enter insert mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inInsertMode).toBe(false);
+    expect(state.inCorrectionMode).toBe(true);
+  });
+
+  test("Escape cancels insert mode and stays in correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("Escape");
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inInsertMode).toBe(false);
+    expect(state.inCorrectionMode).toBe(true);
+  });
+
+  test("## then simple event type (1R) adds insert to correction buffer", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    // Type 1R in insert mode
+    await page.keyboard.press("1");
+    await page.keyboard.press("r");
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inInsertMode).toBe(false);
+    expect(state.inCorrectionMode).toBe(true);
+    expect(state.correctionBuffer).toHaveLength(1);
+    expect(state.correctionBuffer[0].insertedEventType).toBe("1R");
+  });
+
+  test("## then R+1 (reversed order) adds insert to correction buffer", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["2", "B"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("r");
+    await page.keyboard.press("1");
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.correctionBuffer[0].insertedEventType).toBe("1R");
+  });
+
+  test("## then passivity PB inserts PB event", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("p");
+    await page.keyboard.press("b");
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.correctionBuffer[0].insertedEventType).toBe("PB");
+  });
+
+  test("## then caution 0R1B inserts caution event", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("r");
+    await page.keyboard.press("0");
+    await page.keyboard.press("1");
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.correctionBuffer[0].insertedEventType).toBe("0R1B");
+  });
+
+  test("on confirm, EventInserted is recorded in event log", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("2");
+    await page.keyboard.press("b");
+    await page.keyboard.press("Enter"); // confirm
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inCorrectionMode).toBe(false);
+
+    // Check that EventInserted is now in the event log
+    const events = await page.evaluate(() => window.appState ? window.appState.events : []);
+    // We check via the timeline: there should be 2 bout events visible
+    const entries = page.locator(".timeline .entry:not(#next-event)");
+    await expect(entries).toHaveCount(2);
+  });
+
+  test("pending insert in correction buffer shows dotted dark border before confirm", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("2");
+    await page.keyboard.press("b");
+    // Event is now in correction buffer, not yet confirmed
+
+    const pendingEntry = page.locator(".timeline .entry .entry-box.pending-inserted");
+    await expect(pendingEntry).toHaveCount(1);
+  });
+
+  test("inserted event renders in timeline", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("2");
+    await page.keyboard.press("b");
+    await page.keyboard.press("Enter"); // confirm
+
+    // Inserted event should appear before the original cursor event
+    const entries = page.locator(".timeline .entry:not(#next-event) .entry-box");
+    await expect(entries).toHaveText(["2B", "1R"]);
+  });
+
+  test("inserted event is placed before the cursor event in timeline", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+
+    await page.keyboard.press("ArrowLeft"); // correction mode, cursor at last (2B)
+
+    // Insert 4R before 2B
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("4");
+    await page.keyboard.press("r");
+    await page.keyboard.press("Enter"); // confirm
+
+    // Timeline should have 3 entries: 1R, 4R (inserted), 2B
+    const entries = page.locator(".timeline .entry:not(#next-event) .entry-box");
+    await expect(entries).toHaveCount(3);
+    await expect(entries).toHaveText(["1R", "4R", "2B"]);
+  });
+
+  test("pending insert shows as provisional entry before cursor during insert mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+
+    // In insert mode with empty buffer, provisional entry should appear
+    const insertPending = page.locator(".timeline .entry.insert-mode-pending");
+    await expect(insertPending).toHaveCount(1);
+  });
+
+  test("scores are updated after inserting an event", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    const scoreBefore = await page.locator("#score-red").textContent();
+    expect(scoreBefore).toBe("1");
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("2");
+    await page.keyboard.press("r");
+    await page.keyboard.press("Enter");
+
+    const scoreAfter = await page.locator("#score-red").textContent();
+    expect(scoreAfter).toBe("3");
+  });
+
+});
