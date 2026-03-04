@@ -557,4 +557,99 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     // Victory type should now be PS (10 pt difference is in 8–14 range)
     await expect(page.locator("#compl-victory-type")).toHaveValue("PS");
   });
+
+  // ── Pending visual state ──────────────────────────────────────────────────
+
+  test("pending-deleted event stays visible in timeline with pending-deleted class", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["2", "R"]);
+
+    await page.keyboard.press("ArrowLeft"); // enter correction mode, cursor at the event
+    await page.keyboard.press("Delete");    // mark pending-deleted
+
+    // Event is still in the timeline but its entry has the pending-deleted class
+    const entries = page.locator(".timeline .entry");
+    await expect(entries).toHaveCount(1);
+    await expect(entries.first()).toHaveClass(/pending-deleted/);
+  });
+
+  test("pending-modified event shows two-line correction entry with original struck through", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]); // original: 1R
+
+    await page.keyboard.press("ArrowLeft"); // enter correction mode
+    await page.keyboard.press("b");         // modify to 1B (pending)
+
+    const entryBox = page.locator(".timeline .entry .entry-box.correction");
+    await expect(entryBox).toHaveCount(1);
+    // Top row: old event name with strikethrough class
+    await expect(entryBox.locator(".caution-row.old")).toContainText("1R");
+    // Bottom row: new event name
+    await expect(entryBox.locator(".caution-row.blue")).toContainText("1B");
+  });
+
+  // ── No auto-exit when all events deleted ─────────────────────────────────
+
+  test("deleting last event does not auto-exit correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft"); // enter correction mode
+    await page.keyboard.press("Delete");    // mark only event as pending-deleted
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inCorrectionMode).toBe(true);
+    expect(state.cursorIndex).toBeNull();
+  });
+
+  test("confirming after deleting all events clears the timeline", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("Delete");
+    await page.keyboard.press("Enter"); // confirm all deletions
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inCorrectionMode).toBe(false);
+    // All entries removed from timeline
+    await expect(page.locator(".timeline .entry:not(#next-event)")).toHaveCount(0);
+  });
+
+  // ── Backspace navigates left in correction mode ───────────────────────────
+
+  test("Backspace moves cursor left in correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+
+    await page.keyboard.press("ArrowLeft"); // enter correction mode, cursor at index 1 (2B)
+    const stateBefore = await page.evaluate(() => window.testHelper.getState());
+    expect(stateBefore.cursorIndex).toBe(1);
+
+    await page.keyboard.press("Backspace"); // move left to index 0 (1R)
+    const stateAfter = await page.evaluate(() => window.testHelper.getState());
+    expect(stateAfter.cursorIndex).toBe(0);
+    expect(stateAfter.inCorrectionMode).toBe(true);
+  });
+
+  test("Backspace at leftmost cursor position stays at index 0", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft"); // enter correction mode, cursor at index 0
+    const stateBefore = await page.evaluate(() => window.testHelper.getState());
+    expect(stateBefore.cursorIndex).toBe(0);
+
+    await page.keyboard.press("Backspace"); // already at leftmost, no change
+    const stateAfter = await page.evaluate(() => window.testHelper.getState());
+    expect(stateAfter.cursorIndex).toBe(0);
+    expect(stateAfter.inCorrectionMode).toBe(true);
+  });
 });

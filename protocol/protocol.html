@@ -410,6 +410,28 @@
       background: color-mix(in srgb, var(--neutral-2) 10%, white);
     }
 
+    .entry.pending-deleted {
+      opacity: 0.2;
+    }
+
+    .entry-box.correction {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      padding: 0;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .entry-box.correction.red { border-color: var(--red); }
+    .entry-box.correction.blue { border-color: var(--blue); }
+    .entry-box.correction.next { border-color: var(--neutral-3); }
+
+    .caution-row.old {
+      background: var(--neutral-1);
+      color: var(--neutral-3);
+      text-decoration: line-through;
+    }
+
     .correction-bar {
       display: flex;
       gap: 0.3rem;
@@ -1522,6 +1544,57 @@
       return getEffectiveBoutEvents().filter(e => e.eventType !== 'PeriodEnd');
     }
 
+    /**
+     * Returns bout events for timeline rendering in correction mode.
+     * Committed corrections are applied; pending corrections (correctionBuffer) are annotated:
+     *   – pending-deleted:  { ...event, pendingDeleted: true }
+     *   – pending-modified: { ...event, eventType: newType, originalEventType: currentType }
+     */
+    function getBoutEventsForTimelineRendering() {
+      const rawBoutEvents = appState.events.filter(e =>
+        e.boutTime100ms !== undefined &&
+        !e.eventType.startsWith('T_') &&
+        e.eventType !== 'ScoresheetReleased' &&
+        e.eventType !== 'ScoresheetCompleted' &&
+        e.eventType !== 'EventModified' &&
+        e.eventType !== 'EventDeleted' &&
+        e.eventType !== 'EventInserted' &&
+        e.eventType !== 'EventSwapped'
+      );
+
+      const committedDeletedSeqs = new Set();
+      const committedModifiedTypes = new Map();
+      appState.events.forEach(e => {
+        if (e.eventType === 'EventModified' && e.refSeq !== undefined && e.newEventType) {
+          committedModifiedTypes.set(e.refSeq, e.newEventType);
+        }
+        if (e.eventType === 'EventDeleted' && e.refSeq !== undefined) {
+          committedDeletedSeqs.add(e.refSeq);
+        }
+      });
+
+      const pendingDeletedSeqs = new Set();
+      const pendingModifiedTypes = new Map();
+      appState.correctionBuffer.forEach(c => {
+        if (c.deleted) pendingDeletedSeqs.add(c.refSeq);
+        else if (c.newEventType) pendingModifiedTypes.set(c.refSeq, c.newEventType);
+      });
+
+      return rawBoutEvents
+        .filter(e => !committedDeletedSeqs.has(e.seq))
+        .map(e => {
+          const committedType = committedModifiedTypes.get(e.seq);
+          const currentType = committedType || e.eventType;
+          if (pendingDeletedSeqs.has(e.seq)) {
+            return { ...e, eventType: currentType, pendingDeleted: true };
+          }
+          if (pendingModifiedTypes.has(e.seq)) {
+            return { ...e, eventType: pendingModifiedTypes.get(e.seq), originalEventType: currentType };
+          }
+          return { ...e, eventType: currentType };
+        });
+    }
+
     function calculateScores(events) {
       const scores = { red: 0, blue: 0 };
       
@@ -1572,19 +1645,27 @@
       // Show correction mode indicator
       timeline.classList.toggle('correction-mode', appState.inCorrectionMode);
 
+      // In correction mode, use annotated events so pending-deleted/modified are visible
+      const renderEvents = appState.inCorrectionMode
+        ? getBoutEventsForTimelineRendering()
+        : effectiveBoutEvents;
+
       let runningRed = 0, runningBlue = 0, periodRed = 0, periodBlue = 0, periodCount = 0;
-      effectiveBoutEvents.forEach(event => {
-        const pointMatch = event.eventType.match(/^([1245])(R|B)$/);
-        if (pointMatch) {
-          const pts = parseInt(pointMatch[1]);
-          if (pointMatch[2] === 'R') { runningRed += pts; periodRed += pts; }
-          else { runningBlue += pts; periodBlue += pts; }
-        }
-        const cautionMatch = event.eventType.match(/^0([RB])([12])([RB])$/);
-        if (cautionMatch) {
-          const pts = parseInt(cautionMatch[2]);
-          if (cautionMatch[3] === 'R') { runningRed += pts; periodRed += pts; }
-          else { runningBlue += pts; periodBlue += pts; }
+      renderEvents.forEach(event => {
+        // Skip pending-deleted events when accumulating period/running scores
+        if (!event.pendingDeleted) {
+          const pointMatch = event.eventType.match(/^([1245])(R|B)$/);
+          if (pointMatch) {
+            const pts = parseInt(pointMatch[1]);
+            if (pointMatch[2] === 'R') { runningRed += pts; periodRed += pts; }
+            else { runningBlue += pts; periodBlue += pts; }
+          }
+          const cautionMatch = event.eventType.match(/^0([RB])([12])([RB])$/);
+          if (cautionMatch) {
+            const pts = parseInt(cautionMatch[2]);
+            if (cautionMatch[3] === 'R') { runningRed += pts; periodRed += pts; }
+            else { runningBlue += pts; periodBlue += pts; }
+          }
         }
         let context = null;
         if (event.eventType === 'PeriodEnd') {
@@ -1595,6 +1676,7 @@
         }
         const isCursor = event.seq === cursorSeq;
         const entry = createTimelineEntry(event, context, isCursor);
+        if (event.pendingDeleted) entry.classList.add('pending-deleted');
         timeline.appendChild(entry);
       });
       
@@ -1619,6 +1701,15 @@
       }
     }
 
+    /** Returns the main color class ('red', 'blue', 'next') for an event type string. */
+    function eventColorClass(type) {
+      const ptMatch = type.match(/^[1245P](R|B)$/);
+      if (ptMatch) return ptMatch[1] === 'R' ? 'red' : 'blue';
+      const cautionMatch = type.match(/^0([RB])/);
+      if (cautionMatch) return cautionMatch[1] === 'R' ? 'red' : 'blue';
+      return 'next';
+    }
+
     function createTimelineEntry(event, context, isCursor = false) {
       const entry = document.createElement('div');
       entry.className = 'entry';
@@ -1627,8 +1718,16 @@
       const cursorClass = isCursor ? ' cursor' : '';
       let boxHtml = '';
       
-      // Check if it's a PeriodEnd event
-      if (eventType === 'PeriodEnd' && context) {
+      if (event.originalEventType) {
+        // Pending modification: two-line entry — old name (struck through) over new name
+        const newColorClass = eventColorClass(eventType);
+        boxHtml = `
+          <div class="entry-box correction ${newColorClass}${cursorClass}">
+            <div class="caution-row old">${event.originalEventType}</div>
+            <div class="caution-row ${newColorClass}">${eventType}</div>
+          </div>
+        `;
+      } else if (eventType === 'PeriodEnd' && context) {
         const { periodNumber, scoreRed, scoreBlue } = context;
         const winnerClass = scoreRed > scoreBlue ? 'red' : (scoreBlue > scoreRed ? 'blue' : 'neutral');
         boxHtml = `
@@ -2066,13 +2165,11 @@
       appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
       appState.correctionBuffer.push({ refSeq: event.seq, deleted: true });
 
-      // Adjust cursor if necessary
+      // Adjust cursor index; if no more cursorsable events remain, clear it (stay in correction mode)
       const newCursorableEvents = getCursorableEvents();
       if (newCursorableEvents.length === 0) {
-        exitCorrectionMode(true);
-        return;
-      }
-      if (appState.cursorIndex >= newCursorableEvents.length) {
+        appState.cursorIndex = null;
+      } else if (appState.cursorIndex >= newCursorableEvents.length) {
         appState.cursorIndex = newCursorableEvents.length - 1;
       }
 
@@ -2101,7 +2198,7 @@
 
       e.preventDefault();
 
-      if (key === 'ArrowLeft') { moveCursor(-1); return; }
+      if (key === 'ArrowLeft' || key === 'Backspace') { moveCursor(-1); return; }
       if (key === 'ArrowRight') { moveCursor(1); return; }
 
       if (key === 'Enter') {
