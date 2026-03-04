@@ -801,12 +801,9 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
 
     const pendingEntry = page.locator(".timeline .entry .entry-box.pending-inserted");
     await expect(pendingEntry).toHaveCount(1);
-    // Confirmed inserted class should NOT be present yet
-    const confirmedEntry = page.locator(".timeline .entry .entry-box.inserted:not(.pending-inserted)");
-    await expect(confirmedEntry).toHaveCount(0);
   });
 
-  test("inserted event shows with dashed border in timeline", async ({ page }) => {
+  test("inserted event renders in timeline", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
@@ -818,9 +815,9 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     await page.keyboard.press("b");
     await page.keyboard.press("Enter"); // confirm
 
-    // The inserted event should have a dashed border (class "inserted")
-    const insertedEntry = page.locator(".timeline .entry .entry-box.inserted");
-    await expect(insertedEntry).toHaveCount(1);
+    // Inserted event should appear before the original cursor event
+    const entries = page.locator(".timeline .entry:not(#next-event) .entry-box");
+    await expect(entries).toHaveText(["2B", "1R"]);
   });
 
   test("inserted event is placed before the cursor event in timeline", async ({ page }) => {
@@ -841,8 +838,7 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     // Timeline should have 3 entries: 1R, 4R (inserted), 2B
     const entries = page.locator(".timeline .entry:not(#next-event) .entry-box");
     await expect(entries).toHaveCount(3);
-    await expect(entries.nth(1)).toHaveClass(/inserted/);
-    await expect(entries.nth(1)).toContainText("4R");
+    await expect(entries).toHaveText(["1R", "4R", "2B"]);
   });
 
   test("pending insert shows as provisional entry before cursor during insert mode", async ({ page }) => {

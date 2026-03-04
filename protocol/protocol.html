@@ -414,13 +414,9 @@
       opacity: 0.2;
     }
 
-    .entry-box.inserted {
-      border-style: dashed;
-    }
-
     .entry-box.pending-inserted {
       border-style: dotted;
-      border-color: var(--neutral-3) !important;
+      border-color: var(--neutral-1) !important;
     }
 
     .entry-box.correction {
@@ -1557,8 +1553,7 @@
           const insertedEvent = {
             seq: ins.seq,
             boutTime100ms: ins.boutTime100ms,
-            eventType: effectiveType,
-            isInserted: true
+            eventType: effectiveType
           };
           const idx = result.findIndex(e => e.seq === ins.refSeq);
           if (idx >= 0) {
@@ -1582,7 +1577,6 @@
      *   – pending-deleted:  { ...event, pendingDeleted: true }
      *   – pending-modified: { ...event, eventType: newType, originalEventType: currentType }
      *   – pending-inserted: { ..., isPendingInserted: true }
-     *   – committed-inserted: { ..., isInserted: true }
      */
     function getBoutEventsForTimelineRendering() {
       const rawBoutEvents = appState.events.filter(e =>
@@ -1637,11 +1631,11 @@
           const currentType = committedType || ins.insertedEventType;
           let insertedEvent;
           if (pendingDeletedSeqs.has(ins.seq)) {
-            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType, isInserted: true, pendingDeleted: true };
+            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType, pendingDeleted: true };
           } else if (pendingModifiedTypes.has(ins.seq)) {
-            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: pendingModifiedTypes.get(ins.seq), originalEventType: currentType, isInserted: true };
+            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: pendingModifiedTypes.get(ins.seq), originalEventType: currentType };
           } else {
-            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType, isInserted: true };
+            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType };
           }
           const idx = result.findIndex(e => e.seq === ins.refSeq);
           if (idx >= 0) {
@@ -1799,7 +1793,7 @@
       
       const eventType = event.eventType;
       const cursorClass = isCursor ? ' cursor' : '';
-      const insertedClass = event.isInserted ? ' inserted' : (event.isPendingInserted ? ' pending-inserted' : '');
+      const insertedClass = event.isPendingInserted ? ' pending-inserted' : '';
       let boxHtml = '';
       
       if (event.originalEventType) {
