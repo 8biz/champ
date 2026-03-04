@@ -414,6 +414,10 @@
       opacity: 0.2;
     }
 
+    .entry-box.inserted {
+      border-style: dashed;
+    }
+
     .entry-box.correction {
       display: grid;
       grid-template-rows: 1fr 1fr;
@@ -795,8 +799,9 @@
       },
       timeModTarget: null,  // null = bout time, 'IR'/'IB'/'BR'/'BB' = injury timer
       inCorrectionMode: false,
+      inInsertMode: false,  // sub-mode of correction: ## pressed, waiting for event type
       cursorIndex: null,    // null = at next-event; integer = index in cursorsable bout events
-      correctionBuffer: []  // pending {refSeq, newEventType} or {refSeq, deleted:true}
+      correctionBuffer: []  // pending {refSeq, newEventType} or {refSeq, deleted:true} or {insertBefore, boutTime100ms, insertedEventType}
     };
 
     // ===================================================================
@@ -1496,7 +1501,7 @@
 
     /**
      * Returns the effective list of bout events, applying committed
-     * EventModified / EventDeleted corrections from appState.events and
+     * EventModified / EventDeleted / EventInserted corrections from appState.events and
      * any pending corrections from appState.correctionBuffer.
      */
     function getEffectiveBoutEvents() {
@@ -1531,12 +1536,34 @@
         }
       });
 
-      return rawBoutEvents
+      const result = rawBoutEvents
         .filter(e => !deletedSeqs.has(e.seq))
         .map(e => {
           const effectiveType = modifiedTypes.get(e.seq);
           return effectiveType ? { ...e, eventType: effectiveType } : e;
         });
+
+      // Apply committed EventInserted events: insert virtual events at the right positions
+      appState.events
+        .filter(e => e.eventType === 'EventInserted')
+        .forEach(ins => {
+          if (deletedSeqs.has(ins.seq)) return; // skip if itself deleted
+          const effectiveType = modifiedTypes.get(ins.seq) || ins.insertedEventType;
+          const insertedEvent = {
+            seq: ins.seq,
+            boutTime100ms: ins.boutTime100ms,
+            eventType: effectiveType,
+            isInserted: true
+          };
+          const idx = result.findIndex(e => e.seq === ins.refSeq);
+          if (idx >= 0) {
+            result.splice(idx, 0, insertedEvent);
+          } else {
+            result.push(insertedEvent);
+          }
+        });
+
+      return result;
     }
 
     /** Returns cursorsable bout events (excluding PeriodEnd entries). */
@@ -1549,6 +1576,8 @@
      * Committed corrections are applied; pending corrections (correctionBuffer) are annotated:
      *   – pending-deleted:  { ...event, pendingDeleted: true }
      *   – pending-modified: { ...event, eventType: newType, originalEventType: currentType }
+     *   – pending-inserted: { ..., isPendingInserted: true }
+     *   – committed-inserted: { ..., isInserted: true }
      */
     function getBoutEventsForTimelineRendering() {
       const rawBoutEvents = appState.events.filter(e =>
@@ -1580,7 +1609,7 @@
         else if (c.newEventType) pendingModifiedTypes.set(c.refSeq, c.newEventType);
       });
 
-      return rawBoutEvents
+      const result = rawBoutEvents
         .filter(e => !committedDeletedSeqs.has(e.seq))
         .map(e => {
           const committedType = committedModifiedTypes.get(e.seq);
@@ -1593,6 +1622,49 @@
           }
           return { ...e, eventType: currentType };
         });
+
+      // Apply committed EventInserted events
+      appState.events
+        .filter(e => e.eventType === 'EventInserted')
+        .forEach(ins => {
+          if (committedDeletedSeqs.has(ins.seq)) return;
+          const committedType = committedModifiedTypes.get(ins.seq);
+          const currentType = committedType || ins.insertedEventType;
+          let insertedEvent;
+          if (pendingDeletedSeqs.has(ins.seq)) {
+            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType, isInserted: true, pendingDeleted: true };
+          } else if (pendingModifiedTypes.has(ins.seq)) {
+            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: pendingModifiedTypes.get(ins.seq), originalEventType: currentType, isInserted: true };
+          } else {
+            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType, isInserted: true };
+          }
+          const idx = result.findIndex(e => e.seq === ins.refSeq);
+          if (idx >= 0) {
+            result.splice(idx, 0, insertedEvent);
+          } else {
+            result.push(insertedEvent);
+          }
+        });
+
+      // Apply pending insertions from correctionBuffer
+      appState.correctionBuffer
+        .filter(c => c.insertedEventType)
+        .forEach(ins => {
+          const insertedEvent = {
+            seq: `pi-${ins.insertBefore}`,
+            boutTime100ms: ins.boutTime100ms,
+            eventType: ins.insertedEventType,
+            isPendingInserted: true
+          };
+          const idx = result.findIndex(e => e.seq === ins.insertBefore);
+          if (idx >= 0) {
+            result.splice(idx, 0, insertedEvent);
+          } else {
+            result.push(insertedEvent);
+          }
+        });
+
+      return result;
     }
 
     function calculateScores(events) {
@@ -1652,6 +1724,12 @@
 
       let runningRed = 0, runningBlue = 0, periodRed = 0, periodBlue = 0, periodCount = 0;
       renderEvents.forEach(event => {
+        // In insert mode, inject provisional insert entry before the cursor event
+        if (appState.inInsertMode && event.seq === cursorSeq) {
+          const insertEntry = createInsertModeEntry(appState.keyBuffer);
+          timeline.appendChild(insertEntry);
+        }
+
         // Skip pending-deleted events when accumulating period/running scores
         if (!event.pendingDeleted) {
           const pointMatch = event.eventType.match(/^([1245])(R|B)$/);
@@ -1716,6 +1794,7 @@
       
       const eventType = event.eventType;
       const cursorClass = isCursor ? ' cursor' : '';
+      const insertedClass = (event.isInserted || event.isPendingInserted) ? ' inserted' : '';
       let boxHtml = '';
       
       if (event.originalEventType) {
@@ -1743,7 +1822,7 @@
           const cautionSide = cautionMatch[1] === 'R' ? 'red' : 'blue';
           const pointSide = cautionMatch[3] === 'R' ? 'red' : 'blue';
           boxHtml = `
-            <div class="entry-box caution ${cautionSide === 'red' ? 'red' : 'blue'}${cursorClass}">
+            <div class="entry-box caution ${cautionSide === 'red' ? 'red' : 'blue'}${insertedClass}${cursorClass}">
               <div class="caution-row ${cautionSide}">0${cautionMatch[1]}</div>
               <div class="caution-row ${pointSide}">${cautionMatch[2]}${cautionMatch[3]}</div>
             </div>
@@ -1751,7 +1830,7 @@
         } else {
           // Regular event (points or passivity)
           const colorClass = eventType.includes('R') ? 'red' : (eventType.includes('B') ? 'blue' : 'next');
-          boxHtml = `<div class="entry-box ${colorClass}${cursorClass}">${eventType}</div>`;
+          boxHtml = `<div class="entry-box ${colorClass}${insertedClass}${cursorClass}">${eventType}</div>`;
         }
       }
       
@@ -1760,6 +1839,30 @@
         <div class="entry-time">${formatTime100ms(event.boutTime100ms)}</div>
       `;
       
+      return entry;
+    }
+
+    /**
+     * Create a provisional insert-mode entry displayed before the cursor event
+     * while the user is typing a new event type in insert mode.
+     */
+    function createInsertModeEntry(keyBuffer) {
+      const entry = document.createElement('div');
+      entry.className = 'entry insert-mode-pending';
+      const data = getNextEventDisplayData(keyBuffer);
+      let boxHtml;
+      if (data.type === 'caution') {
+        boxHtml = `
+          <div class="entry-box caution ${data.cautionColor} inserted">
+            <div class="caution-row ${data.cautionColor}">${data.cautionLabel}</div>
+            <div class="caution-row ${data.oppColor}">${data.oppLabel}</div>
+          </div>`;
+      } else if (data.type === 'color') {
+        boxHtml = `<div class="entry-box ${data.color} inserted">${data.text}</div>`;
+      } else {
+        boxHtml = `<div class="entry-box next inserted">${data.text}</div>`;
+      }
+      entry.innerHTML = `${boxHtml}<div class="entry-time">⊕</div>`;
       return entry;
     }
 
@@ -2104,11 +2207,14 @@
             recordEvent({ eventType: 'EventDeleted', boutTime100ms: appState.boutTime100ms, refSeq: c.refSeq });
           } else if (c.newEventType) {
             recordEvent({ eventType: 'EventModified', boutTime100ms: appState.boutTime100ms, refSeq: c.refSeq, newEventType: c.newEventType });
+          } else if (c.insertedEventType) {
+            recordEvent({ eventType: 'EventInserted', boutTime100ms: c.boutTime100ms, refSeq: c.insertBefore, insertedEventType: c.insertedEventType });
           }
         });
       }
       appState.correctionBuffer = [];
       appState.inCorrectionMode = false;
+      appState.inInsertMode = false;
       appState.cursorIndex = null;
       appState.keyBuffer = [];
       updateTimeline();
@@ -2198,6 +2304,12 @@
 
       e.preventDefault();
 
+      // ── Insert mode sub-handler ──────────────────────────────────────
+      if (appState.inInsertMode) {
+        handleInsertModeKey(key);
+        return;
+      }
+
       if (key === 'ArrowLeft' || key === 'Backspace') { moveCursor(-1); return; }
       if (key === 'ArrowRight') { moveCursor(1); return; }
 
@@ -2222,6 +2334,27 @@
 
       const upperKey = key.toUpperCase();
 
+      // '#' + '#' → enter insert mode
+      if (key === '#') {
+        if (appState.keyBuffer.join('') === '#') {
+          // Second '#': activate insert mode
+          appState.inInsertMode = true;
+          appState.keyBuffer = [];
+          updateTimeline();
+          console.log('Entered insert mode');
+        } else {
+          // First '#': buffer it (may become ## or be cleared by next key)
+          appState.keyBuffer = ['#'];
+        }
+        return;
+      }
+
+      // Any key while buffer contains '#' (but wasn't a second '#'): clear buffer, process key normally
+      if (appState.keyBuffer.join('') === '#') {
+        appState.keyBuffer = [];
+        // fall through to process this key as a normal correction key
+      }
+
       // Caution sequence: first '0', then '1' or '2'
       if (upperKey === '0' && appState.keyBuffer.length === 0) {
         appState.keyBuffer = ['0'];
@@ -2244,6 +2377,85 @@
       if (upperKey === 'B') { modifyCurrentEvent({ type: 'color', color: 'B' }); return; }
       if (['1', '2', '4', '5'].includes(upperKey)) { modifyCurrentEvent({ type: 'points', points: upperKey }); return; }
       if (upperKey === 'P') { modifyCurrentEvent({ type: 'passivity' }); return; }
+    }
+
+    /**
+     * Handle a key press while in insert mode (after ## in correction mode).
+     * Accepts bout event key sequences; on completion inserts a pending event.
+     */
+    function handleInsertModeKey(key) {
+      if (key === 'Escape') {
+        // Cancel insert mode, return to regular correction mode
+        appState.inInsertMode = false;
+        appState.keyBuffer = [];
+        updateTimeline();
+        console.log('Insert mode cancelled');
+        return;
+      }
+
+      // Enter with empty buffer: also cancel insert mode
+      if (key === 'Enter' && appState.keyBuffer.length === 0) {
+        appState.inInsertMode = false;
+        updateTimeline();
+        return;
+      }
+
+      const upperKey = key.toUpperCase();
+
+      // Validate as bout event key continuation
+      if (!isValidContinuation(appState.keyBuffer, key)) {
+        appState.keyBuffer = [];
+        updateTimeline();
+        return;
+      }
+
+      appState.keyBuffer.push(key);
+      updateTimeline();
+
+      // Try to resolve a complete bout event sequence
+      const insertedEventType = resolveInsertEventType(appState.keyBuffer);
+      if (insertedEventType) {
+        // Determine the bout time: use the cursor event's bout time
+        const cursorableEvents = getCursorableEvents();
+        const cursorEvent = cursorableEvents[appState.cursorIndex];
+        if (!cursorEvent) {
+          appState.inInsertMode = false;
+          appState.keyBuffer = [];
+          updateTimeline();
+          return;
+        }
+        appState.correctionBuffer.push({
+          insertBefore: cursorEvent.seq,
+          boutTime100ms: cursorEvent.boutTime100ms,
+          insertedEventType
+        });
+        appState.inInsertMode = false;
+        appState.keyBuffer = [];
+        updateTimeline();
+        updateScores();
+        console.log('Event inserted in buffer:', insertedEventType, 'before seq', cursorEvent.seq);
+      }
+    }
+
+    /**
+     * Resolve a complete bout event type string from a key buffer, or return null
+     * if the buffer does not yet form a complete bout event sequence.
+     */
+    function resolveInsertEventType(buffer) {
+      const seq = buffer.map(k => k.toUpperCase()).join('');
+      // Technical points: R1, 1R, R2, 2R, etc.
+      if (seq.match(/^[RB][1245]$/)) return seq[1] + seq[0];
+      if (seq.match(/^[1245][RB]$/)) return seq[0] + seq[1];
+      // Passivity: RP, PR, BP, PB
+      if (seq === 'RP' || seq === 'PR') return 'PR';
+      if (seq === 'BP' || seq === 'PB') return 'PB';
+      // Cautions: R01/0R1, R02/0R2, B01/0B1, B02/0B2
+      const cautionMatch = seq.match(/^([RB])0([12])$/) || seq.match(/^0([RB])([12])$/);
+      if (cautionMatch) {
+        const s = cautionMatch[1], pts = cautionMatch[2], opp = s === 'R' ? 'B' : 'R';
+        return `0${s}${pts}${opp}`;
+      }
+      return null;
     }
 
 
@@ -2718,6 +2930,7 @@
       getState: () => ({
         mode: appState.mode,
         inCorrectionMode: appState.inCorrectionMode,
+        inInsertMode: appState.inInsertMode,
         cursorIndex: appState.cursorIndex,
         correctionBuffer: appState.correctionBuffer.slice(),
         breakTimerRunning: appState.breakTimerRunning,
