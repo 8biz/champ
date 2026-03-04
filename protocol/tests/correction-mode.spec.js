@@ -787,6 +787,25 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     await expect(entries).toHaveCount(2);
   });
 
+  test("pending insert in correction buffer shows dotted dark border before confirm", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("2");
+    await page.keyboard.press("b");
+    // Event is now in correction buffer, not yet confirmed
+
+    const pendingEntry = page.locator(".timeline .entry .entry-box.pending-inserted");
+    await expect(pendingEntry).toHaveCount(1);
+    // Confirmed inserted class should NOT be present yet
+    const confirmedEntry = page.locator(".timeline .entry .entry-box.inserted:not(.pending-inserted)");
+    await expect(confirmedEntry).toHaveCount(0);
+  });
+
   test("inserted event shows with dashed border in timeline", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);

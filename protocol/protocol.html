@@ -418,6 +418,11 @@
       border-style: dashed;
     }
 
+    .entry-box.pending-inserted {
+      border-style: dotted;
+      border-color: var(--neutral-3) !important;
+    }
+
     .entry-box.correction {
       display: grid;
       grid-template-rows: 1fr 1fr;
@@ -1794,7 +1799,7 @@
       
       const eventType = event.eventType;
       const cursorClass = isCursor ? ' cursor' : '';
-      const insertedClass = (event.isInserted || event.isPendingInserted) ? ' inserted' : '';
+      const insertedClass = event.isInserted ? ' inserted' : (event.isPendingInserted ? ' pending-inserted' : '');
       let boxHtml = '';
       
       if (event.originalEventType) {
