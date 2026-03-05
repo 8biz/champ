@@ -398,6 +398,15 @@
       box-shadow: 0 0 0 0.125rem #fff, 0 0 0 0.25rem var(--neutral-3);
     }
 
+    .entry-box.cursor.swap-mode {
+      box-shadow: 0 0 0 0.125rem #fff, 0 0 0 0.25rem var(--text), 0 0 0 0.375rem #fff, 0 0 0 0.5rem var(--text);
+    }
+
+    .entry.swap-origin > .entry-box {
+      border-style: dashed;
+      opacity: 0.7;
+    }
+
     .entry-time {
       font-size: 0.5rem;
       color: var(--neutral-3);
@@ -801,8 +810,10 @@
       timeModTarget: null,  // null = bout time, 'IR'/'IB'/'BR'/'BB' = injury timer
       inCorrectionMode: false,
       inInsertMode: false,  // sub-mode of correction: ## pressed, waiting for event type
+      inSwapMode: false,    // sub-mode of correction: # pressed, selecting swap partner
+      swapOriginIndex: null, // cursorIndex when swap mode was entered (fixed origin)
       cursorIndex: null,    // null = at next-event; integer = index in cursorsable bout events
-      correctionBuffer: []  // pending {refSeq, newEventType} or {refSeq, deleted:true} or {insertBefore, boutTime100ms, insertedEventType}
+      correctionBuffer: []  // pending {refSeq, newEventType} or {refSeq, deleted:true} or {insertBefore, boutTime100ms, insertedEventType} or {swapped:true, refSeq1, refSeq2}
     };
 
     // ===================================================================
@@ -1501,6 +1512,24 @@
     const scoreBlueDisplay = document.getElementById('score-blue');
 
     /**
+     * Exchange the eventType of two entries in-place within a result array.
+     * @param {object[]} result  Array of event objects to mutate.
+     * @param {*} seq1  seq of the first event.
+     * @param {*} seq2  seq of the second event.
+     * @param {boolean} annotate  When true, also sets originalEventType so the
+     *   timeline can render the two-line correction (struck-through old / new) display.
+     */
+    function applyEventTypeSwap(result, seq1, seq2, annotate = false) {
+      const idx1 = result.findIndex(e => e.seq === seq1);
+      const idx2 = result.findIndex(e => e.seq === seq2);
+      if (idx1 < 0 || idx2 < 0) return;
+      const type1 = result[idx1].eventType;
+      const type2 = result[idx2].eventType;
+      result[idx1] = { ...result[idx1], eventType: type2, ...(annotate ? { originalEventType: type1 } : {}) };
+      result[idx2] = { ...result[idx2], eventType: type1, ...(annotate ? { originalEventType: type2 } : {}) };
+    }
+
+    /**
      * Returns the effective list of bout events, applying committed
      * EventModified / EventDeleted / EventInserted corrections from appState.events and
      * any pending corrections from appState.correctionBuffer.
@@ -1562,6 +1591,27 @@
             result.push(insertedEvent);
           }
         });
+
+      // Apply committed EventSwapped events (exchange event types of the two referenced events)
+      appState.events
+        .filter(e => e.eventType === 'EventSwapped')
+        .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2));
+
+      // Apply pending swaps from correctionBuffer
+      appState.correctionBuffer
+        .filter(c => c.swapped)
+        .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2));
+
+      // Apply live swap preview (during swap mode navigation, before Enter is pressed)
+      if (appState.inSwapMode && appState.swapOriginIndex !== null &&
+          appState.cursorIndex !== null && appState.cursorIndex !== appState.swapOriginIndex) {
+        const cursorableResult = result.filter(e => e.eventType !== 'PeriodEnd');
+        const originEvent = cursorableResult[appState.swapOriginIndex];
+        const targetEvent = cursorableResult[appState.cursorIndex];
+        if (originEvent && targetEvent) {
+          applyEventTypeSwap(result, originEvent.seq, targetEvent.seq);
+        }
+      }
 
       return result;
     }
@@ -1645,6 +1695,27 @@
           }
         });
 
+      // Apply committed EventSwapped events (just exchange types, no annotation needed after confirmation)
+      appState.events
+        .filter(e => e.eventType === 'EventSwapped')
+        .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2));
+
+      // Apply pending swaps from correctionBuffer (annotate with originalEventType for two-line display)
+      appState.correctionBuffer
+        .filter(c => c.swapped)
+        .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2, true));
+
+      // Apply live swap preview (during swap mode navigation, before Enter is pressed)
+      if (appState.inSwapMode && appState.swapOriginIndex !== null &&
+          appState.cursorIndex !== null && appState.cursorIndex !== appState.swapOriginIndex) {
+        const cursorableResult = result.filter(e => e.eventType !== 'PeriodEnd');
+        const originEvent = cursorableResult[appState.swapOriginIndex];
+        const targetEvent = cursorableResult[appState.cursorIndex];
+        if (originEvent && targetEvent) {
+          applyEventTypeSwap(result, originEvent.seq, targetEvent.seq, true);
+        }
+      }
+
       // Apply pending insertions from correctionBuffer
       appState.correctionBuffer
         .filter(c => c.insertedEventType)
@@ -1713,6 +1784,15 @@
         if (cursorEvent) cursorSeq = cursorEvent.seq;
       }
 
+      // Determine the seq of the swap origin event (for swap-mode visual)
+      let swapOriginSeq = null;
+      if (appState.inSwapMode && appState.swapOriginIndex !== null &&
+          appState.cursorIndex !== appState.swapOriginIndex) {
+        const cursorableEvents = effectiveBoutEvents.filter(e => e.eventType !== 'PeriodEnd');
+        const swapOriginEvent = cursorableEvents[appState.swapOriginIndex];
+        if (swapOriginEvent) swapOriginSeq = swapOriginEvent.seq;
+      }
+
       // Show correction mode indicator
       timeline.classList.toggle('correction-mode', appState.inCorrectionMode);
 
@@ -1752,7 +1832,8 @@
           periodBlue = 0;
         }
         const isCursor = event.seq === cursorSeq;
-        const entry = createTimelineEntry(event, context, isCursor);
+        const isSwapOrigin = swapOriginSeq !== null && event.seq === swapOriginSeq;
+        const entry = createTimelineEntry(event, context, isCursor, isSwapOrigin);
         if (event.pendingDeleted) entry.classList.add('pending-deleted');
         timeline.appendChild(entry);
       });
@@ -1787,12 +1868,13 @@
       return 'next';
     }
 
-    function createTimelineEntry(event, context, isCursor = false) {
+    function createTimelineEntry(event, context, isCursor = false, isSwapOrigin = false) {
       const entry = document.createElement('div');
       entry.className = 'entry';
       
       const eventType = event.eventType;
-      const cursorClass = isCursor ? ' cursor' : '';
+      const swapModeClass = isCursor && appState.inSwapMode ? ' swap-mode' : '';
+      const cursorClass = isCursor ? ` cursor${swapModeClass}` : '';
       const insertedClass = event.isPendingInserted ? ' pending-inserted' : '';
       let boxHtml = '';
       
@@ -1837,6 +1919,8 @@
         ${boxHtml}
         <div class="entry-time">${formatTime100ms(event.boutTime100ms)}</div>
       `;
+      
+      if (isSwapOrigin) entry.classList.add('swap-origin');
       
       return entry;
     }
@@ -2208,12 +2292,16 @@
             recordEvent({ eventType: 'EventModified', boutTime100ms: appState.boutTime100ms, refSeq: c.refSeq, newEventType: c.newEventType });
           } else if (c.insertedEventType) {
             recordEvent({ eventType: 'EventInserted', boutTime100ms: c.boutTime100ms, refSeq: c.insertBefore, insertedEventType: c.insertedEventType });
+          } else if (c.swapped) {
+            recordEvent({ eventType: 'EventSwapped', boutTime100ms: appState.boutTime100ms, refSeq1: c.refSeq1, refSeq2: c.refSeq2 });
           }
         });
       }
       appState.correctionBuffer = [];
       appState.inCorrectionMode = false;
       appState.inInsertMode = false;
+      appState.inSwapMode = false;
+      appState.swapOriginIndex = null;
       appState.cursorIndex = null;
       appState.keyBuffer = [];
       updateTimeline();
@@ -2309,6 +2397,12 @@
         return;
       }
 
+      // ── Swap mode sub-handler ─────────────────────────────────────────
+      if (appState.inSwapMode) {
+        handleSwapModeKey(key);
+        return;
+      }
+
       if (key === 'ArrowLeft' || key === 'Backspace') { moveCursor(-1); return; }
       if (key === 'ArrowRight') { moveCursor(1); return; }
 
@@ -2333,25 +2427,16 @@
 
       const upperKey = key.toUpperCase();
 
-      // '#' + '#' → enter insert mode
+      // '#' → enter swap mode; '##' → enter insert mode (second '#' handled in swap mode)
       if (key === '#') {
-        if (appState.keyBuffer.join('') === '#') {
-          // Second '#': activate insert mode
-          appState.inInsertMode = true;
+        if (appState.cursorIndex !== null) {
+          appState.inSwapMode = true;
+          appState.swapOriginIndex = appState.cursorIndex;
           appState.keyBuffer = [];
           updateTimeline();
-          console.log('Entered insert mode');
-        } else {
-          // First '#': buffer it (may become ## or be cleared by next key)
-          appState.keyBuffer = ['#'];
+          console.log('Entered swap mode at index:', appState.cursorIndex);
         }
         return;
-      }
-
-      // Any key while buffer contains '#' (but wasn't a second '#'): clear buffer, process key normally
-      if (appState.keyBuffer.join('') === '#') {
-        appState.keyBuffer = [];
-        // fall through to process this key as a normal correction key
       }
 
       // Caution sequence: first '0', then '1' or '2'
@@ -2376,6 +2461,58 @@
       if (upperKey === 'B') { modifyCurrentEvent({ type: 'color', color: 'B' }); return; }
       if (['1', '2', '4', '5'].includes(upperKey)) { modifyCurrentEvent({ type: 'points', points: upperKey }); return; }
       if (upperKey === 'P') { modifyCurrentEvent({ type: 'passivity' }); return; }
+    }
+
+    /**
+     * Handle a key press while in swap mode (after # in correction mode).
+     * Left/Right selects the event to swap with; Enter confirms; Escape cancels.
+     * '#' transitions to insert mode (enabling ## → insert mode sequence).
+     */
+    function handleSwapModeKey(key) {
+      if (key === 'Escape') {
+        // Cancel swap mode, return cursor to origin
+        appState.cursorIndex = appState.swapOriginIndex;
+        appState.swapOriginIndex = null;
+        appState.inSwapMode = false;
+        appState.keyBuffer = [];
+        updateTimeline();
+        updateScores();
+        console.log('Swap mode cancelled');
+        return;
+      }
+
+      if (key === 'Enter') {
+        // Confirm swap if cursor moved from origin
+        const cursorableEvents = getCursorableEvents();
+        const originEvent = cursorableEvents[appState.swapOriginIndex];
+        const targetEvent = cursorableEvents[appState.cursorIndex];
+        if (originEvent && targetEvent && appState.cursorIndex !== appState.swapOriginIndex) {
+          appState.correctionBuffer.push({ swapped: true, refSeq1: originEvent.seq, refSeq2: targetEvent.seq });
+          updateScores();
+        }
+        appState.swapOriginIndex = null;
+        appState.inSwapMode = false;
+        appState.keyBuffer = [];
+        updateTimeline();
+        console.log('Swap mode confirmed');
+        return;
+      }
+
+      // '#' in swap mode → exit swap mode and enter insert mode (so ## → insert mode works)
+      if (key === '#') {
+        appState.swapOriginIndex = null;
+        appState.inSwapMode = false;
+        appState.inInsertMode = true;
+        appState.keyBuffer = [];
+        updateTimeline();
+        console.log('Transition from swap mode to insert mode');
+        return;
+      }
+
+      if (key === 'ArrowLeft' || key === 'Backspace') { moveCursor(-1); return; }
+      if (key === 'ArrowRight') { moveCursor(1); return; }
+
+      // Other keys in swap mode are ignored
     }
 
     /**
@@ -2930,6 +3067,7 @@
         mode: appState.mode,
         inCorrectionMode: appState.inCorrectionMode,
         inInsertMode: appState.inInsertMode,
+        inSwapMode: appState.inSwapMode,
         cursorIndex: appState.cursorIndex,
         correctionBuffer: appState.correctionBuffer.slice(),
         breakTimerRunning: appState.breakTimerRunning,
