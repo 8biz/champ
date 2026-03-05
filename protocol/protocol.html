@@ -2162,11 +2162,20 @@
         return;
       }
 
-      // ArrowLeft / Backspace: enter Correction mode (only in Recording or Completing)
-      if ((key === 'ArrowLeft' || key === 'Backspace') &&
+      // ArrowLeft: enter Correction mode (only in Recording or Completing)
+      if (key === 'ArrowLeft' &&
           (appState.mode === 'Recording' || appState.mode === 'Completing')) {
         e.preventDefault();
         enterCorrectionMode();
+        return;
+      }
+
+      // Backspace: enter Correction mode then immediately perform backspace-delete
+      if (key === 'Backspace' &&
+          (appState.mode === 'Recording' || appState.mode === 'Completing')) {
+        e.preventDefault();
+        enterCorrectionMode(true);
+        performBackspaceDelete();
         return;
       }
 
@@ -2267,12 +2276,17 @@
       return eventType;
     }
 
-    /** Enter Correction mode: move cursor to the last cursorsable event. */
-    function enterCorrectionMode() {
+    /**
+     * Enter Correction mode.
+     * @param {boolean} startAfterEnd - When true, the cursor starts one position after the last
+     *   event (used when entering via Backspace so the first performBackspaceDelete() lands on
+     *   the last event). When false (default), cursor starts on the last event.
+     */
+    function enterCorrectionMode(startAfterEnd = false) {
       const cursorableEvents = getCursorableEvents();
       if (cursorableEvents.length === 0) return;
       appState.inCorrectionMode = true;
-      appState.cursorIndex = cursorableEvents.length - 1;
+      appState.cursorIndex = startAfterEnd ? cursorableEvents.length : cursorableEvents.length - 1;
       appState.keyBuffer = [];
       updateTimeline();
       console.log('Entered correction mode, cursorIndex:', appState.cursorIndex);
@@ -2372,6 +2386,32 @@
     }
 
     /**
+     * Backspace-style delete: move cursor one step to the left, then delete the event
+     * now under the cursor.  The cursor is NOT adjusted after deletion (stays at its
+     * current index so the next call moves left again).  No-op when the cursor is
+     * already at the leftmost position (nothing to the left to delete).
+     */
+    function performBackspaceDelete() {
+      const cursorBefore = appState.cursorIndex;
+      moveCursor(-1);
+      if (appState.cursorIndex === cursorBefore) return; // cursor didn't move – nothing to delete
+
+      const cursorableEvents = getCursorableEvents();
+      const event = cursorableEvents[appState.cursorIndex];
+      if (!event) return;
+
+      appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
+      appState.correctionBuffer.push({ refSeq: event.seq, deleted: true });
+
+      // Intentionally do NOT adjust cursorIndex here so successive Backspace presses
+      // keep stepping left through the remaining events.
+
+      updateTimeline();
+      updateScores();
+      console.log('Backspace-deleted event in buffer:', event.seq);
+    }
+
+    /**
      * Handle a keydown event while in Correction mode.
      * Prevents default for all keys to avoid browser navigation side effects.
      */
@@ -2403,7 +2443,8 @@
         return;
       }
 
-      if (key === 'ArrowLeft' || key === 'Backspace') { moveCursor(-1); return; }
+      if (key === 'ArrowLeft') { moveCursor(-1); return; }
+      if (key === 'Backspace') { performBackspaceDelete(); return; }
       if (key === 'ArrowRight') { moveCursor(1); return; }
 
       if (key === 'Enter') {
