@@ -19,7 +19,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     expect(state.cursorIndex).toBe(0);
   });
 
-  test("Backspace enters correction mode after recording an event", async ({ page }) => {
+  test("Backspace in normal mode enters correction mode and deletes the last event", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["2", "B"]);
@@ -28,6 +28,8 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
 
     const state = await page.evaluate(() => window.testHelper.getState());
     expect(state.inCorrectionMode).toBe(true);
+    expect(state.correctionBuffer).toHaveLength(1);
+    expect(state.correctionBuffer[0].deleted).toBe(true);
   });
 
   test("ArrowLeft does NOT enter correction mode when no events recorded", async ({ page }) => {
@@ -620,9 +622,9 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     await expect(page.locator(".timeline .entry:not(#next-event)")).toHaveCount(0);
   });
 
-  // ── Backspace navigates left in correction mode ───────────────────────────
+  // ── Backspace: move cursor left and delete ────────────────────────────────
 
-  test("Backspace moves cursor left in correction mode", async ({ page }) => {
+  test("Backspace in correction mode moves cursor left and deletes the event there", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
@@ -632,13 +634,15 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     const stateBefore = await page.evaluate(() => window.testHelper.getState());
     expect(stateBefore.cursorIndex).toBe(1);
 
-    await page.keyboard.press("Backspace"); // move left to index 0 (1R)
+    await page.keyboard.press("Backspace"); // move left to index 0 (1R) and delete it
     const stateAfter = await page.evaluate(() => window.testHelper.getState());
     expect(stateAfter.cursorIndex).toBe(0);
     expect(stateAfter.inCorrectionMode).toBe(true);
+    expect(stateAfter.correctionBuffer).toHaveLength(1);
+    expect(stateAfter.correctionBuffer[0].deleted).toBe(true);
   });
 
-  test("Backspace at leftmost cursor position stays at index 0", async ({ page }) => {
+  test("Backspace at leftmost cursor position is a no-op (cursor stays, nothing deleted)", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
@@ -647,11 +651,53 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     const stateBefore = await page.evaluate(() => window.testHelper.getState());
     expect(stateBefore.cursorIndex).toBe(0);
 
-    await page.keyboard.press("Backspace"); // already at leftmost, no change
+    await page.keyboard.press("Backspace"); // already at leftmost – no movement, no deletion
     const stateAfter = await page.evaluate(() => window.testHelper.getState());
     expect(stateAfter.cursorIndex).toBe(0);
     expect(stateAfter.inCorrectionMode).toBe(true);
+    expect(stateAfter.correctionBuffer).toHaveLength(0);
   });
+
+  test("Backspace when timeline is empty does not enter correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    await page.keyboard.press("Backspace");
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inCorrectionMode).toBe(false);
+  });
+
+  test("Multiple Backspace presses delete events sequentially from the end", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+    await recordEventAtTime(page, "2:30", ["4", "R"]);
+
+    // First Backspace from normal mode: enters correction mode and deletes last event (4R)
+    await page.keyboard.press("Backspace");
+    const state1 = await page.evaluate(() => window.testHelper.getState());
+    expect(state1.inCorrectionMode).toBe(true);
+    expect(state1.correctionBuffer).toHaveLength(1);
+
+    // Second Backspace in correction mode: moves cursor left and deletes 2B
+    await page.keyboard.press("Backspace");
+    const state2 = await page.evaluate(() => window.testHelper.getState());
+    expect(state2.correctionBuffer).toHaveLength(2);
+
+    // Third Backspace: moves cursor left and deletes 1R
+    await page.keyboard.press("Backspace");
+    const state3 = await page.evaluate(() => window.testHelper.getState());
+    expect(state3.correctionBuffer).toHaveLength(3);
+
+    // Fourth Backspace: cursor is at leftmost – no-op
+    await page.keyboard.press("Backspace");
+    const state4 = await page.evaluate(() => window.testHelper.getState());
+    expect(state4.correctionBuffer).toHaveLength(3);
+    expect(state4.inCorrectionMode).toBe(true);
+  });
+
 });
 
 // ── Event Insertion (## key sequence) ────────────────────────────────────────

@@ -284,7 +284,8 @@ A completed scoresheet re-released to correct the top-bar information or complet
 | `T_BR_Started` / `T_BR_Stopped` | `R` + `.` / `.` + `R` | Start/stop Red blood time |
 | `T_IB_Started` / `T_IB_Stopped` | `B` + `,` / `,` + `B` | Start/stop Blue injury time |
 | `T_BB_Started` / `T_BB_Stopped` | `B` + `.` / `.` + `B` | Start/stop Blue blood time |
-| — | `Left arrow` or `Backspace` | Move cursor left (enter Correction mode) |
+| — | `Left arrow` | Enter **Correction mode** (cursor placed at the last event) |
+| — | `Backspace` | Enter **Correction mode**, then move cursor left and delete the event at the new cursor position (no-op if the timeline is empty) |
 
 ### Key sequences in Correction mode
 | `eventType` | Key Sequence | Action |
@@ -292,6 +293,7 @@ A completed scoresheet re-released to correct the top-bar information or complet
 | — | `Enter` | Confirm corrections and enter **Normal mode**. Key sequence buffer is ignored and cleared. |
 | — | `Escape` | If key sequence buffer is empty, cancels corrections and enter **Normal mode**. Otherwise, clears key sequence buffer. |
 | — | `Left arrow` / `Right arrow` | Move cursor left or right (stay in **Correction mode**) |
+| `EventDeleted` | `Backspace` | Move cursor left and delete the event at the new cursor position (no-op if cursor is already at the leftmost position) |
 | `EventModified` | `R` | Change color of current event to Red (keeps points/passivity/caution type; e.g., `1R` becomes `1B`, `0B1R` becomes `0R1B`) |
 | `EventModified` | `B` | Change color of current event to Blue (keeps points/passivity/caution type) |
 | `EventModified` | `1` | Change current event to 1 point (keeps color; cautions become points; e.g., `4R` becomes `1R`, `0R2B` becomes `R1`) |
@@ -301,7 +303,7 @@ A completed scoresheet re-released to correct the top-bar information or complet
 | `EventModified` | `P` | Change to passivity (keeps color) |
 | `EventModified` | `0` + `1` | Change to caution +1 (keeps color; points/passivity become cautions; e.g., `2R` becomes `0R1B`) |
 | `EventModified` | `0` + `2` | Change to caution +2 (keeps color; points/passivity become cautions; e.g., `1B` becomes `0B2R`) |
-| `EventDeleted` | `Delete` | Remove current event |
+| `EventDeleted` | `Delete` | Remove current event (no cursor movement) |
 | `EventInserted` | `#` + `#` + (event key sequence for a bout event) | Insert a new event prior to the current event. `#`+`#` enters **Event insert mode**; subsequent bout event key sequence states the event type (e.g. `1`+`R` or `B`+`2`). `Escape` cancels insert mode. Inserted events are shown with a dashed border. |
 | `EventSwapped` | `#` | Enter **Event swap mode** (use `Left arrow`/`Right arrow` to select the event to swap with; `Enter` confirms swapping, `Escape` cancels) |
 | `T_Modified` / `T_IR_Modified` / `T_IB_Modified` / `T_BR_Modified` / `T_BB_Modified` | `T` | Enter **Time modification mode** (enter new time in M:SS format; `Enter` confirms, `Escape` cancels) |

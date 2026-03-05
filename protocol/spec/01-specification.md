@@ -89,7 +89,7 @@ Correcting events when cursor is on a historical event. Corrections are stored i
 The user can
 - modify type of bout event (see Event Specification) inputting an other bout event type. Then a `EventModified` event with additional field `newEventType` is recorded. 
 - modify the period time (see **Time modification mode**). Then a `EventModified` event with additional field `newBoutTime100ms` is recorded.
-- delete the current event. Results in a `EventDeleted` event being recorded.
+- delete the current event via `Backspace` (moves cursor left and deletes the event at the new cursor position) or via `Delete` (deletes the event at the current cursor position without moving). Both result in a `EventDeleted` event being recorded.
 - enter the **Event swap mode** to change the order of events in the timeline.
   - The cursor changes its visual style to indicate the **Event swap mode**.
   - The user can move the current event left or right.
