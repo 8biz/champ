@@ -428,6 +428,12 @@
       border-color: var(--neutral-1) !important;
     }
 
+    .entry-time.time-modified {
+      border: 0.0625rem dashed var(--neutral-3);
+      border-radius: 0.125rem;
+      padding: 0 0.125rem;
+    }
+
     .entry-box.correction {
       display: grid;
       grid-template-rows: 1fr 1fr;
@@ -807,13 +813,14 @@
         BR: { running: false, time100ms: 0, intervalId: null },
         BB: { running: false, time100ms: 0, intervalId: null }
       },
-      timeModTarget: null,  // null = bout time, 'IR'/'IB'/'BR'/'BB' = injury timer
+      timeModTarget: null,  // null = bout time, 'IR'/'IB'/'BR'/'BB' = injury timer, 'correctionBoutTime' = correction mode
+      timeModCorrectionEvent: null, // event being time-modified in correction mode
       inCorrectionMode: false,
       inInsertMode: false,  // sub-mode of correction: ## pressed, waiting for event type
       inSwapMode: false,    // sub-mode of correction: # pressed, selecting swap partner
       swapOriginIndex: null, // cursorIndex when swap mode was entered (fixed origin)
       cursorIndex: null,    // null = at next-event; integer = index in cursorsable bout events
-      correctionBuffer: []  // pending {refSeq, newEventType} or {refSeq, deleted:true} or {insertBefore, boutTime100ms, insertedEventType} or {swapped:true, refSeq1, refSeq2}
+      correctionBuffer: []  // pending {refSeq, newEventType} or {refSeq, deleted:true} or {insertBefore, boutTime100ms, insertedEventType} or {swapped:true, refSeq1, refSeq2} or {timeModified:true, refSeq, oldBoutTime100ms, newBoutTime100ms, eventType, insertBefore}
     };
 
     // ===================================================================
@@ -1110,7 +1117,16 @@
       const error = document.getElementById('time-mod-error');
       const title = document.getElementById('time-mod-title');
 
-      if (timerKey) {
+      if (timerKey === 'correctionBoutTime') {
+        // Correction mode: modify the bout time of the event at the cursor
+        const corrEvent = appState.timeModCorrectionEvent;
+        title.textContent = 'Ereigniszeit korrigieren [T]';
+        document.getElementById('time-mod-hint').textContent = 'Abgelaufene Kampfzeit eingeben (M:SS)';
+        const totalSeconds = Math.floor(corrEvent.boutTime100ms / 10);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        input.value = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      } else if (timerKey) {
         // Injury / blood time modification — pre-fill with current elapsed time
         title.textContent = `${INJURY_TIMER_LABELS[timerKey]} ändern`;
         document.getElementById('time-mod-hint').textContent = 'Abgelaufene Zeit eingeben (M:SS)';
@@ -1167,6 +1183,56 @@
       const newTime100ms = (minutes * 60 + seconds) * 10;
 
       const timerKey = appState.timeModTarget;
+
+      if (timerKey === 'correctionBoutTime') {
+        // Correction mode: modify the bout time of the event at cursor position
+        const corrEvent = appState.timeModCorrectionEvent;
+        if (!corrEvent) { closeTimeModModal(); return; }
+
+        // Validate: new time must not exceed the current cumulated bout time
+        const maxBoutTime100ms = appState.boutTime100ms;
+        if (newTime100ms > maxBoutTime100ms) {
+          input.classList.add('invalid');
+          error.textContent = 'Eingegebene Zeit überschreitet die aktuelle Kampfzeit.';
+          error.style.display = '';
+          input.focus();
+          input.select();
+          return;
+        }
+
+        // Find insertion point: first effective event with boutTime > newTime (excluding
+        // the event being replaced and PeriodEnd).
+        const effectiveForSort = getEffectiveBoutEvents();
+        const insertBeforeEvent = effectiveForSort.find(e =>
+          e.seq !== corrEvent.seq && e.boutTime100ms > newTime100ms
+        );
+
+        // Remove any existing corrections for this event (superseded by time modification)
+        appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== corrEvent.seq);
+
+        appState.correctionBuffer.push({
+          timeModified: true,
+          refSeq: corrEvent.seq,
+          oldBoutTime100ms: corrEvent.boutTime100ms,
+          newBoutTime100ms: newTime100ms,
+          eventType: corrEvent.eventType,
+          insertBefore: insertBeforeEvent ? insertBeforeEvent.seq : null
+        });
+
+        // Adjust cursor: the original event is now effectively deleted
+        const newCursorableEvents = getCursorableEvents();
+        if (newCursorableEvents.length === 0) {
+          appState.cursorIndex = null;
+        } else if (appState.cursorIndex !== null && appState.cursorIndex >= newCursorableEvents.length) {
+          appState.cursorIndex = newCursorableEvents.length - 1;
+        }
+
+        closeTimeModModal();
+        updateTimeline();
+        updateScores();
+        console.log('Correction time modification applied:', corrEvent.seq, '->', newTime100ms);
+        return;
+      }
 
       if (timerKey) {
         // Injury / blood time modification
@@ -1563,6 +1629,9 @@
           deletedSeqs.add(c.refSeq);
         } else if (c.newEventType) {
           modifiedTypes.set(c.refSeq, c.newEventType);
+        } else if (c.timeModified) {
+          // Time modification: treat original event as deleted; new virtual event added below
+          deletedSeqs.add(c.refSeq);
         }
       });
 
@@ -1613,12 +1682,35 @@
         }
       }
 
+      // Apply pending time modifications from correctionBuffer:
+      // insert a new virtual event at the correct chronological position.
+      appState.correctionBuffer
+        .filter(c => c.timeModified)
+        .forEach(c => {
+          const newEvent = {
+            seq: `tm-${c.refSeq}`,
+            boutTime100ms: c.newBoutTime100ms,
+            eventType: c.eventType
+          };
+          const insertIdx = result.findIndex(e => e.boutTime100ms > c.newBoutTime100ms);
+          if (insertIdx >= 0) {
+            result.splice(insertIdx, 0, newEvent);
+          } else {
+            result.push(newEvent);
+          }
+        });
+
       return result;
     }
 
-    /** Returns cursorsable bout events (excluding PeriodEnd entries). */
+    /** Predicate for filtering cursorsable events: excludes PeriodEnd and pending time-mod virtual events. */
+    function isCursorableEvent(e) {
+      return e.eventType !== 'PeriodEnd' && !(typeof e.seq === 'string' && e.seq.startsWith('tm-'));
+    }
+
+    /** Returns cursorsable bout events (excluding PeriodEnd entries and pending time-mod virtual events). */
     function getCursorableEvents() {
-      return getEffectiveBoutEvents().filter(e => e.eventType !== 'PeriodEnd');
+      return getEffectiveBoutEvents().filter(isCursorableEvent);
     }
 
     /**
@@ -1653,9 +1745,14 @@
 
       const pendingDeletedSeqs = new Set();
       const pendingModifiedTypes = new Map();
+      const pendingTimeMods = new Map(); // refSeq → correction object
       appState.correctionBuffer.forEach(c => {
         if (c.deleted) pendingDeletedSeqs.add(c.refSeq);
         else if (c.newEventType) pendingModifiedTypes.set(c.refSeq, c.newEventType);
+        else if (c.timeModified) {
+          pendingDeletedSeqs.add(c.refSeq);
+          pendingTimeMods.set(c.refSeq, c);
+        }
       });
 
       const result = rawBoutEvents
@@ -1664,7 +1761,9 @@
           const committedType = committedModifiedTypes.get(e.seq);
           const currentType = committedType || e.eventType;
           if (pendingDeletedSeqs.has(e.seq)) {
-            return { ...e, eventType: currentType, pendingDeleted: true };
+            // Mark whether it's a time-modification deletion (for time-highlight rendering)
+            const isTimeMod = pendingTimeMods.has(e.seq);
+            return { ...e, eventType: currentType, pendingDeleted: true, ...(isTimeMod ? { pendingTimeModified: true } : {}) };
           }
           if (pendingModifiedTypes.has(e.seq)) {
             return { ...e, eventType: pendingModifiedTypes.get(e.seq), originalEventType: currentType };
@@ -1734,6 +1833,26 @@
           }
         });
 
+      // Apply pending time modifications from correctionBuffer:
+      // insert a new virtual pending-inserted event at the correct chronological position.
+      appState.correctionBuffer
+        .filter(c => c.timeModified)
+        .forEach(c => {
+          const newEvent = {
+            seq: `tm-${c.refSeq}`,
+            boutTime100ms: c.newBoutTime100ms,
+            eventType: c.eventType,
+            isPendingInserted: true,
+            isNewTimeModified: true
+          };
+          const insertIdx = result.findIndex(e => e.boutTime100ms > c.newBoutTime100ms);
+          if (insertIdx >= 0) {
+            result.splice(insertIdx, 0, newEvent);
+          } else {
+            result.push(newEvent);
+          }
+        });
+
       return result;
     }
 
@@ -1777,9 +1896,10 @@
       const effectiveBoutEvents = getEffectiveBoutEvents();
 
       // Determine the seq of the cursored event (for cursor ring rendering)
+      // Use isCursorableEvent() to exclude PeriodEnd and tm- virtual events (same as getCursorableEvents)
       let cursorSeq = null;
       if (appState.inCorrectionMode && appState.cursorIndex !== null) {
-        const cursorableEvents = effectiveBoutEvents.filter(e => e.eventType !== 'PeriodEnd');
+        const cursorableEvents = effectiveBoutEvents.filter(isCursorableEvent);
         const cursorEvent = cursorableEvents[appState.cursorIndex];
         if (cursorEvent) cursorSeq = cursorEvent.seq;
       }
@@ -1788,7 +1908,7 @@
       let swapOriginSeq = null;
       if (appState.inSwapMode && appState.swapOriginIndex !== null &&
           appState.cursorIndex !== appState.swapOriginIndex) {
-        const cursorableEvents = effectiveBoutEvents.filter(e => e.eventType !== 'PeriodEnd');
+        const cursorableEvents = effectiveBoutEvents.filter(isCursorableEvent);
         const swapOriginEvent = cursorableEvents[appState.swapOriginIndex];
         if (swapOriginEvent) swapOriginSeq = swapOriginEvent.seq;
       }
@@ -1915,9 +2035,10 @@
         }
       }
       
+      const timeModClass = (event.pendingTimeModified || event.isNewTimeModified) ? ' time-modified' : '';
       entry.innerHTML = `
         ${boxHtml}
-        <div class="entry-time">${formatTime100ms(event.boutTime100ms)}</div>
+        <div class="entry-time${timeModClass}">${formatTime100ms(event.boutTime100ms)}</div>
       `;
       
       if (isSwapOrigin) entry.classList.add('swap-origin');
@@ -2298,16 +2419,31 @@
      */
     function exitCorrectionMode(confirm) {
       if (confirm && appState.correctionBuffer.length > 0) {
+        // Collect seqs handled by timeModified so we skip redundant newEventType corrections
+        const timeModifiedSeqs = new Set(
+          appState.correctionBuffer.filter(c => c.timeModified).map(c => c.refSeq)
+        );
+
         // Write all pending corrections to the event log
         appState.correctionBuffer.forEach(c => {
           if (c.deleted) {
             recordEvent({ eventType: 'EventDeleted', boutTime100ms: appState.boutTime100ms, refSeq: c.refSeq });
-          } else if (c.newEventType) {
+          } else if (c.newEventType && !timeModifiedSeqs.has(c.refSeq)) {
             recordEvent({ eventType: 'EventModified', boutTime100ms: appState.boutTime100ms, refSeq: c.refSeq, newEventType: c.newEventType });
           } else if (c.insertedEventType) {
             recordEvent({ eventType: 'EventInserted', boutTime100ms: c.boutTime100ms, refSeq: c.insertBefore, insertedEventType: c.insertedEventType });
           } else if (c.swapped) {
             recordEvent({ eventType: 'EventSwapped', boutTime100ms: appState.boutTime100ms, refSeq1: c.refSeq1, refSeq2: c.refSeq2 });
+          } else if (c.timeModified) {
+            // Delete the original event
+            recordEvent({ eventType: 'EventDeleted', boutTime100ms: appState.boutTime100ms, refSeq: c.refSeq });
+            // Insert a new event at the correct chronological position
+            recordEvent({
+              eventType: 'EventInserted',
+              boutTime100ms: c.newBoutTime100ms,
+              refSeq: c.insertBefore,
+              insertedEventType: c.eventType
+            });
           }
         });
       }
@@ -2317,6 +2453,7 @@
       appState.inSwapMode = false;
       appState.swapOriginIndex = null;
       appState.cursorIndex = null;
+      appState.timeModCorrectionEvent = null;
       appState.keyBuffer = [];
       updateTimeline();
       updateScores();
@@ -2502,6 +2639,17 @@
       if (upperKey === 'B') { modifyCurrentEvent({ type: 'color', color: 'B' }); return; }
       if (['1', '2', '4', '5'].includes(upperKey)) { modifyCurrentEvent({ type: 'points', points: upperKey }); return; }
       if (upperKey === 'P') { modifyCurrentEvent({ type: 'passivity' }); return; }
+
+      // T: open time-modification modal for the event at cursor position
+      if (upperKey === 'T' && appState.cursorIndex !== null) {
+        const cursorableEvents = getCursorableEvents();
+        const event = cursorableEvents[appState.cursorIndex];
+        if (event) {
+          appState.timeModCorrectionEvent = event;
+          openTimeModModal('correctionBoutTime');
+        }
+        return;
+      }
     }
 
     /**
