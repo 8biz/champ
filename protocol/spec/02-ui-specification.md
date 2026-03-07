@@ -320,7 +320,7 @@ A completed scoresheet re-released to correct the top-bar information or complet
 
 ### Correction context menu
 
-The correction context menu is a small popup that appears above the cursored timeline entry whenever **Correction mode** is entered (by right-click, long-press, or `Left arrow` key). It contains the following items in order:
+The correction context menu is a small popup that appears above the cursored timeline entry whenever **Correction mode** is entered (by right-click, long-press, or `Left arrow` key). Its lower-left corner is always centered horizontally above the cursored entry, at a fixed vertical position just above the timeline. It contains the following items in order:
 
 | Emoji | Label | Action |
 |---|---|---|
@@ -329,10 +329,11 @@ The correction context menu is a small popup that appears above the cursored tim
 | 🔄 | `[#][←\|→]` Ereignisse tauschen | Swap the cursored event with another — **not yet implemented** (no-op) |
 | ⏱️ | `[T]` Zeit ändern | Modify the bout time of the cursored event — **not yet implemented** (no-op) |
 
-The context menu is dismissed by:
-- Clicking/tapping outside the menu
-- Pressing `Escape`
-- Confirming or cancelling correction mode (`Enter` / `Escape`)
+The context menu **moves with the cursor** — whenever the cursor moves (via `Left arrow` / `Right arrow` or any other cursor movement), the menu repositions above the new cursored entry.
+
+The context menu is dismissed **only** when correction mode is exited:
+- Confirming corrections (`Enter` key or **[Enter] Übernehmen** button)
+- Cancelling corrections (`Escape` key or **[Esc] Verwerfen** button)
 
 ### Correction mode confirm/cancel buttons
 

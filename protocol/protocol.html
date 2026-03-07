@@ -2353,7 +2353,6 @@
       
       // Escape clears buffer
       if (key === 'Escape') {
-        hideContextMenu();
         appState.keyBuffer = [];
         updateNextEventDisplay();
         console.log('Key buffer cleared');
@@ -2533,6 +2532,7 @@
       appState.cursorIndex = null;
       appState.timeModCorrectionEvent = null;
       appState.keyBuffer = [];
+      hideContextMenu();
       updateTimeline();
       updateScores();
       updateNextEventDisplay();
@@ -2548,6 +2548,7 @@
       appState.cursorIndex = newIndex;
       appState.keyBuffer = [];
       updateTimeline();
+      showContextMenuAtCursor();
     }
 
     /** Apply a modification to the currently cursored event in the correction buffer. */
@@ -2668,7 +2669,6 @@
       }
 
       if (key === 'Escape') {
-        hideContextMenu();
         if (appState.keyBuffer.length === 0) {
           exitCorrectionMode(false);
         } else {
@@ -2932,20 +2932,34 @@
 
     /**
      * Show the context menu positioned above the currently cursored timeline entry.
+     * The lower-left corner of the menu is centered horizontally above the entry,
+     * at a fixed vertical position (just above the timeline).
      * No-op if no cursor entry is found in the DOM.
      */
     function showContextMenuAtCursor() {
       const cursorEntry = timeline.querySelector('.entry-box.cursor')?.closest('.entry');
       if (!cursorEntry) return;
-      const rect = cursorEntry.getBoundingClientRect();
-      showContextMenu(rect.left + rect.width / 2, rect.top);
+      const entryRect = cursorEntry.getBoundingClientRect();
+      const timelineRect = timeline.getBoundingClientRect();
+      const menu = document.getElementById('context-menu');
+      menu.classList.add('open');
+      const menuRect = menu.getBoundingClientRect();
+      // Lower-left corner centered above the cursored event, fixed vertical above timeline
+      const PADDING = 4;
+      const left = Math.max(PADDING, Math.min(
+        entryRect.left + entryRect.width / 2,
+        window.innerWidth - menuRect.width - PADDING
+      ));
+      const top = Math.max(PADDING, timelineRect.top - menuRect.height - PADDING);
+      menu.style.top  = `${top}px`;
+      menu.style.left = `${left}px`;
     }
 
     /** Set up context menu item handlers and outside-click dismissal. */
     function initializeContextMenu() {
       document.getElementById('ctx-delete').addEventListener('click', () => {
         deleteCurrentEvent();
-        hideContextMenu();
+        showContextMenuAtCursor();
       });
 
       // Insert, swap, time: no-ops for now — stop propagation so menu doesn't close
@@ -2954,13 +2968,6 @@
           e.stopPropagation();
         });
       });
-
-      // Hide on any click outside the context menu (capture phase)
-      document.addEventListener('click', (e) => {
-        if (!document.getElementById('context-menu').contains(e.target)) {
-          hideContextMenu();
-        }
-      }, true);
     }
 
     // ===================================================================
@@ -2996,7 +3003,7 @@
         if (!entry) return;
         e.preventDefault();
         enterCorrectionModeAtSeq(entry.dataset.seq);
-        showContextMenu(e.clientX, e.clientY);
+        showContextMenuAtCursor();
       });
     }
 
@@ -3512,13 +3519,11 @@
       document.getElementById('corr-confirm').addEventListener('click', () => {
         if (appState.inCorrectionMode) {
           exitCorrectionMode(true);
-          hideContextMenu();
         }
       });
       document.getElementById('corr-cancel').addEventListener('click', () => {
         if (appState.inCorrectionMode) {
           exitCorrectionMode(false);
-          hideContextMenu();
         }
       });
 

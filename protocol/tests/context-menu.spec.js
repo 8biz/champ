@@ -102,7 +102,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await expect(page.locator("#ctx-time")).toBeVisible();
   });
 
-  test("context menu closes when clicking outside", async ({ page }) => {
+  test("context menu stays visible when clicking outside", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
@@ -110,13 +110,13 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
     await expect(page.locator("#context-menu")).toBeVisible();
 
-    // Click somewhere else
+    // Click somewhere else — menu should stay visible
     await page.locator("#score-red").click();
 
-    await expect(page.locator("#context-menu")).toBeHidden();
+    await expect(page.locator("#context-menu")).toBeVisible();
   });
 
-  test("context menu closes when pressing Escape", async ({ page }) => {
+  test("context menu closes when pressing Escape (exits correction mode)", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
@@ -145,13 +145,63 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     expect(state.correctionBuffer[0].deleted).toBe(true);
   });
 
-  test("clicking delete in context menu closes the context menu", async ({ page }) => {
+  test("clicking delete in context menu keeps the context menu visible", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
 
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
     await page.locator("#ctx-delete").click();
+
+    await expect(page.locator("#context-menu")).toBeVisible();
+  });
+
+  // ── Context menu moves with cursor ────────────────────────────────────────
+
+  test("context menu moves when cursor moves left/right", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+
+    // Enter correction mode on last event (2B, index 1)
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.locator("#context-menu")).toBeVisible();
+
+    const pos1 = await page.locator("#context-menu").boundingBox();
+
+    // Move cursor to first event (1R, index 0)
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.locator("#context-menu")).toBeVisible();
+
+    const pos2 = await page.locator("#context-menu").boundingBox();
+
+    // The menu should have moved horizontally (first event is to the left of second)
+    expect(pos2.x).not.toBe(pos1.x);
+  });
+
+  test("context menu closes when confirm button is clicked", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.locator("#context-menu")).toBeVisible();
+
+    await page.locator("#corr-confirm").click();
+
+    await expect(page.locator("#context-menu")).toBeHidden();
+  });
+
+  test("context menu closes when cancel button is clicked", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.locator("#context-menu")).toBeVisible();
+
+    await page.locator("#corr-cancel").click();
 
     await expect(page.locator("#context-menu")).toBeHidden();
   });
