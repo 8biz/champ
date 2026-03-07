@@ -248,4 +248,84 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     expect(state.inCorrectionMode).toBe(false);
     await expect(page.locator("#score-red")).toHaveText("1");
   });
+
+  // ── Correction mode confirm/cancel buttons ────────────────────────────────
+
+  test("confirm and cancel buttons are visible in correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+
+    await expect(page.locator("#corr-confirm")).toBeVisible();
+    await expect(page.locator("#corr-cancel")).toBeVisible();
+  });
+
+  test("confirm and cancel buttons are hidden outside correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await expect(page.locator("#corr-confirm")).toBeHidden();
+    await expect(page.locator("#corr-cancel")).toBeHidden();
+  });
+
+  test("clicking confirm button applies corrections and exits correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    // Enter correction mode and modify event
+    await page.keyboard.press("ArrowLeft");
+    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "[2B]" }).click();
+
+    // Click confirm button
+    await page.locator("#corr-confirm").click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inCorrectionMode).toBe(false);
+    // Modification was applied: score should reflect 2B instead of 1R
+    await expect(page.locator("#score-red")).toHaveText("0");
+    await expect(page.locator("#score-blue")).toHaveText("2");
+  });
+
+  test("clicking cancel button discards corrections and exits correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    // Enter correction mode and modify event
+    await page.keyboard.press("ArrowLeft");
+    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "[2B]" }).click();
+
+    // Click cancel button
+    await page.locator("#corr-cancel").click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inCorrectionMode).toBe(false);
+    // Modification was discarded: score should still show original 1R
+    await expect(page.locator("#score-red")).toHaveText("1");
+    await expect(page.locator("#score-blue")).toHaveText("0");
+  });
+
+  test("confirm button has correct label text", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+
+    await expect(page.locator("#corr-confirm")).toHaveText("[Enter] Übernehmen");
+  });
+
+  test("cancel button has correct label text", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+
+    await expect(page.locator("#corr-cancel")).toHaveText("[Esc] Verwerfen");
+  });
 });

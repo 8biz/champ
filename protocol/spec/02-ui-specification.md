@@ -334,6 +334,17 @@ The context menu is dismissed by:
 - Pressing `Escape`
 - Confirming or cancelling correction mode (`Enter` / `Escape`)
 
+### Correction mode confirm/cancel buttons
+
+Two buttons appear at the lower-right of the timeline border when **Correction mode** is active:
+
+| Button | Action |
+|---|---|
+| **[Enter] Übernehmen** | Apply all pending corrections and exit **Correction mode** (same as pressing `Enter`) |
+| **[Esc] Verwerfen** | Discard all pending corrections and exit **Correction mode** (same as pressing `Escape`) |
+
+These buttons are hidden when not in **Correction mode**. They are embedded into the timeline border at the bottom-right corner.
+
 ### Button controls for scoresheet preparation
 | `eventType` | Button / Control | Action |
 |---|---|---|
