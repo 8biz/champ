@@ -315,8 +315,24 @@ A completed scoresheet re-released to correct the top-bar information or complet
 ### General rules
 - All button interactions map to corresponding events defined in the **Event Specification**.
 - Buttons trigger events with a single click (desktop) or tap (mobile).
-- Clicking/tapping a timeline entry moves the cursor to that entry and enters **Correction mode** in **Modify event mode**.
-- Long-pressing (touch) or right-clicking (desktop) a timeline entry shows a context menu with options to delete, insert, or swap events, and enters **Correction mode** in **Sequence correction mode**.
+- Long-pressing (touch) or right-clicking (desktop) a timeline bout-event entry enters **Correction mode** with the cursor placed at that entry and shows the **correction context menu**.
+- Entering **Correction mode** via keyboard (`Left arrow`) also shows the **correction context menu** at the cursor entry.
+
+### Correction context menu
+
+The correction context menu is a small popup that appears above the cursored timeline entry whenever **Correction mode** is entered (by right-click, long-press, or `Left arrow` key). It contains the following items in order:
+
+| Emoji | Label | Action |
+|---|---|---|
+| 🗑️ | `[Entf]` Ereignis löschen | Delete the cursored event (stores in correction buffer, same as `Delete` key) |
+| ➕ | `[##]` Ereignis einfügen | Insert a new bout event prior to the cursored event — **not yet implemented** (no-op) |
+| 🔄 | `[#][←\|→]` Ereignisse tauschen | Swap the cursored event with another — **not yet implemented** (no-op) |
+| ⏱️ | `[T]` Zeit ändern | Modify the bout time of the cursored event — **not yet implemented** (no-op) |
+
+The context menu is dismissed by:
+- Clicking/tapping outside the menu
+- Pressing `Escape`
+- Confirming or cancelling correction mode (`Enter` / `Escape`)
 
 ### Button controls for scoresheet preparation
 | `eventType` | Button / Control | Action |

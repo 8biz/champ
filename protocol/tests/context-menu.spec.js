@@ -5,88 +5,20 @@ import { BASE_URL, releaseScoresheet, recordEventAtTime } from "./helpers.js";
 
 test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
-  // ── Click on timeline entry enters correction mode ────────────────────────
+  // ── Left-click does NOT enter correction mode ─────────────────────────────
 
-  test("clicking a timeline entry enters correction mode", async ({ page }) => {
+  test("left-clicking a timeline entry does NOT enter correction mode", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
 
-    // Click the first (and only) event entry box
     await page.locator("#timeline .entry .entry-box").first().click();
 
     const state = await page.evaluate(() => window.testHelper.getState());
-    expect(state.inCorrectionMode).toBe(true);
-    expect(state.cursorIndex).toBe(0);
-  });
-
-  test("clicking the second of two timeline entries sets cursor to index 1", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await releaseScoresheet(page);
-    await recordEventAtTime(page, "2:50", ["1", "R"]);
-    await recordEventAtTime(page, "2:40", ["2", "B"]);
-
-    // Entry boxes: first is 1R, second is 2B (third is next-event)
-    const entryBoxes = page.locator("#timeline .entry:not(#next-event) .entry-box");
-    await entryBoxes.nth(1).click();
-
-    const state = await page.evaluate(() => window.testHelper.getState());
-    expect(state.inCorrectionMode).toBe(true);
-    expect(state.cursorIndex).toBe(1);
-  });
-
-  test("clicking a timeline entry while already in correction mode moves cursor", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await releaseScoresheet(page);
-    await recordEventAtTime(page, "2:50", ["1", "R"]);
-    await recordEventAtTime(page, "2:40", ["2", "B"]);
-
-    // Enter correction mode on second event
-    await page.keyboard.press("ArrowLeft");
-    let state = await page.evaluate(() => window.testHelper.getState());
-    expect(state.cursorIndex).toBe(1);
-
-    // Click first event → cursor should move to index 0
-    const firstEntryBox = page.locator("#timeline .entry:not(#next-event) .entry-box").first();
-    await firstEntryBox.click();
-
-    state = await page.evaluate(() => window.testHelper.getState());
-    expect(state.inCorrectionMode).toBe(true);
-    expect(state.cursorIndex).toBe(0);
-  });
-
-  test("clicking the next-event entry does NOT enter correction mode", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await releaseScoresheet(page);
-    await recordEventAtTime(page, "2:50", ["1", "R"]);
-
-    await page.locator("#next-event .entry-box").click();
-
-    const state = await page.evaluate(() => window.testHelper.getState());
     expect(state.inCorrectionMode).toBe(false);
   });
 
-  test("clicking a PeriodEnd entry does NOT enter correction mode", async ({ page }) => {
-    await page.goto(BASE_URL);
-    await releaseScoresheet(page);
-    // Inject a PeriodEnd event to create a period-end entry
-    await page.evaluate(() => {
-      window.testHelper.injectEvent({
-        seq: 999,
-        timestamp: new Date().toISOString(),
-        eventType: 'PeriodEnd',
-        boutTime100ms: 0
-      });
-    });
-
-    // Click the period-end entry box
-    await page.locator("#timeline .entry-box.period-end").click();
-
-    const state = await page.evaluate(() => window.testHelper.getState());
-    expect(state.inCorrectionMode).toBe(false);
-  });
-
-  // ── Right-click opens context menu ────────────────────────────────────────
+  // ── Right-click opens context menu and enters correction mode ─────────────
 
   test("right-clicking a timeline entry enters correction mode", async ({ page }) => {
     await page.goto(BASE_URL);
@@ -108,6 +40,26 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
 
     await expect(page.locator("#context-menu")).toBeVisible();
+  });
+
+  // ── Keyboard ArrowLeft entry also shows context menu ─────────────────────
+
+  test("ArrowLeft entering correction mode shows the context menu", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+
+    await expect(page.locator("#context-menu")).toBeVisible();
+  });
+
+  test("context menu is hidden in normal mode (before entering correction mode)", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await expect(page.locator("#context-menu")).toBeHidden();
   });
 
   test("context menu has delete item", async ({ page }) => {

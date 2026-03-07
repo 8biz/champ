@@ -2099,8 +2099,7 @@
       if (entry.dataset.seq) {
         attachLongPress(entry, () => {
           enterCorrectionModeAtSeq(entry.dataset.seq);
-          const rect = entry.getBoundingClientRect();
-          showContextMenu(rect.left + rect.width / 2, rect.top);
+          showContextMenuAtCursor();
         });
       }
 
@@ -2350,6 +2349,7 @@
           (appState.mode === 'Recording' || appState.mode === 'Completing')) {
         e.preventDefault();
         enterCorrectionMode();
+        showContextMenuAtCursor();
         return;
       }
 
@@ -2914,6 +2914,17 @@
       document.getElementById('context-menu').classList.remove('open');
     }
 
+    /**
+     * Show the context menu positioned above the currently cursored timeline entry.
+     * No-op if no cursor entry is found in the DOM.
+     */
+    function showContextMenuAtCursor() {
+      const cursorEntry = timeline.querySelector('.entry-box.cursor')?.closest('.entry');
+      if (!cursorEntry) return;
+      const rect = cursorEntry.getBoundingClientRect();
+      showContextMenu(rect.left + rect.width / 2, rect.top);
+    }
+
     /** Set up context menu item handlers and outside-click dismissal. */
     function initializeContextMenu() {
       document.getElementById('ctx-delete').addEventListener('click', () => {
@@ -2961,15 +2972,6 @@
 
     /** Set up click and contextmenu event delegation on the timeline element. */
     function initializeTimelineInteraction() {
-      // Left-click: enter/update correction mode
-      timeline.addEventListener('click', (e) => {
-        const entryBox = e.target.closest('.entry-box');
-        if (!entryBox) return;
-        const entry = entryBox.closest('.entry[data-seq]');
-        if (!entry) return; // next-event or period-end (no data-seq set)
-        enterCorrectionModeAtSeq(entry.dataset.seq);
-      });
-
       // Right-click: enter correction mode and show context menu
       timeline.addEventListener('contextmenu', (e) => {
         const entryBox = e.target.closest('.entry-box');
