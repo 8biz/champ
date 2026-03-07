@@ -176,8 +176,8 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     const pos2 = await page.locator("#context-menu").boundingBox();
 
-    // The menu should have moved horizontally (first event is to the left of second)
-    expect(pos2.x).not.toBe(pos1.x);
+    // The menu should have moved to the left (first event is to the left of second)
+    expect(pos2.x).toBeLessThan(pos1.x);
   });
 
   test("context menu closes when confirm button is clicked", async ({ page }) => {
