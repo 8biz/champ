@@ -315,8 +315,36 @@ A completed scoresheet re-released to correct the top-bar information or complet
 ### General rules
 - All button interactions map to corresponding events defined in the **Event Specification**.
 - Buttons trigger events with a single click (desktop) or tap (mobile).
-- Clicking/tapping a timeline entry moves the cursor to that entry and enters **Correction mode** in **Modify event mode**.
-- Long-pressing (touch) or right-clicking (desktop) a timeline entry shows a context menu with options to delete, insert, or swap events, and enters **Correction mode** in **Sequence correction mode**.
+- Long-pressing (touch) or right-clicking (desktop) a timeline bout-event entry enters **Correction mode** with the cursor placed at that entry and shows the **correction context menu**.
+- Entering **Correction mode** via keyboard (`Left arrow`) also shows the **correction context menu** at the cursor entry.
+
+### Correction context menu
+
+The correction context menu is a small popup that appears above the cursored timeline entry whenever **Correction mode** is entered (by right-click, long-press, or `Left arrow` key). Its lower-left corner is always centered horizontally above the cursored entry, at a fixed vertical position just above the timeline. It contains the following items in order:
+
+| Emoji | Label | Action |
+|---|---|---|
+| 🗑️ | `[Entf]` Ereignis löschen | Delete the cursored event (stores in correction buffer, same as `Delete` key) |
+| ➕ | `[##]` Ereignis einfügen | Insert a new bout event prior to the cursored event — **not yet implemented** (no-op) |
+| 🔄 | `[#][←\|→]` Ereignisse tauschen | Swap the cursored event with another — **not yet implemented** (no-op) |
+| ⏱️ | `[T]` Zeit ändern | Modify the bout time of the cursored event — **not yet implemented** (no-op) |
+
+The context menu **moves with the cursor** — whenever the cursor moves (via `Left arrow` / `Right arrow` or any other cursor movement), the menu repositions above the new cursored entry.
+
+The context menu is dismissed **only** when correction mode is exited:
+- Confirming corrections (`Enter` key or **[Enter] Übernehmen** button)
+- Cancelling corrections (`Escape` key or **[Esc] Verwerfen** button)
+
+### Correction mode confirm/cancel buttons
+
+Two buttons appear at the lower-right of the timeline border when **Correction mode** is active:
+
+| Button | Action |
+|---|---|
+| **[Enter] Übernehmen** | Apply all pending corrections and exit **Correction mode** (same as pressing `Enter`) |
+| **[Esc] Verwerfen** | Discard all pending corrections and exit **Correction mode** (same as pressing `Escape`) |
+
+These buttons are hidden when not in **Correction mode**. They are embedded into the timeline border at the bottom-right corner.
 
 ### Button controls for scoresheet preparation
 | `eventType` | Button / Control | Action |
