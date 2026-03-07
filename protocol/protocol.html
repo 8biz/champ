@@ -479,6 +479,45 @@
       color: #fff;
     }
 
+    /* ── Context menu ─────────────────────────────────────────────────────── */
+    #context-menu {
+      position: fixed;
+      z-index: 1000;
+      background: #fff;
+      border: 0.0625rem solid var(--border);
+      border-radius: 0.375rem;
+      box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.18);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 9rem;
+    }
+
+    #context-menu.open {
+      display: flex;
+    }
+
+    .context-menu-item {
+      border: none;
+      background: transparent;
+      text-align: left;
+      padding: 0.4rem 0.7rem;
+      cursor: pointer;
+      white-space: nowrap;
+      font-size: 0.875rem;
+      color: var(--text);
+      font-family: inherit;
+    }
+
+    .context-menu-item:hover:not([data-noop]) {
+      background: var(--neutral-1);
+    }
+
+    .context-menu-item[data-noop] {
+      color: var(--neutral-2);
+      cursor: default;
+    }
+
     #completion-form {
       border: 0.0625rem solid var(--border);
       border-radius: 0.375rem;
@@ -708,6 +747,14 @@
       </article>
     </section>
   </main>
+
+  <!-- Context menu for timeline entries (right-click / long-press) -->
+  <div id="context-menu" role="menu" aria-label="Ereignis-Optionen">
+    <button id="ctx-delete" class="context-menu-item" type="button" role="menuitem">🗑️ [Entf] Ereignis löschen</button>
+    <button id="ctx-insert" class="context-menu-item" type="button" role="menuitem" data-noop>➕ [##] Ereignis einfügen</button>
+    <button id="ctx-swap"   class="context-menu-item" type="button" role="menuitem" data-noop>🔄 [#][←|→] Ereignisse tauschen</button>
+    <button id="ctx-time"   class="context-menu-item" type="button" role="menuitem" data-noop>⏱️ [T] Zeit ändern</button>
+  </div>
 
   <!-- Time modification modal (bout time and injury/blood timers) -->
   <div id="time-mod-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="time-mod-title">
@@ -1991,7 +2038,12 @@
     function createTimelineEntry(event, context, isCursor = false, isSwapOrigin = false) {
       const entry = document.createElement('div');
       entry.className = 'entry';
-      
+
+      // Store seq for click-based correction-mode entry (non-PeriodEnd bout events only)
+      if (event.seq !== undefined && event.eventType !== 'PeriodEnd') {
+        entry.dataset.seq = event.seq;
+      }
+
       const eventType = event.eventType;
       const swapModeClass = isCursor && appState.inSwapMode ? ' swap-mode' : '';
       const cursorClass = isCursor ? ` cursor${swapModeClass}` : '';
@@ -2042,7 +2094,16 @@
       `;
       
       if (isSwapOrigin) entry.classList.add('swap-origin');
-      
+
+      // Long-press on cursorable bout entries shows the context menu
+      if (entry.dataset.seq) {
+        attachLongPress(entry, () => {
+          enterCorrectionModeAtSeq(entry.dataset.seq);
+          const rect = entry.getBoundingClientRect();
+          showContextMenu(rect.left + rect.width / 2, rect.top);
+        });
+      }
+
       return entry;
     }
 
@@ -2277,6 +2338,7 @@
       
       // Escape clears buffer
       if (key === 'Escape') {
+        hideContextMenu();
         appState.keyBuffer = [];
         updateNextEventDisplay();
         console.log('Key buffer cleared');
@@ -2590,6 +2652,7 @@
       }
 
       if (key === 'Escape') {
+        hideContextMenu();
         if (appState.keyBuffer.length === 0) {
           exitCorrectionMode(false);
         } else {
@@ -2828,6 +2891,114 @@
      * Buttons are labelled like [1R], [PR], [0R1B], [4B], etc.
      * Per UI spec, each click sends the colour key first, then the event key.
      */
+    // ===================================================================
+    // CONTEXT MENU
+    // ===================================================================
+
+    /** Show the context menu positioned near (clientX, clientY). */
+    function showContextMenu(clientX, clientY) {
+      const PADDING = 4; // px gap between menu and viewport edge / trigger point
+      const menu = document.getElementById('context-menu');
+      menu.classList.add('open');
+      // Measure after making it visible to get correct dimensions
+      const menuRect = menu.getBoundingClientRect();
+      // Prefer showing above the trigger point; clamp to viewport edges
+      const top  = Math.max(PADDING, clientY - menuRect.height - PADDING);
+      const left = Math.min(clientX, window.innerWidth - menuRect.width - PADDING);
+      menu.style.top  = `${top}px`;
+      menu.style.left = `${left}px`;
+    }
+
+    /** Hide the context menu. */
+    function hideContextMenu() {
+      document.getElementById('context-menu').classList.remove('open');
+    }
+
+    /** Set up context menu item handlers and outside-click dismissal. */
+    function initializeContextMenu() {
+      document.getElementById('ctx-delete').addEventListener('click', () => {
+        deleteCurrentEvent();
+        hideContextMenu();
+      });
+
+      // Insert, swap, time: no-ops for now — stop propagation so menu doesn't close
+      ['ctx-insert', 'ctx-swap', 'ctx-time'].forEach(id => {
+        document.getElementById(id).addEventListener('click', (e) => {
+          e.stopPropagation();
+        });
+      });
+
+      // Hide on any click outside the context menu (capture phase)
+      document.addEventListener('click', (e) => {
+        if (!document.getElementById('context-menu').contains(e.target)) {
+          hideContextMenu();
+        }
+      }, true);
+    }
+
+    // ===================================================================
+    // TIMELINE CLICK / CONTEXTMENU INTERACTION
+    // ===================================================================
+
+    /**
+     * Enter correction mode with cursor placed at the cursorable event
+     * identified by seq. If already in correction mode, just moves the cursor.
+     * No-op if seq is not found among cursorable events or mode is not active.
+     */
+    function enterCorrectionModeAtSeq(seq) {
+      if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return;
+      const cursorableEvents = getCursorableEvents();
+      const idx = cursorableEvents.findIndex(e => String(e.seq) === String(seq));
+      if (idx === -1) return;
+      if (!appState.inCorrectionMode) {
+        appState.inCorrectionMode = true;
+        appState.keyBuffer = [];
+      }
+      appState.cursorIndex = idx;
+      updateTimeline();
+      console.log('Cursor set via click, cursorIndex:', idx);
+    }
+
+    /** Set up click and contextmenu event delegation on the timeline element. */
+    function initializeTimelineInteraction() {
+      // Left-click: enter/update correction mode
+      timeline.addEventListener('click', (e) => {
+        const entryBox = e.target.closest('.entry-box');
+        if (!entryBox) return;
+        const entry = entryBox.closest('.entry[data-seq]');
+        if (!entry) return; // next-event or period-end (no data-seq set)
+        enterCorrectionModeAtSeq(entry.dataset.seq);
+      });
+
+      // Right-click: enter correction mode and show context menu
+      timeline.addEventListener('contextmenu', (e) => {
+        const entryBox = e.target.closest('.entry-box');
+        if (!entryBox) return;
+        const entry = entryBox.closest('.entry[data-seq]');
+        if (!entry) return;
+        e.preventDefault();
+        enterCorrectionModeAtSeq(entry.dataset.seq);
+        showContextMenu(e.clientX, e.clientY);
+      });
+    }
+
+    /**
+     * Apply a target event type directly to the currently cursored event.
+     * Used when an event button is clicked while in correction mode.
+     */
+    function applyButtonEventType(targetType) {
+      if (appState.cursorIndex === null) return;
+      const cursorableEvents = getCursorableEvents();
+      const event = cursorableEvents[appState.cursorIndex];
+      if (!event) return;
+      if (targetType === event.eventType) return; // no change
+      appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
+      appState.correctionBuffer.push({ refSeq: event.seq, newEventType: targetType });
+      updateTimeline();
+      updateScores();
+      console.log('Event modified via button click:', event.seq, '->', targetType);
+    }
+
     function initializeEventButtons() {
       // Shared setup for both colour sides.
       ['R', 'B'].forEach(color => {
@@ -2849,7 +3020,17 @@
           }
 
           if (keys) {
-            btn.addEventListener('click', () => { simulateKeySequence(keys); btn.blur(); });
+            // The event type is the button label with brackets stripped.
+            // All event buttons follow the [TYPE] format (e.g. [1R], [PR], [0R1B]).
+            const eventType = label.slice(1, -1); // e.g. "[1R]" → "1R", "[0R1B]" → "0R1B"
+            btn.addEventListener('click', () => {
+              if (appState.inCorrectionMode && !appState.inInsertMode && !appState.inSwapMode) {
+                applyButtonEventType(eventType);
+              } else {
+                simulateKeySequence(keys);
+              }
+              btn.blur();
+            });
             // Prevent Space from re-triggering the button after a click.
             btn.addEventListener('keydown', e => {
               if (e.code === 'Space' || e.key === ' ') e.preventDefault();
@@ -3302,6 +3483,12 @@
       
       // Initialize event button click handlers
       initializeEventButtons();
+
+      // Initialize timeline click/contextmenu interaction
+      initializeTimelineInteraction();
+
+      // Initialize context menu
+      initializeContextMenu();
 
       // Injury/blood timer button click handlers
       [['injury-time-red', 'IR'], ['blood-time-red', 'BR'],
