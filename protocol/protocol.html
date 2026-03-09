@@ -767,9 +767,10 @@
   <!-- Context menu for timeline entries (right-click / long-press) -->
   <div id="context-menu" role="menu" aria-label="Ereignis-Optionen">
     <button id="ctx-delete" class="context-menu-item" type="button" role="menuitem">🗑️ [Entf] Ereignis löschen</button>
-    <button id="ctx-insert" class="context-menu-item" type="button" role="menuitem" data-noop>➕ [##] Ereignis einfügen</button>
+    <button id="ctx-insert" class="context-menu-item" type="button" role="menuitem">➕ [##] Ereignis einfügen</button>
     <button id="ctx-swap"   class="context-menu-item" type="button" role="menuitem" data-noop>🔄 [#][←|→] Ereignisse tauschen</button>
     <button id="ctx-time"   class="context-menu-item" type="button" role="menuitem" data-noop>⏱️ [T] Zeit ändern</button>
+    <button id="ctx-insert-cancel" class="context-menu-item" type="button" role="menuitem" hidden>[Esc] Abbrechen</button>
   </div>
 
   <!-- Time modification modal (bout time and injury/blood timers) -->
@@ -1734,6 +1735,25 @@
         .filter(c => c.swapped)
         .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2));
 
+      // Apply pending insertions from correctionBuffer so cursor can point to them.
+      // Pending-inserted virtual events use a synthetic seq with the prefix 'pi-'
+      // (short for "pending insert") followed by the insertBefore seq value.
+      appState.correctionBuffer
+        .filter(c => c.insertedEventType)
+        .forEach(ins => {
+          const insertedEvent = {
+            seq: `pi-${ins.insertBefore}`,
+            boutTime100ms: ins.boutTime100ms,
+            eventType: ins.insertedEventType
+          };
+          const idx = result.findIndex(e => e.seq === ins.insertBefore);
+          if (idx >= 0) {
+            result.splice(idx, 0, insertedEvent);
+          } else {
+            result.push(insertedEvent);
+          }
+        });
+
       // Apply live swap preview (during swap mode navigation, before Enter is pressed)
       if (appState.inSwapMode && appState.swapOriginIndex !== null &&
           appState.cursorIndex !== null && appState.cursorIndex !== appState.swapOriginIndex) {
@@ -2556,6 +2576,8 @@
       const cursorableEvents = getCursorableEvents();
       const event = cursorableEvents[appState.cursorIndex];
       if (!event) return;
+      // Pending-inserted events (pi- seq) cannot be modified via this path
+      if (typeof event.seq === 'string' && event.seq.startsWith('pi-')) return;
 
       let newEventType;
       if (modification.type === 'color') {
@@ -2584,6 +2606,26 @@
       const cursorableEvents = getCursorableEvents();
       const event = cursorableEvents[appState.cursorIndex];
       if (!event) return;
+
+      // If cursor is on a pending-inserted event (seq starts with 'pi-'), cancel that pending insertion
+      if (typeof event.seq === 'string' && event.seq.startsWith('pi-')) {
+        const insertBeforeStr = event.seq.substring('pi-'.length);
+        appState.correctionBuffer = appState.correctionBuffer.filter(
+          c => !(c.insertedEventType && String(c.insertBefore) === insertBeforeStr)
+        );
+        // Clamp cursor after removing the pi- event
+        const newCursorableEvents = getCursorableEvents();
+        if (newCursorableEvents.length === 0) {
+          appState.cursorIndex = null;
+        } else if (appState.cursorIndex !== null && appState.cursorIndex >= newCursorableEvents.length) {
+          appState.cursorIndex = newCursorableEvents.length - 1;
+        }
+        updateTimeline();
+        updateScores();
+        showContextMenuAtCursor();
+        console.log('Cancelled pending insertion for:', insertBeforeStr);
+        return;
+      }
 
       appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
       appState.correctionBuffer.push({ refSeq: event.seq, deleted: true });
@@ -2773,6 +2815,7 @@
         appState.inInsertMode = true;
         appState.keyBuffer = [];
         updateTimeline();
+        showContextMenuAtCursor();
         console.log('Transition from swap mode to insert mode');
         return;
       }
@@ -2793,6 +2836,7 @@
         appState.inInsertMode = false;
         appState.keyBuffer = [];
         updateTimeline();
+        showContextMenuAtCursor();
         console.log('Insert mode cancelled');
         return;
       }
@@ -2801,6 +2845,7 @@
       if (key === 'Enter' && appState.keyBuffer.length === 0) {
         appState.inInsertMode = false;
         updateTimeline();
+        showContextMenuAtCursor();
         return;
       }
 
@@ -2826,6 +2871,7 @@
           appState.inInsertMode = false;
           appState.keyBuffer = [];
           updateTimeline();
+          showContextMenuAtCursor();
           return;
         }
         appState.correctionBuffer.push({
@@ -2837,6 +2883,7 @@
         appState.keyBuffer = [];
         updateTimeline();
         updateScores();
+        showContextMenuAtCursor();
         console.log('Event inserted in buffer:', insertedEventType, 'before seq', cursorEvent.seq);
       }
     }
@@ -2911,6 +2958,28 @@
     // CONTEXT MENU
     // ===================================================================
 
+    /**
+     * Update the context menu to reflect insert mode state.
+     * In insert mode: existing items are disabled, cancel item is shown.
+     * Outside insert mode: existing items restored, cancel item hidden.
+     */
+    function updateContextMenuInsertMode(inInsertMode) {
+      const cancelBtn = document.getElementById('ctx-insert-cancel');
+      // ctx-delete and ctx-insert are normally enabled; disable them in insert mode
+      ['ctx-delete', 'ctx-insert'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        if (inInsertMode) {
+          btn.setAttribute('data-noop', '');
+        } else {
+          btn.removeAttribute('data-noop');
+        }
+      });
+      if (cancelBtn) {
+        cancelBtn.hidden = !inInsertMode;
+      }
+    }
+
     /** Show the context menu positioned near (clientX, clientY). */
     function showContextMenu(clientX, clientY) {
       const PADDING = 4; // px gap between menu and viewport edge / trigger point
@@ -2939,10 +3008,14 @@
     function showContextMenuAtCursor() {
       const cursorEntry = timeline.querySelector('.entry-box.cursor')?.closest('.entry');
       if (!cursorEntry) return;
-      const entryRect = cursorEntry.getBoundingClientRect();
       const timelineRect = timeline.getBoundingClientRect();
       const menu = document.getElementById('context-menu');
       menu.classList.add('open');
+      // Sync insert-mode state so cancel item and disabled items are correct
+      updateContextMenuInsertMode(appState.inInsertMode);
+      // Measure after applying insert-mode state to get correct menu height
+      // (showing/hiding the cancel button changes the menu's height)
+      const entryRect = cursorEntry.getBoundingClientRect();
       const menuRect = menu.getBoundingClientRect();
       // Lower-left corner centered above the cursored event, fixed vertical above timeline
       const PADDING = 4;
@@ -2962,8 +3035,25 @@
         showContextMenuAtCursor();
       });
 
-      // Insert, swap, time: no-ops for now — stop propagation so menu doesn't close
-      ['ctx-insert', 'ctx-swap', 'ctx-time'].forEach(id => {
+      // ctx-insert: enter event insert mode
+      document.getElementById('ctx-insert').addEventListener('click', () => {
+        if (appState.inInsertMode) return; // already in insert mode
+        appState.inInsertMode = true;
+        appState.keyBuffer = [];
+        updateTimeline();
+        showContextMenuAtCursor();
+      });
+
+      // ctx-insert-cancel: cancel event insert mode
+      document.getElementById('ctx-insert-cancel').addEventListener('click', () => {
+        appState.inInsertMode = false;
+        appState.keyBuffer = [];
+        updateTimeline();
+        showContextMenuAtCursor();
+      });
+
+      // Swap, time: no-ops for now — stop propagation so menu doesn't close
+      ['ctx-swap', 'ctx-time'].forEach(id => {
         document.getElementById(id).addEventListener('click', (e) => {
           e.stopPropagation();
         });
@@ -3016,12 +3106,43 @@
       const cursorableEvents = getCursorableEvents();
       const event = cursorableEvents[appState.cursorIndex];
       if (!event) return;
+      // Pending-inserted events (pi- seq) cannot be modified via this path
+      if (typeof event.seq === 'string' && event.seq.startsWith('pi-')) return;
       if (targetType === event.eventType) return; // no change
       appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
       appState.correctionBuffer.push({ refSeq: event.seq, newEventType: targetType });
       updateTimeline();
       updateScores();
       console.log('Event modified via button click:', event.seq, '->', targetType);
+    }
+
+    /**
+     * Insert a new event of the given type before the cursored event.
+     * Used when an event button is clicked while in insert mode.
+     * Exits insert mode after the insertion.
+     */
+    function applyButtonEventTypeAsInsert(insertedEventType) {
+      if (appState.cursorIndex === null) return;
+      const cursorableEvents = getCursorableEvents();
+      const cursorEvent = cursorableEvents[appState.cursorIndex];
+      if (!cursorEvent) {
+        appState.inInsertMode = false;
+        appState.keyBuffer = [];
+        updateTimeline();
+        showContextMenuAtCursor();
+        return;
+      }
+      appState.correctionBuffer.push({
+        insertBefore: cursorEvent.seq,
+        boutTime100ms: cursorEvent.boutTime100ms,
+        insertedEventType
+      });
+      appState.inInsertMode = false;
+      appState.keyBuffer = [];
+      updateTimeline();
+      updateScores();
+      showContextMenuAtCursor();
+      console.log('Event inserted via button in insert mode:', insertedEventType, 'before seq', cursorEvent.seq);
     }
 
     function initializeEventButtons() {
@@ -3049,7 +3170,9 @@
             // All event buttons follow the [TYPE] format (e.g. [1R], [PR], [0R1B]).
             const eventType = label.slice(1, -1); // e.g. "[1R]" → "1R", "[0R1B]" → "0R1B"
             btn.addEventListener('click', () => {
-              if (appState.inCorrectionMode && !appState.inInsertMode && !appState.inSwapMode) {
+              if (appState.inCorrectionMode && appState.inInsertMode) {
+                applyButtonEventTypeAsInsert(eventType);
+              } else if (appState.inCorrectionMode && !appState.inInsertMode && !appState.inSwapMode) {
                 applyButtonEventType(eventType);
               } else {
                 simulateKeySequence(keys);
