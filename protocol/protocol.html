@@ -877,6 +877,10 @@
         BR: { running: false, time100ms: 0, intervalId: null },
         BB: { running: false, time100ms: 0, intervalId: null }
       },
+      activityTimers: {
+        AR: { active: false, time100ms: 0, seq: null }, // activity time for red
+        AB: { active: false, time100ms: 0, seq: null }  // activity time for blue
+      },
       timeModTarget: null,  // null = bout time, 'IR'/'IB'/'BR'/'BB' = injury timer, 'correctionBoutTime' = correction mode
       timeModCorrectionEvent: null, // event being time-modified in correction mode
       inCorrectionMode: false,
@@ -937,11 +941,38 @@
       appState.periodTime100ms--;
       
       updateBoutTimeDisplay();
+
+      // Tick active activity timers (they run in sync with the bout timer)
+      let anyTimerExpired = false;
+      ['AR', 'AB'].forEach(key => {
+        const at = appState.activityTimers[key];
+        if (!at.active) return;
+        at.time100ms--;
+        if (at.time100ms <= 0) {
+          at.active = false;
+          at.time100ms = 0;
+          at.seq = null;
+          anyTimerExpired = true;
+        } else {
+          updateActivityTimerDisplay(key);
+        }
+      });
       
       if (appState.periodTime100ms <= 0) {
+        // Period over: delete any remaining activity timers before recording PeriodEnd
+        ['AR', 'AB'].forEach(key => {
+          const at = appState.activityTimers[key];
+          if (at.active) {
+            at.active = false;
+            at.time100ms = 0;
+            at.seq = null;
+            anyTimerExpired = true;
+          }
+        });
         stopTimer();
         if (appState.mode === 'Recording') {
           recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.boutTime100ms });
+          // recordEvent() calls updateTimeline(), which re-renders expired timers
           const ruleset = loadEmbeddedRuleset();
           const nextPeriodIndex = appState.currentPeriodIndex + 1;
           if (ruleset && nextPeriodIndex < ruleset.periodTimesInSeconds.length) {
@@ -951,6 +982,9 @@
             boutTimeButton.disabled = true;
           }
         }
+      } else if (anyTimerExpired) {
+        // Re-render timeline to switch from two-row to single-row format
+        updateTimeline();
       }
     }
 
@@ -1078,6 +1112,102 @@
       } else {
         startInjuryTimer(timerKey);
       }
+    }
+
+    // ===================================================================
+    // ACTIVITY TIMER LOGIC
+    // ===================================================================
+
+    /**
+     * Returns the activity-time configuration for the currently selected
+     * wrestling style from the embedded ruleset, or null if none is defined.
+     * Example: { activityTimeInSeconds: 30, activityTimeCountingDirection: "Down",
+     *            activityTimeCondition: { passivityCount: { gt: 1 } } }
+     */
+    function getActivityTimeConfig() {
+      const styleEl = document.getElementById('style-select');
+      if (!styleEl) return null;
+      const styleKey = styleEl.value.toLowerCase();
+      const ruleset = loadEmbeddedRuleset();
+      if (!ruleset) return null;
+      return ruleset[styleKey] ?? null;
+    }
+
+    /**
+     * Returns true when the next passivity award for `side` ('red'|'blue')
+     * should be recorded as an activity-time event (AR/AB) rather than PR/PB.
+     * Uses activityTimeCondition from the ruleset, evaluated with the passivity
+     * count that would result after adding the new award.
+     */
+    function shouldUseActivityTime(side) {
+      const conf = getActivityTimeConfig();
+      if (!conf?.activityTimeCondition || !conf.activityTimeInSeconds) return false;
+      const sideKey = side === 'red' ? 'R' : 'B';
+      const events = getEffectiveBoutEvents();
+      // Count existing passivity for this side: both PR/PB (normal) and AR/AB (activity time)
+      const existingCount = events.filter(
+        e => e.eventType === `P${sideKey}` || e.eventType === `A${sideKey}`
+      ).length;
+      // Evaluate condition including the new award being recorded
+      return evaluateCondition(conf.activityTimeCondition, { passivityCount: existingCount + 1 });
+    }
+
+    /**
+     * Start an activity timer for the given key ('AR'|'AB'), associating it
+     * with the recorded event identified by `seq`.  If a timer for that side
+     * is already running it is replaced.
+     */
+    function startActivityTimer(key, seq) {
+      const conf = getActivityTimeConfig();
+      if (!conf) return;
+      const at = appState.activityTimers[key];
+      // Replace any existing active timer for this side
+      at.active = true;
+      at.time100ms = (conf.activityTimeInSeconds ?? 30) * 10;
+      at.seq = seq;
+      // Re-render so the new two-row entry is visible immediately
+      updateTimeline();
+    }
+
+    /**
+     * Delete an active activity timer, updating both state and the live DOM
+     * so the bottom row disappears without a full timeline re-render.
+     * Pass `silent = true` when a full re-render will follow immediately.
+     */
+    function deleteActivityTimer(key, silent = false) {
+      const at = appState.activityTimers[key];
+      if (!at.active) return;
+      const seq = at.seq;
+      at.active = false;
+      at.time100ms = 0;
+      at.seq = null;
+      if (!silent) updateTimeline();
+    }
+
+    /**
+     * Returns the formatted display time string for the given activity timer key,
+     * respecting the ruleset's activityTimeCountingDirection ('Down'/'Up').
+     */
+    function formatActivityTime(key) {
+      const at = appState.activityTimers[key];
+      const conf = getActivityTimeConfig();
+      const direction = conf?.activityTimeCountingDirection ?? 'Down';
+      const maxTime100ms = (conf?.activityTimeInSeconds ?? 30) * 10;
+      const displayTime = direction === 'Down' ? at.time100ms : maxTime100ms - at.time100ms;
+      return formatTime100ms(displayTime);
+    }
+
+    /**
+     * Update only the activity-timer text node in the existing timeline DOM
+     * (called on every 100 ms tick to avoid full re-renders).
+     */
+    function updateActivityTimerDisplay(key) {
+      const at = appState.activityTimers[key];
+      if (!at.active || at.seq === null) return;
+      const entry = document.querySelector(`#timeline .entry[data-seq="${at.seq}"]`);
+      if (!entry) return;
+      const timerRow = entry.querySelector('.activity-timer-row');
+      if (timerRow) timerRow.textContent = formatActivityTime(key);
     }
 
     function startTimer() {
@@ -1388,6 +1518,15 @@
         ...eventData
       };
       appState.events.push(event);
+
+      // Delete activity timer when the wrestler whose timer is running scores points
+      const pointMatch = event.eventType.match(/^[1245](R|B)$/);
+      if (pointMatch) {
+        const timerKey = pointMatch[1] === 'R' ? 'AR' : 'AB';
+        if (appState.activityTimers[timerKey].active) {
+          deleteActivityTimer(timerKey, true); // silent — updateTimeline() follows
+        }
+      }
       
       // Update UI after recording event
       updateScores();
@@ -2073,7 +2212,7 @@
 
     /** Returns the main color class ('red', 'blue', 'next') for an event type string. */
     function eventColorClass(type) {
-      const ptMatch = type.match(/^[1245P](R|B)$/);
+      const ptMatch = type.match(/^[1245PA](R|B)$/); // includes PR/PB and AR/AB
       if (ptMatch) return ptMatch[1] === 'R' ? 'red' : 'blue';
       const cautionMatch = type.match(/^0([RB])/);
       if (cautionMatch) return cautionMatch[1] === 'R' ? 'red' : 'blue';
@@ -2126,9 +2265,29 @@
             </div>
           `;
         } else {
-          // Regular event (points or passivity)
-          const colorClass = eventType.includes('R') ? 'red' : (eventType.includes('B') ? 'blue' : 'next');
-          boxHtml = `<div class="entry-box ${colorClass}${insertedClass}${cursorClass}">${eventType}</div>`;
+          // Activity time event (AR / AB): two-row while timer is active, single row after
+          const activityMatch = eventType.match(/^A([RB])$/);
+          if (activityMatch) {
+            const side = activityMatch[1] === 'R' ? 'red' : 'blue';
+            const timerKey = eventType; // 'AR' or 'AB'
+            const at = appState.activityTimers[timerKey];
+            const isTimerActive = at.active && at.seq === event.seq;
+            if (isTimerActive) {
+              boxHtml = `
+                <div class="entry-box caution ${side}${insertedClass}${cursorClass}">
+                  <div class="caution-row ${side}">${eventType}</div>
+                  <div class="caution-row ${side} activity-timer-row">${formatActivityTime(timerKey)}</div>
+                </div>
+              `;
+            } else {
+              // Timer expired or not yet started: single-row
+              boxHtml = `<div class="entry-box ${side}${insertedClass}${cursorClass}">${eventType}</div>`;
+            }
+          } else {
+            // Regular event (points or passivity)
+            const colorClass = eventType.includes('R') ? 'red' : (eventType.includes('B') ? 'blue' : 'next');
+            boxHtml = `<div class="entry-box ${colorClass}${insertedClass}${cursorClass}">${eventType}</div>`;
+          }
         }
       }
       
@@ -2282,13 +2441,23 @@
         return true;
       }
       
-      // Passivity: RP, PR, BP, PB
+      // Passivity: RP, PR, BP, PB — may become activity time (AR/AB) per ruleset
       if (seq === 'RP' || seq === 'PR') {
-        recordEvent({ eventType: 'PR', boutTime100ms: appState.boutTime100ms });
+        if (shouldUseActivityTime('red')) {
+          const event = recordEvent({ eventType: 'AR', boutTime100ms: appState.boutTime100ms });
+          startActivityTimer('AR', event.seq);
+        } else {
+          recordEvent({ eventType: 'PR', boutTime100ms: appState.boutTime100ms });
+        }
         return true;
       }
       if (seq === 'BP' || seq === 'PB') {
-        recordEvent({ eventType: 'PB', boutTime100ms: appState.boutTime100ms });
+        if (shouldUseActivityTime('blue')) {
+          const event = recordEvent({ eventType: 'AB', boutTime100ms: appState.boutTime100ms });
+          startActivityTimer('AB', event.seq);
+        } else {
+          recordEvent({ eventType: 'PB', boutTime100ms: appState.boutTime100ms });
+        }
         return true;
       }
       
@@ -2453,6 +2622,8 @@
       if (ptMatch) return ptMatch[1];
       const psMatch = eventType.match(/^P(R|B)$/);
       if (psMatch) return psMatch[1];
+      const actMatch = eventType.match(/^A(R|B)$/);
+      if (actMatch) return actMatch[1];
       const cautMatch = eventType.match(/^0(R|B)[12](R|B)$/);
       if (cautMatch) return cautMatch[1]; // cautioned side
       return null;
@@ -2465,6 +2636,8 @@
       if (ptMatch) return ptMatch[1] + newColor;
       const psMatch = eventType.match(/^P(R|B)$/);
       if (psMatch) return 'P' + newColor;
+      const actMatch = eventType.match(/^A(R|B)$/);
+      if (actMatch) return 'A' + newColor;
       const cautMatch = eventType.match(/^0(R|B)([12])(R|B)$/);
       if (cautMatch) return `0${newColor}${cautMatch[2]}${oppColor}`;
       return eventType;
@@ -2486,6 +2659,9 @@
       const ptMatch = eventType.match(/^[1245](R|B)$/);
       if (ptMatch) return 'P' + ptMatch[1];
       if (eventType.match(/^P(R|B)$/)) return eventType;
+      // Activity time event → passivity (AR→PR, AB→PB)
+      const actMatch = eventType.match(/^A(R|B)$/);
+      if (actMatch) return 'P' + actMatch[1];
       const cautMatch = eventType.match(/^0(R|B)([12])(R|B)$/);
       if (cautMatch) return 'P' + cautMatch[1];
       return eventType;
@@ -3563,9 +3739,9 @@
           stats[side].technicalPoints[points]++;
         }
         
-        // Passivity
-        if (e.eventType === 'PR') stats.red.passivity++;
-        if (e.eventType === 'PB') stats.blue.passivity++;
+        // Passivity — AR/AB (activity time) count as passivity for the respective side
+        if (e.eventType === 'PR' || e.eventType === 'AR') stats.red.passivity++;
+        if (e.eventType === 'PB' || e.eventType === 'AB') stats.blue.passivity++;
         
         // Cautions
         if (e.eventType.match(/^0R[12]B$/)) stats.red.cautions++;
@@ -3746,6 +3922,10 @@
           IB: { running: appState.injuryTimers.IB.running, time100ms: appState.injuryTimers.IB.time100ms },
           BR: { running: appState.injuryTimers.BR.running, time100ms: appState.injuryTimers.BR.time100ms },
           BB: { running: appState.injuryTimers.BB.running, time100ms: appState.injuryTimers.BB.time100ms }
+        },
+        activityTimers: {
+          AR: { active: appState.activityTimers.AR.active, time100ms: appState.activityTimers.AR.time100ms, seq: appState.activityTimers.AR.seq },
+          AB: { active: appState.activityTimers.AB.active, time100ms: appState.activityTimers.AB.time100ms, seq: appState.activityTimers.AB.seq }
         }
       }),
       setPeriodTime100ms: (value) => { appState.periodTime100ms = value; updateBoutTimeDisplay(); },
@@ -3753,6 +3933,10 @@
       setInjuryTime100ms: (key, value) => {
         appState.injuryTimers[key].time100ms = value;
         updateInjuryTimerDisplay(key);
+      },
+      setActivityTime100ms: (key, value) => {
+        appState.activityTimers[key].time100ms = value;
+        updateActivityTimerDisplay(key);
       },
       triggerPeriodBreak: (breakSeconds) => {
         recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.boutTime100ms });
