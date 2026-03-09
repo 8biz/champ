@@ -3770,8 +3770,19 @@
       const redInfo = document.getElementById('info-red')?.textContent || 'Rot';
       const blueInfo = document.getElementById('info-blue')?.textContent || 'Blau';
       
-      const scores = calculateScores(appState.events);
-      const statistics = calculateStatistics(appState.events);
+      // Use effective events so that all committed corrections (EventModified,
+      // EventDeleted, EventInserted, EventSwapped) are reflected in scores,
+      // statistics, and the timeline — matching what the browser displays.
+      const effectiveEvents = getEffectiveBoutEvents();
+      const scores = calculateScores(effectiveEvents);
+      const statistics = calculateStatistics(effectiveEvents);
+      // Count correction records from the raw event log:
+      // - startsWith('Event'): EventModified, EventDeleted, EventInserted, EventSwapped
+      // - includes('_Modified'): T_Modified, T_IR_Modified, etc. (timer adjustments)
+      // These two sets are disjoint so there is no double-counting.
+      statistics.corrections = appState.events.filter(e =>
+        e.eventType.startsWith('Event') || e.eventType.includes('_Modified')
+      ).length;
       
       // Calculate winner
       let winner = 'none';
@@ -3805,19 +3816,15 @@
         totalRealTime = new Date(appState.completedAt) - new Date(appState.createdAt);
       }
       
-      // Filter timeline (only bout events)
-      const timeline = appState.events.filter(e => 
-        e.boutTime100ms !== undefined && 
-        !e.eventType.startsWith('T_') &&
-        !e.eventType.startsWith('Event') &&
-        !e.eventType.includes('_Modified') &&
-        e.eventType !== 'ScoresheetReleased' &&
-        e.eventType !== 'ScoresheetCompleted'
-      ).map(e => ({
-        seq: e.seq,
-        eventType: e.eventType,
-        boutTime100ms: e.boutTime100ms
-      }));
+      // Build timeline from effective events (corrections already applied);
+      // exclude virtual pending events that only exist during an active correction session.
+      const timeline = effectiveEvents
+        .filter(e => !isVirtualEvent(e))
+        .map(e => ({
+          seq: e.seq,
+          eventType: e.eventType,
+          boutTime100ms: e.boutTime100ms
+        }));
 
       const exportData = {
         "$schema": "./export-v1.schema.json",
