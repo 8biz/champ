@@ -174,6 +174,82 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await expect(page.locator("#ctx-time")).toHaveAttribute("data-noop", "");
   });
 
+  test("cursor moves to changed event after ctx-time time modification", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-time").click();
+    await page.locator("#time-mod-input").fill("0:05");
+    await page.locator("#time-mod-input").press("Enter");
+
+    // The time-modified virtual entry (pending-inserted, shown with dotted border) should carry the cursor
+    await expect(page.locator(".entry-box.pending-inserted.cursor")).toHaveCount(1);
+  });
+
+  test("ctx-insert and ctx-swap are disabled when cursor is on time-modified virtual event", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-time").click();
+    await page.locator("#time-mod-input").fill("0:05");
+    await page.locator("#time-mod-input").press("Enter");
+
+    // After time modification the cursor is on the tm- virtual event
+    await expect(page.locator("#ctx-insert")).toHaveAttribute("data-noop", "");
+    await expect(page.locator("#ctx-swap")).toHaveAttribute("data-noop", "");
+  });
+
+  test("ctx-time and ctx-delete remain enabled when cursor is on time-modified virtual event", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-time").click();
+    await page.locator("#time-mod-input").fill("0:05");
+    await page.locator("#time-mod-input").press("Enter");
+
+    // ctx-time and ctx-delete should still be enabled on the virtual event
+    await expect(page.locator("#ctx-time")).not.toHaveAttribute("data-noop", "");
+    await expect(page.locator("#ctx-delete")).not.toHaveAttribute("data-noop", "");
+  });
+
+  test("clicking ctx-delete when on time-modified virtual event cancels the modification", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-time").click();
+    await page.locator("#time-mod-input").fill("0:05");
+    await page.locator("#time-mod-input").press("Enter");
+
+    await page.locator("#ctx-delete").click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.correctionBuffer).toHaveLength(0);
+  });
+
+  test("clicking ctx-time when on time-modified virtual event re-opens modal with current time", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-time").click();
+    await page.locator("#time-mod-input").fill("0:05");
+    await page.locator("#time-mod-input").press("Enter");
+
+    // Click ctx-time again on the virtual event
+    await page.locator("#ctx-time").click();
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
+    await expect(page.locator("#time-mod-input")).toHaveValue("0:05");
+  });
+
   test("context menu stays visible when clicking outside", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);

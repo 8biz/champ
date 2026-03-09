@@ -422,4 +422,107 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     expect(tm.eventType).toBe("2B");
     expect(tm.newBoutTime100ms).toBe(150); // 15 s = 150 × 100 ms
   });
+
+  // ── Cursor placement after time modification ──────────────────────────────
+
+  test("cursor moves to the changed event after T key time modification", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("t");
+    await page.locator("#time-mod-input").fill("0:05");
+    await page.locator("#time-mod-input").press("Enter");
+
+    // The time-modified virtual entry (pending-inserted, shown with dotted border) should carry the cursor
+    await expect(page.locator(".entry-box.pending-inserted.cursor")).toHaveCount(1);
+  });
+
+  test("cursor is on the pending-inserted entry with the correct new time", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("t");
+    await page.locator("#time-mod-input").fill("0:05");
+    await page.locator("#time-mod-input").press("Enter");
+
+    // The cursored pending-inserted entry should show the new time
+    await expect(page.locator(".entry:has(.entry-box.pending-inserted.cursor) .entry-time")).toHaveText("0:05.0");
+  });
+
+  test("Delete on the time-modified virtual event cancels the time modification", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("t");
+    await page.locator("#time-mod-input").fill("0:05");
+    await page.locator("#time-mod-input").press("Enter");
+
+    // Cursor is now on the tm- virtual event; pressing Delete cancels the time modification
+    await page.keyboard.press("Delete");
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.correctionBuffer).toHaveLength(0);
+  });
+
+  test("Delete on the time-modified virtual event restores cursor to the original event", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("t");
+    await page.locator("#time-mod-input").fill("0:05");
+    await page.locator("#time-mod-input").press("Enter");
+
+    await page.keyboard.press("Delete");
+
+    // Cursor should be back on the original event (single real event, no pending-inserted)
+    await expect(page.locator(".entry-box.pending-inserted")).toHaveCount(0);
+    await expect(page.locator(".entry-box.cursor")).toHaveCount(1);
+  });
+
+  test("T key on the time-modified virtual event allows re-modification", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("t");
+    await page.locator("#time-mod-input").fill("0:05");
+    await page.locator("#time-mod-input").press("Enter");
+
+    // Cursor is on the tm- event; press T again to re-modify
+    await page.keyboard.press("t");
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
+    // Modal pre-filled with current modified time (0:05)
+    await expect(page.locator("#time-mod-input")).toHaveValue("0:05");
+  });
+
+  test("re-modifying via T key updates the correction (single buffer entry)", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("t");
+    await page.locator("#time-mod-input").fill("0:05");
+    await page.locator("#time-mod-input").press("Enter");
+
+    // Re-modify to 0:08
+    await page.keyboard.press("t");
+    await page.locator("#time-mod-input").fill("0:08");
+    await page.locator("#time-mod-input").press("Enter");
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.correctionBuffer).toHaveLength(1);
+    const tm = state.correctionBuffer.find(c => c.timeModified);
+    expect(tm).toBeDefined();
+    expect(tm.newBoutTime100ms).toBe(80); // 8 s = 80 × 100 ms
+  });
 });
