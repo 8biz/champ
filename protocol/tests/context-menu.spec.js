@@ -206,19 +206,205 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await expect(page.locator("#context-menu")).toBeHidden();
   });
 
-  // ── Context menu: insert/swap/timer are no-ops ────────────────────────────
+  // ── Context menu: event insert mode via mouse/touch ──────────────────────
 
-  test("clicking insert in context menu has no effect on correction buffer", async ({ page }) => {
+  test("clicking ctx-insert enters insert mode", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
 
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
-    const stateBefore = await page.evaluate(() => window.testHelper.getState());
     await page.locator("#ctx-insert").click();
-    const stateAfter = await page.evaluate(() => window.testHelper.getState());
 
-    expect(stateAfter.correctionBuffer).toHaveLength(stateBefore.correctionBuffer.length);
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inInsertMode).toBe(true);
+    expect(state.inCorrectionMode).toBe(true);
+  });
+
+  test("clicking ctx-insert does not immediately add to correction buffer", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.correctionBuffer).toHaveLength(0);
+  });
+
+  test("clicking ctx-insert disables ctx-delete in context menu", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+
+    await expect(page.locator("#ctx-delete")).toHaveAttribute("data-noop", "");
+  });
+
+  test("clicking ctx-insert disables ctx-insert itself in context menu", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+
+    await expect(page.locator("#ctx-insert")).toHaveAttribute("data-noop", "");
+  });
+
+  test("clicking ctx-insert shows the cancel item", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+
+    await expect(page.locator("#ctx-insert-cancel")).toBeVisible();
+  });
+
+  test("ctx-insert-cancel is hidden before insert mode is entered", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+
+    await expect(page.locator("#ctx-insert-cancel")).toBeHidden();
+  });
+
+  test("clicking ctx-insert-cancel exits insert mode and stays in correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+    await page.locator("#ctx-insert-cancel").click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inInsertMode).toBe(false);
+    expect(state.inCorrectionMode).toBe(true);
+  });
+
+  test("clicking ctx-insert-cancel re-enables ctx-delete in context menu", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+    await page.locator("#ctx-insert-cancel").click();
+
+    await expect(page.locator("#ctx-delete")).not.toHaveAttribute("data-noop", "");
+  });
+
+  test("clicking ctx-insert-cancel re-enables ctx-insert in context menu", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+    await page.locator("#ctx-insert-cancel").click();
+
+    await expect(page.locator("#ctx-insert")).not.toHaveAttribute("data-noop", "");
+  });
+
+  test("clicking ctx-insert-cancel hides the cancel item", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+    await page.locator("#ctx-insert-cancel").click();
+
+    await expect(page.locator("#ctx-insert-cancel")).toBeHidden();
+  });
+
+  test("clicking event button in insert mode inserts event in correction buffer", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[2R]" }).click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.correctionBuffer).toHaveLength(1);
+    expect(state.correctionBuffer[0].insertedEventType).toBe("2R");
+  });
+
+  test("clicking event button in insert mode exits insert mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "[2B]" }).click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inInsertMode).toBe(false);
+    expect(state.inCorrectionMode).toBe(true);
+  });
+
+  test("after event button in insert mode, context menu items are re-enabled", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[2R]" }).click();
+
+    await expect(page.locator("#ctx-delete")).not.toHaveAttribute("data-noop", "");
+    await expect(page.locator("#ctx-insert-cancel")).toBeHidden();
+  });
+
+  test("clicking event button [0R1B] in insert mode inserts 0R1B caution event", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[0R1B]" }).click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.correctionBuffer[0].insertedEventType).toBe("0R1B");
+  });
+
+  test("keyboard ## enters insert mode and updates context menu state", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+
+    await expect(page.locator("#ctx-insert-cancel")).toBeVisible();
+    await expect(page.locator("#ctx-delete")).toHaveAttribute("data-noop", "");
+  });
+
+  test("keyboard Escape in insert mode hides cancel item and re-enables context menu items", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("Escape");
+
+    await expect(page.locator("#ctx-insert-cancel")).toBeHidden();
+    await expect(page.locator("#ctx-delete")).not.toHaveAttribute("data-noop", "");
   });
 
   // ── Event button click in correction mode modifies current event ──────────
