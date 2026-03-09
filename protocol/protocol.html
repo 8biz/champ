@@ -768,7 +768,7 @@
   <div id="context-menu" role="menu" aria-label="Ereignis-Optionen">
     <button id="ctx-delete" class="context-menu-item" type="button" role="menuitem">🗑️ [Entf] Ereignis löschen</button>
     <button id="ctx-insert" class="context-menu-item" type="button" role="menuitem">➕ [##] Ereignis einfügen</button>
-    <button id="ctx-swap"   class="context-menu-item" type="button" role="menuitem" data-noop>🔄 [#][←|→] Ereignisse tauschen</button>
+    <button id="ctx-swap"   class="context-menu-item" type="button" role="menuitem">🔄 [#][←|→] Ereignisse tauschen</button>
     <button id="ctx-time"   class="context-menu-item" type="button" role="menuitem" data-noop>⏱️ [T] Zeit ändern</button>
     <button id="ctx-insert-cancel" class="context-menu-item" type="button" role="menuitem" hidden>[Esc] Abbrechen</button>
   </div>
@@ -2547,6 +2547,7 @@
       appState.correctionBuffer = [];
       appState.inCorrectionMode = false;
       appState.inInsertMode = false;
+      if (appState.inSwapMode) setEventButtonsFrozen(false);
       appState.inSwapMode = false;
       appState.swapOriginIndex = null;
       appState.cursorIndex = null;
@@ -2732,7 +2733,9 @@
           appState.inSwapMode = true;
           appState.swapOriginIndex = appState.cursorIndex;
           appState.keyBuffer = [];
+          setEventButtonsFrozen(true);
           updateTimeline();
+          showContextMenuAtCursor();
           console.log('Entered swap mode at index:', appState.cursorIndex);
         }
         return;
@@ -2785,8 +2788,10 @@
         appState.swapOriginIndex = null;
         appState.inSwapMode = false;
         appState.keyBuffer = [];
+        setEventButtonsFrozen(false);
         updateTimeline();
         updateScores();
+        showContextMenuAtCursor();
         console.log('Swap mode cancelled');
         return;
       }
@@ -2803,7 +2808,9 @@
         appState.swapOriginIndex = null;
         appState.inSwapMode = false;
         appState.keyBuffer = [];
+        setEventButtonsFrozen(false);
         updateTimeline();
+        showContextMenuAtCursor();
         console.log('Swap mode confirmed');
         return;
       }
@@ -2814,6 +2821,7 @@
         appState.inSwapMode = false;
         appState.inInsertMode = true;
         appState.keyBuffer = [];
+        setEventButtonsFrozen(false);
         updateTimeline();
         showContextMenuAtCursor();
         console.log('Transition from swap mode to insert mode');
@@ -2964,19 +2972,20 @@
      * Outside insert mode: existing items restored, cancel item hidden.
      */
     function updateContextMenuInsertMode(inInsertMode) {
+      const inSubMode = inInsertMode || appState.inSwapMode;
       const cancelBtn = document.getElementById('ctx-insert-cancel');
-      // ctx-delete and ctx-insert are normally enabled; disable them in insert mode
-      ['ctx-delete', 'ctx-insert'].forEach(id => {
+      // ctx-delete, ctx-insert and ctx-swap are normally enabled; disable them in any sub-mode
+      ['ctx-delete', 'ctx-insert', 'ctx-swap'].forEach(id => {
         const btn = document.getElementById(id);
         if (!btn) return;
-        if (inInsertMode) {
+        if (inSubMode) {
           btn.setAttribute('data-noop', '');
         } else {
           btn.removeAttribute('data-noop');
         }
       });
       if (cancelBtn) {
-        cancelBtn.hidden = !inInsertMode;
+        cancelBtn.hidden = !inSubMode;
       }
     }
 
@@ -3044,19 +3053,37 @@
         showContextMenuAtCursor();
       });
 
-      // ctx-insert-cancel: cancel event insert mode
+      // ctx-insert-cancel: cancel event insert mode or swap mode
       document.getElementById('ctx-insert-cancel').addEventListener('click', () => {
-        appState.inInsertMode = false;
+        if (appState.inSwapMode) {
+          appState.cursorIndex = appState.swapOriginIndex;
+          appState.swapOriginIndex = null;
+          appState.inSwapMode = false;
+          setEventButtonsFrozen(false);
+        } else {
+          appState.inInsertMode = false;
+        }
         appState.keyBuffer = [];
         updateTimeline();
         showContextMenuAtCursor();
       });
 
-      // Swap, time: no-ops for now — stop propagation so menu doesn't close
-      ['ctx-swap', 'ctx-time'].forEach(id => {
-        document.getElementById(id).addEventListener('click', (e) => {
-          e.stopPropagation();
-        });
+      // ctx-swap: enter event swap mode
+      // Guard against inSwapMode is intentional: data-noop only disables visually (no pointer-events:none),
+      // so a click could still fire while in swap mode. The state guard ensures idempotency.
+      document.getElementById('ctx-swap').addEventListener('click', () => {
+        if (appState.inSwapMode || appState.cursorIndex === null) return;
+        appState.inSwapMode = true;
+        appState.swapOriginIndex = appState.cursorIndex;
+        appState.keyBuffer = [];
+        setEventButtonsFrozen(true);
+        updateTimeline();
+        showContextMenuAtCursor();
+      });
+
+      // ctx-time: no-op for now — stop propagation so menu doesn't close
+      document.getElementById('ctx-time').addEventListener('click', (e) => {
+        e.stopPropagation();
       });
     }
 
@@ -3093,6 +3120,33 @@
         if (!entry) return;
         e.preventDefault();
         enterCorrectionModeAtSeq(entry.dataset.seq);
+        showContextMenuAtCursor();
+      });
+
+      // Left-click in swap mode: click a target entry to confirm the swap
+      timeline.addEventListener('click', (e) => {
+        if (!appState.inSwapMode) return;
+        const entryBox = e.target.closest('.entry-box');
+        if (!entryBox) return;
+        const entry = entryBox.closest('.entry[data-seq]');
+        if (!entry) return;
+        const cursorableEvents = getCursorableEvents();
+        const clickedIdx = cursorableEvents.findIndex(ev => String(ev.seq) === String(entry.dataset.seq));
+        if (clickedIdx === -1) return;
+        // Perform swap if a different entry was clicked.
+        // Null checks are defensive: swapOriginIndex could be out-of-bounds if events changed.
+        const originEvent = cursorableEvents[appState.swapOriginIndex];
+        const targetEvent = cursorableEvents[clickedIdx];
+        if (originEvent && targetEvent && clickedIdx !== appState.swapOriginIndex) {
+          appState.correctionBuffer.push({ swapped: true, refSeq1: originEvent.seq, refSeq2: targetEvent.seq });
+          updateScores();
+        }
+        appState.cursorIndex = clickedIdx;
+        appState.swapOriginIndex = null;
+        appState.inSwapMode = false;
+        appState.keyBuffer = [];
+        setEventButtonsFrozen(false);
+        updateTimeline();
         showContextMenuAtCursor();
       });
     }
