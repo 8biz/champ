@@ -598,4 +598,266 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     await expect(page.locator("#corr-cancel")).toHaveText("[Esc] Verwerfen");
   });
+
+  // ── Event swap mode via mouse/touch (ctx-swap) ────────────────────────────
+
+  test("clicking ctx-swap enters swap mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inSwapMode).toBe(true);
+    expect(state.inCorrectionMode).toBe(true);
+    expect(state.inInsertMode).toBe(false);
+  });
+
+  test("clicking ctx-swap freezes event buttons", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+
+    await expect(page.locator("#event-buttons-red .event-btn").first()).toBeDisabled();
+    await expect(page.locator("#event-buttons-blue .event-btn").first()).toBeDisabled();
+  });
+
+  test("in swap mode, ctx-delete is disabled", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+
+    await expect(page.locator("#ctx-delete")).toHaveAttribute("data-noop", "");
+  });
+
+  test("in swap mode, ctx-insert is disabled", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+
+    await expect(page.locator("#ctx-insert")).toHaveAttribute("data-noop", "");
+  });
+
+  test("in swap mode, ctx-swap is disabled", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+
+    await expect(page.locator("#ctx-swap")).toHaveAttribute("data-noop", "");
+  });
+
+  test("in swap mode, cancel item is shown", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+
+    await expect(page.locator("#ctx-insert-cancel")).toBeVisible();
+  });
+
+  test("clicking cancel item in swap mode cancels swap mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+    await page.locator("#ctx-insert-cancel").click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inSwapMode).toBe(false);
+    expect(state.inCorrectionMode).toBe(true);
+  });
+
+  test("clicking cancel item in swap mode re-enables event buttons", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+    await page.locator("#ctx-insert-cancel").click();
+
+    await expect(page.locator("#event-buttons-red .event-btn").first()).not.toBeDisabled();
+    await expect(page.locator("#event-buttons-blue .event-btn").first()).not.toBeDisabled();
+  });
+
+  test("clicking cancel item in swap mode hides cancel item", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+    await page.locator("#ctx-insert-cancel").click();
+
+    await expect(page.locator("#ctx-insert-cancel")).toBeHidden();
+  });
+
+  test("clicking cancel item in swap mode re-enables context menu items", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+    await page.locator("#ctx-insert-cancel").click();
+
+    await expect(page.locator("#ctx-delete")).not.toHaveAttribute("data-noop", "");
+    await expect(page.locator("#ctx-insert")).not.toHaveAttribute("data-noop", "");
+    await expect(page.locator("#ctx-swap")).not.toHaveAttribute("data-noop", "");
+  });
+
+  test("clicking another timeline entry in swap mode performs swap", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+
+    // Enter correction mode on the second event (index 1) and enter swap mode
+    await page.locator("#timeline .entry .entry-box").nth(1).click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+
+    // Click the first timeline entry to swap with it
+    await page.locator("#timeline .entry .entry-box").first().click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.correctionBuffer).toHaveLength(1);
+    expect(state.correctionBuffer[0].swapped).toBe(true);
+  });
+
+  test("clicking timeline entry in swap mode exits swap mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+
+    await page.locator("#timeline .entry .entry-box").nth(1).click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+    await page.locator("#timeline .entry .entry-box").first().click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inSwapMode).toBe(false);
+    expect(state.inCorrectionMode).toBe(true);
+  });
+
+  test("clicking timeline entry in swap mode re-enables event buttons", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+
+    await page.locator("#timeline .entry .entry-box").nth(1).click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+    await page.locator("#timeline .entry .entry-box").first().click();
+
+    await expect(page.locator("#event-buttons-red .event-btn").first()).not.toBeDisabled();
+  });
+
+  test("clicking the origin entry in swap mode exits swap mode without a swap", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-swap").click();
+
+    // Click the same (origin) entry
+    await page.locator("#timeline .entry .entry-box").first().click();
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.inSwapMode).toBe(false);
+    expect(state.correctionBuffer).toHaveLength(0);
+  });
+
+  test("keyboard # enters swap mode and updates context menu to show cancel and disabled items", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+
+    await expect(page.locator("#ctx-insert-cancel")).toBeVisible();
+    await expect(page.locator("#ctx-delete")).toHaveAttribute("data-noop", "");
+    await expect(page.locator("#ctx-swap")).toHaveAttribute("data-noop", "");
+  });
+
+  test("keyboard Escape in swap mode re-enables context menu items and hides cancel", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("Escape");
+
+    await expect(page.locator("#ctx-insert-cancel")).toBeHidden();
+    await expect(page.locator("#ctx-delete")).not.toHaveAttribute("data-noop", "");
+    await expect(page.locator("#ctx-swap")).not.toHaveAttribute("data-noop", "");
+  });
+
+  test("keyboard # enters swap mode and freezes event buttons", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+
+    await expect(page.locator("#event-buttons-red .event-btn").first()).toBeDisabled();
+  });
+
+  test("keyboard Escape in swap mode re-enables event buttons", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("Escape");
+
+    await expect(page.locator("#event-buttons-red .event-btn").first()).not.toBeDisabled();
+  });
+
+  test("confirming corrections after swap re-enables event buttons", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("#");
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("Enter"); // confirm swap
+    await page.keyboard.press("Enter"); // confirm correction mode
+
+    await expect(page.locator("#event-buttons-red .event-btn").first()).not.toBeDisabled();
+  });
+
+  test("ctx-swap is enabled (not disabled/no-op) in normal correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+
+    await expect(page.locator("#ctx-swap")).not.toHaveAttribute("data-noop", "");
+  });
 });
