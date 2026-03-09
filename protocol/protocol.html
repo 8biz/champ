@@ -1518,6 +1518,15 @@
         ...eventData
       };
       appState.events.push(event);
+
+      // Delete activity timer when the wrestler whose timer is running scores points
+      const pointMatch = event.eventType.match(/^[1245](R|B)$/);
+      if (pointMatch) {
+        const timerKey = pointMatch[1] === 'R' ? 'AR' : 'AB';
+        if (appState.activityTimers[timerKey].active) {
+          deleteActivityTimer(timerKey, true); // silent — updateTimeline() follows
+        }
+      }
       
       // Update UI after recording event
       updateScores();

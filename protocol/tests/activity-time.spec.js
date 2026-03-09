@@ -204,6 +204,70 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     expect(state.activityTimers.AR.active).toBe(false);
   });
 
+  test("Activity timer AR is deleted when red wrestler scores points", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    await recordEventAtTime(page, "2:50", ["P", "R"]);
+    await recordEventAtTime(page, "2:40", ["P", "R"]);
+
+    const before = await page.evaluate(() => window.testHelper.getState());
+    expect(before.activityTimers.AR.active).toBe(true);
+
+    // Red scores 2 points → AR timer should be deleted
+    await recordEventAtTime(page, "2:30", ["2", "R"]);
+
+    const after = await page.evaluate(() => window.testHelper.getState());
+    expect(after.activityTimers.AR.active).toBe(false);
+  });
+
+  test("Activity timer AB is deleted when blue wrestler scores points", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    await recordEventAtTime(page, "2:50", ["P", "B"]);
+    await recordEventAtTime(page, "2:40", ["P", "B"]);
+
+    const before = await page.evaluate(() => window.testHelper.getState());
+    expect(before.activityTimers.AB.active).toBe(true);
+
+    // Blue scores 4 points → AB timer should be deleted
+    await recordEventAtTime(page, "2:30", ["4", "B"]);
+
+    const after = await page.evaluate(() => window.testHelper.getState());
+    expect(after.activityTimers.AB.active).toBe(false);
+  });
+
+  test("Activity timer AR is NOT deleted when opponent (blue) scores points", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    await recordEventAtTime(page, "2:50", ["P", "R"]);
+    await recordEventAtTime(page, "2:40", ["P", "R"]);
+
+    // Blue scores → Red's AR timer should remain active
+    await recordEventAtTime(page, "2:30", ["2", "B"]);
+
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.activityTimers.AR.active).toBe(true);
+  });
+
+  test("Activity timer AR entry shows single row after deletion by points", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    await recordEventAtTime(page, "2:50", ["P", "R"]);
+    await recordEventAtTime(page, "2:40", ["P", "R"]);
+
+    // Red scores → AR timer deleted
+    await recordEventAtTime(page, "2:30", ["1", "R"]);
+
+    // The AR entry should now be a plain single-row box (no timer row)
+    const arBox = page.locator("#timeline .entry-box").filter({ hasText: "AR" });
+    await expect(arBox).toBeVisible();
+    await expect(arBox.locator(".activity-timer-row")).toHaveCount(0);
+  });
+
   test("New AR resets activity timer when a 3rd passivity is recorded", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
