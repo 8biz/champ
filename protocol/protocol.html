@@ -769,7 +769,7 @@
     <button id="ctx-delete" class="context-menu-item" type="button" role="menuitem">🗑️ [Entf] Ereignis löschen</button>
     <button id="ctx-insert" class="context-menu-item" type="button" role="menuitem">➕ [##] Ereignis einfügen</button>
     <button id="ctx-swap"   class="context-menu-item" type="button" role="menuitem">🔄 [#][←|→] Ereignisse tauschen</button>
-    <button id="ctx-time"   class="context-menu-item" type="button" role="menuitem" data-noop>⏱️ [T] Zeit ändern</button>
+    <button id="ctx-time"   class="context-menu-item" type="button" role="menuitem">⏱️ [T] Zeit ändern</button>
     <button id="ctx-insert-cancel" class="context-menu-item" type="button" role="menuitem" hidden>[Esc] Abbrechen</button>
   </div>
 
@@ -2975,7 +2975,7 @@
       const inSubMode = inInsertMode || appState.inSwapMode;
       const cancelBtn = document.getElementById('ctx-insert-cancel');
       // ctx-delete, ctx-insert and ctx-swap are normally enabled; disable them in any sub-mode
-      ['ctx-delete', 'ctx-insert', 'ctx-swap'].forEach(id => {
+      ['ctx-delete', 'ctx-insert', 'ctx-swap', 'ctx-time'].forEach(id => {
         const btn = document.getElementById(id);
         if (!btn) return;
         if (inSubMode) {
@@ -3081,9 +3081,15 @@
         showContextMenuAtCursor();
       });
 
-      // ctx-time: no-op for now — stop propagation so menu doesn't close
-      document.getElementById('ctx-time').addEventListener('click', (e) => {
-        e.stopPropagation();
+      // ctx-time: open time-modification modal for the event at cursor position (same as T key)
+      document.getElementById('ctx-time').addEventListener('click', () => {
+        if (appState.cursorIndex === null) return;
+        const cursorableEvents = getCursorableEvents();
+        const event = cursorableEvents[appState.cursorIndex];
+        if (event) {
+          appState.timeModCorrectionEvent = event;
+          openTimeModModal('correctionBoutTime');
+        }
       });
     }
 
