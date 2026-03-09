@@ -962,7 +962,12 @@
         // Period over: delete any remaining activity timers before recording PeriodEnd
         ['AR', 'AB'].forEach(key => {
           const at = appState.activityTimers[key];
-          if (at.active) { at.active = false; at.time100ms = 0; at.seq = null; anyTimerExpired = true; }
+          if (at.active) {
+            at.active = false;
+            at.time100ms = 0;
+            at.seq = null;
+            anyTimerExpired = true;
+          }
         });
         stopTimer();
         if (appState.mode === 'Recording') {
@@ -1180,20 +1185,29 @@
     }
 
     /**
+     * Returns the formatted display time string for the given activity timer key,
+     * respecting the ruleset's activityTimeCountingDirection ('Down'/'Up').
+     */
+    function formatActivityTime(key) {
+      const at = appState.activityTimers[key];
+      const conf = getActivityTimeConfig();
+      const direction = conf?.activityTimeCountingDirection ?? 'Down';
+      const maxTime100ms = (conf?.activityTimeInSeconds ?? 30) * 10;
+      const displayTime = direction === 'Down' ? at.time100ms : maxTime100ms - at.time100ms;
+      return formatTime100ms(displayTime);
+    }
+
+    /**
      * Update only the activity-timer text node in the existing timeline DOM
      * (called on every 100 ms tick to avoid full re-renders).
      */
     function updateActivityTimerDisplay(key) {
       const at = appState.activityTimers[key];
       if (!at.active || at.seq === null) return;
-      const conf = getActivityTimeConfig();
-      const direction = conf?.activityTimeCountingDirection ?? 'Down';
-      const maxTime100ms = (conf?.activityTimeInSeconds ?? 30) * 10;
-      const displayTime = direction === 'Down' ? at.time100ms : maxTime100ms - at.time100ms;
       const entry = document.querySelector(`#timeline .entry[data-seq="${at.seq}"]`);
       if (!entry) return;
       const timerRow = entry.querySelector('.activity-timer-row');
-      if (timerRow) timerRow.textContent = formatTime100ms(displayTime);
+      if (timerRow) timerRow.textContent = formatActivityTime(key);
     }
 
     function startTimer() {
@@ -2250,14 +2264,10 @@
             const at = appState.activityTimers[timerKey];
             const isTimerActive = at.active && at.seq === event.seq;
             if (isTimerActive) {
-              const conf = getActivityTimeConfig();
-              const direction = conf?.activityTimeCountingDirection ?? 'Down';
-              const maxTime100ms = (conf?.activityTimeInSeconds ?? 30) * 10;
-              const displayTime = direction === 'Down' ? at.time100ms : maxTime100ms - at.time100ms;
               boxHtml = `
                 <div class="entry-box caution ${side}${insertedClass}${cursorClass}">
                   <div class="caution-row ${side}">${eventType}</div>
-                  <div class="caution-row ${side} activity-timer-row">${formatTime100ms(displayTime)}</div>
+                  <div class="caution-row ${side} activity-timer-row">${formatActivityTime(timerKey)}</div>
                 </div>
               `;
             } else {
