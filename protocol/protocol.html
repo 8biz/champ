@@ -769,7 +769,7 @@
     <button id="ctx-delete" class="context-menu-item" type="button" role="menuitem">🗑️ [Entf] Ereignis löschen</button>
     <button id="ctx-insert" class="context-menu-item" type="button" role="menuitem">➕ [##] Ereignis einfügen</button>
     <button id="ctx-swap"   class="context-menu-item" type="button" role="menuitem">🔄 [#][←|→] Ereignisse tauschen</button>
-    <button id="ctx-time"   class="context-menu-item" type="button" role="menuitem" data-noop>⏱️ [T] Zeit ändern</button>
+    <button id="ctx-time"   class="context-menu-item" type="button" role="menuitem">⏱️ [T] Zeit ändern</button>
     <button id="ctx-insert-cancel" class="context-menu-item" type="button" role="menuitem" hidden>[Esc] Abbrechen</button>
   </div>
 
@@ -1283,9 +1283,13 @@
           insertBefore: insertBeforeEvent ? insertBeforeEvent.seq : null
         });
 
-        // Adjust cursor: the original event is now effectively deleted
+        // Move cursor to the newly created virtual time-modified event (tm- seq)
+        const tmSeq = `tm-${corrEvent.seq}`;
         const newCursorableEvents = getCursorableEvents();
-        if (newCursorableEvents.length === 0) {
+        const tmIdx = newCursorableEvents.findIndex(e => e.seq === tmSeq);
+        if (tmIdx >= 0) {
+          appState.cursorIndex = tmIdx;
+        } else if (newCursorableEvents.length === 0) {
           appState.cursorIndex = null;
         } else if (appState.cursorIndex !== null && appState.cursorIndex >= newCursorableEvents.length) {
           appState.cursorIndex = newCursorableEvents.length - 1;
@@ -1293,6 +1297,7 @@
 
         closeTimeModModal();
         updateTimeline();
+        showContextMenuAtCursor();
         updateScores();
         console.log('Correction time modification applied:', corrEvent.seq, '->', newTime100ms);
         return;
@@ -1786,12 +1791,17 @@
       return result;
     }
 
-    /** Predicate for filtering cursorsable events: excludes PeriodEnd and pending time-mod virtual events. */
+    /** Predicate for filtering cursorsable events: excludes PeriodEnd entries. */
     function isCursorableEvent(e) {
-      return e.eventType !== 'PeriodEnd' && !(typeof e.seq === 'string' && e.seq.startsWith('tm-'));
+      return e.eventType !== 'PeriodEnd';
     }
 
-    /** Returns cursorsable bout events (excluding PeriodEnd entries and pending time-mod virtual events). */
+    /** Returns true if event is a virtual pending event (pi- or tm- synthetic seq). */
+    function isVirtualEvent(e) {
+      return typeof e.seq === 'string';
+    }
+
+    /** Returns cursorsable bout events (excluding PeriodEnd entries). */
     function getCursorableEvents() {
       return getEffectiveBoutEvents().filter(isCursorableEvent);
     }
@@ -1979,7 +1989,6 @@
       const effectiveBoutEvents = getEffectiveBoutEvents();
 
       // Determine the seq of the cursored event (for cursor ring rendering)
-      // Use isCursorableEvent() to exclude PeriodEnd and tm- virtual events (same as getCursorableEvents)
       let cursorSeq = null;
       if (appState.inCorrectionMode && appState.cursorIndex !== null) {
         const cursorableEvents = effectiveBoutEvents.filter(isCursorableEvent);
@@ -2577,8 +2586,8 @@
       const cursorableEvents = getCursorableEvents();
       const event = cursorableEvents[appState.cursorIndex];
       if (!event) return;
-      // Pending-inserted events (pi- seq) cannot be modified via this path
-      if (typeof event.seq === 'string' && event.seq.startsWith('pi-')) return;
+      // Pending-inserted and time-modified virtual events cannot be modified via this path
+      if (isVirtualEvent(event)) return;
 
       let newEventType;
       if (modification.type === 'color') {
@@ -2625,6 +2634,29 @@
         updateScores();
         showContextMenuAtCursor();
         console.log('Cancelled pending insertion for:', insertBeforeStr);
+        return;
+      }
+
+      // If cursor is on a time-modified virtual event (seq starts with 'tm-'), cancel that time modification
+      if (typeof event.seq === 'string' && event.seq.startsWith('tm-')) {
+        const origSeq = Number(event.seq.substring('tm-'.length));
+        appState.correctionBuffer = appState.correctionBuffer.filter(
+          c => !(c.timeModified && c.refSeq === origSeq)
+        );
+        // Move cursor back to the original event (now restored)
+        const newCursorableEvents = getCursorableEvents();
+        const origIdx = newCursorableEvents.findIndex(e => e.seq === origSeq);
+        if (origIdx >= 0) {
+          appState.cursorIndex = origIdx;
+        } else if (newCursorableEvents.length === 0) {
+          appState.cursorIndex = null;
+        } else if (appState.cursorIndex !== null && appState.cursorIndex >= newCursorableEvents.length) {
+          appState.cursorIndex = newCursorableEvents.length - 1;
+        }
+        updateTimeline();
+        updateScores();
+        showContextMenuAtCursor();
+        console.log('Cancelled pending time modification for:', origSeq);
         return;
       }
 
@@ -2730,6 +2762,10 @@
       // '#' → enter swap mode; '##' → enter insert mode (second '#' handled in swap mode)
       if (key === '#') {
         if (appState.cursorIndex !== null) {
+          const cursorableEvts = getCursorableEvents();
+          const cursorEvt = cursorableEvts[appState.cursorIndex];
+          // Cannot enter swap mode from a virtual pending event (pi- or tm-)
+          if (cursorEvt && isVirtualEvent(cursorEvt)) return;
           appState.inSwapMode = true;
           appState.swapOriginIndex = appState.cursorIndex;
           appState.keyBuffer = [];
@@ -2767,8 +2803,14 @@
       // T: open time-modification modal for the event at cursor position
       if (upperKey === 'T' && appState.cursorIndex !== null) {
         const cursorableEvents = getCursorableEvents();
-        const event = cursorableEvents[appState.cursorIndex];
+        let event = cursorableEvents[appState.cursorIndex];
         if (event) {
+          // If cursor is on a time-modified virtual event (tm- seq), normalize to the original
+          // seq so the confirmation logic correctly updates the existing correction.
+          if (typeof event.seq === 'string' && event.seq.startsWith('tm-')) {
+            const origSeq = Number(event.seq.substring('tm-'.length));
+            event = { seq: origSeq, boutTime100ms: event.boutTime100ms, eventType: event.eventType };
+          }
           appState.timeModCorrectionEvent = event;
           openTimeModModal('correctionBoutTime');
         }
@@ -2802,8 +2844,11 @@
         const originEvent = cursorableEvents[appState.swapOriginIndex];
         const targetEvent = cursorableEvents[appState.cursorIndex];
         if (originEvent && targetEvent && appState.cursorIndex !== appState.swapOriginIndex) {
-          appState.correctionBuffer.push({ swapped: true, refSeq1: originEvent.seq, refSeq2: targetEvent.seq });
-          updateScores();
+          // Do not swap if either event is a virtual pending event (pi- or tm-)
+          if (!isVirtualEvent(originEvent) && !isVirtualEvent(targetEvent)) {
+            appState.correctionBuffer.push({ swapped: true, refSeq1: originEvent.seq, refSeq2: targetEvent.seq });
+            updateScores();
+          }
         }
         appState.swapOriginIndex = null;
         appState.inSwapMode = false;
@@ -2876,6 +2921,14 @@
         const cursorableEvents = getCursorableEvents();
         const cursorEvent = cursorableEvents[appState.cursorIndex];
         if (!cursorEvent) {
+          appState.inInsertMode = false;
+          appState.keyBuffer = [];
+          updateTimeline();
+          showContextMenuAtCursor();
+          return;
+        }
+        // Cannot insert before a virtual pending event (pi- or tm-)
+        if (isVirtualEvent(cursorEvent)) {
           appState.inInsertMode = false;
           appState.keyBuffer = [];
           updateTimeline();
@@ -2975,7 +3028,7 @@
       const inSubMode = inInsertMode || appState.inSwapMode;
       const cancelBtn = document.getElementById('ctx-insert-cancel');
       // ctx-delete, ctx-insert and ctx-swap are normally enabled; disable them in any sub-mode
-      ['ctx-delete', 'ctx-insert', 'ctx-swap'].forEach(id => {
+      ['ctx-delete', 'ctx-insert', 'ctx-swap', 'ctx-time'].forEach(id => {
         const btn = document.getElementById(id);
         if (!btn) return;
         if (inSubMode) {
@@ -3022,6 +3075,15 @@
       menu.classList.add('open');
       // Sync insert-mode state so cancel item and disabled items are correct
       updateContextMenuInsertMode(appState.inInsertMode);
+      // When cursor is on a virtual pending event (pi- or tm-), disable insert and swap actions
+      if (!appState.inInsertMode && !appState.inSwapMode && appState.cursorIndex !== null) {
+        const cursorableEvts = getCursorableEvents();
+        const cursorEvt = cursorableEvts[appState.cursorIndex];
+        if (cursorEvt && isVirtualEvent(cursorEvt)) {
+          document.getElementById('ctx-insert').setAttribute('data-noop', '');
+          document.getElementById('ctx-swap').setAttribute('data-noop', '');
+        }
+      }
       // Measure after applying insert-mode state to get correct menu height
       // (showing/hiding the cancel button changes the menu's height)
       const entryRect = cursorEntry.getBoundingClientRect();
@@ -3047,6 +3109,10 @@
       // ctx-insert: enter event insert mode
       document.getElementById('ctx-insert').addEventListener('click', () => {
         if (appState.inInsertMode) return; // already in insert mode
+        const cursorableEvts = getCursorableEvents();
+        const cursorEvt = appState.cursorIndex !== null ? cursorableEvts[appState.cursorIndex] : null;
+        // Cannot enter insert mode from a virtual pending event (pi- or tm-)
+        if (cursorEvt && isVirtualEvent(cursorEvt)) return;
         appState.inInsertMode = true;
         appState.keyBuffer = [];
         updateTimeline();
@@ -3073,6 +3139,10 @@
       // so a click could still fire while in swap mode. The state guard ensures idempotency.
       document.getElementById('ctx-swap').addEventListener('click', () => {
         if (appState.inSwapMode || appState.cursorIndex === null) return;
+        const cursorableEvts = getCursorableEvents();
+        const cursorEvt = cursorableEvts[appState.cursorIndex];
+        // Cannot enter swap mode from a virtual pending event (pi- or tm-)
+        if (cursorEvt && isVirtualEvent(cursorEvt)) return;
         appState.inSwapMode = true;
         appState.swapOriginIndex = appState.cursorIndex;
         appState.keyBuffer = [];
@@ -3081,9 +3151,21 @@
         showContextMenuAtCursor();
       });
 
-      // ctx-time: no-op for now — stop propagation so menu doesn't close
-      document.getElementById('ctx-time').addEventListener('click', (e) => {
-        e.stopPropagation();
+      // ctx-time: open time-modification modal for the event at cursor position (same as T key)
+      document.getElementById('ctx-time').addEventListener('click', () => {
+        if (appState.cursorIndex === null) return;
+        const cursorableEvents = getCursorableEvents();
+        let event = cursorableEvents[appState.cursorIndex];
+        if (event) {
+          // If cursor is on a time-modified virtual event (tm- seq), normalize to the original
+          // seq so the confirmation logic correctly updates the existing correction.
+          if (typeof event.seq === 'string' && event.seq.startsWith('tm-')) {
+            const origSeq = Number(event.seq.substring('tm-'.length));
+            event = { seq: origSeq, boutTime100ms: event.boutTime100ms, eventType: event.eventType };
+          }
+          appState.timeModCorrectionEvent = event;
+          openTimeModModal('correctionBoutTime');
+        }
       });
     }
 
@@ -3138,8 +3220,11 @@
         const originEvent = cursorableEvents[appState.swapOriginIndex];
         const targetEvent = cursorableEvents[clickedIdx];
         if (originEvent && targetEvent && clickedIdx !== appState.swapOriginIndex) {
-          appState.correctionBuffer.push({ swapped: true, refSeq1: originEvent.seq, refSeq2: targetEvent.seq });
-          updateScores();
+          // Do not swap if either event is a virtual pending event (pi- or tm-)
+          if (!isVirtualEvent(originEvent) && !isVirtualEvent(targetEvent)) {
+            appState.correctionBuffer.push({ swapped: true, refSeq1: originEvent.seq, refSeq2: targetEvent.seq });
+            updateScores();
+          }
         }
         appState.cursorIndex = clickedIdx;
         appState.swapOriginIndex = null;
@@ -3160,8 +3245,8 @@
       const cursorableEvents = getCursorableEvents();
       const event = cursorableEvents[appState.cursorIndex];
       if (!event) return;
-      // Pending-inserted events (pi- seq) cannot be modified via this path
-      if (typeof event.seq === 'string' && event.seq.startsWith('pi-')) return;
+      // Pending-inserted and time-modified virtual events cannot be modified via this path
+      if (isVirtualEvent(event)) return;
       if (targetType === event.eventType) return; // no change
       appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
       appState.correctionBuffer.push({ refSeq: event.seq, newEventType: targetType });
@@ -3180,6 +3265,14 @@
       const cursorableEvents = getCursorableEvents();
       const cursorEvent = cursorableEvents[appState.cursorIndex];
       if (!cursorEvent) {
+        appState.inInsertMode = false;
+        appState.keyBuffer = [];
+        updateTimeline();
+        showContextMenuAtCursor();
+        return;
+      }
+      // Cannot insert before a virtual pending event (pi- or tm-)
+      if (isVirtualEvent(cursorEvent)) {
         appState.inInsertMode = false;
         appState.keyBuffer = [];
         updateTimeline();
