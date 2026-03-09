@@ -407,6 +407,40 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await expect(page.locator("#ctx-delete")).not.toHaveAttribute("data-noop", "");
   });
 
+  test("cursor moves to newly inserted event after mouse/touch insert via ctx-insert", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
+    await page.locator("#ctx-insert").click();
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[2R]" }).click();
+
+    // Cursor should now be on the newly inserted 2R event
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.cursorIndex).toBe(0);
+    await expect(page.locator(".entry-box.cursor.pending-inserted")).toBeVisible();
+    await expect(page.locator(".entry-box.cursor.pending-inserted")).toHaveText("2R");
+  });
+
+  test("context menu is positioned above the newly inserted event after mouse/touch insert", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+
+    // Enter correction mode on the second event (2B, index 1) and insert before it
+    await page.keyboard.press("ArrowLeft"); // cursor at 1 (2B)
+    await page.locator("#ctx-insert").click();
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[4R]" }).click();
+
+    // Context menu should now be above the newly inserted event (to the left)
+    const menuBox = await page.locator("#context-menu").boundingBox();
+    const insertedBox = await page.locator(".entry-box.cursor.pending-inserted").boundingBox();
+    // Menu should be above the timeline (top of menu < top of inserted entry)
+    expect(menuBox.y + menuBox.height).toBeLessThan(insertedBox.y);
+  });
+
   // ── Event button click in correction mode modifies current event ──────────
 
   test("clicking event button [2B] in correction mode modifies cursored event to 2B", async ({ page }) => {

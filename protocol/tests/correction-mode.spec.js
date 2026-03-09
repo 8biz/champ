@@ -920,4 +920,41 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     expect(scoreAfter).toBe("3");
   });
 
+  test("cursor moves to newly inserted event after keyboard ## insert", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+
+    await page.keyboard.press("ArrowLeft"); // correction mode, cursor at index 0 (1R)
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("2");
+    await page.keyboard.press("r"); // insert 2R before 1R
+
+    // Cursor should now be on the newly inserted event (index 0)
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.cursorIndex).toBe(0);
+    // The cursor ring should be on the pending-inserted entry (2R)
+    await expect(page.locator(".entry-box.cursor.pending-inserted")).toBeVisible();
+    await expect(page.locator(".entry-box.cursor.pending-inserted")).toHaveText("2R");
+  });
+
+  test("cursor moves to newly inserted event when there are multiple events", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+
+    await page.keyboard.press("ArrowLeft"); // correction mode, cursor at last event (index 1 = 2B)
+    await page.keyboard.press("#");
+    await page.keyboard.press("#");
+    await page.keyboard.press("4");
+    await page.keyboard.press("r"); // insert 4R before 2B
+
+    // Cursor should move to the inserted 4R event (still index 1, now points to pi-event)
+    const state = await page.evaluate(() => window.testHelper.getState());
+    expect(state.cursorIndex).toBe(1);
+    await expect(page.locator(".entry-box.cursor.pending-inserted")).toHaveText("4R");
+  });
+
 });

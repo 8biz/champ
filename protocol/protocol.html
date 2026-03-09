@@ -1735,6 +1735,25 @@
         .filter(c => c.swapped)
         .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2));
 
+      // Apply pending insertions from correctionBuffer so cursor can point to them.
+      // Pending-inserted virtual events use a synthetic seq with the prefix 'pi-'
+      // (short for "pending insert") followed by the insertBefore seq value.
+      appState.correctionBuffer
+        .filter(c => c.insertedEventType)
+        .forEach(ins => {
+          const insertedEvent = {
+            seq: `pi-${ins.insertBefore}`,
+            boutTime100ms: ins.boutTime100ms,
+            eventType: ins.insertedEventType
+          };
+          const idx = result.findIndex(e => e.seq === ins.insertBefore);
+          if (idx >= 0) {
+            result.splice(idx, 0, insertedEvent);
+          } else {
+            result.push(insertedEvent);
+          }
+        });
+
       // Apply live swap preview (during swap mode navigation, before Enter is pressed)
       if (appState.inSwapMode && appState.swapOriginIndex !== null &&
           appState.cursorIndex !== null && appState.cursorIndex !== appState.swapOriginIndex) {
@@ -2557,6 +2576,8 @@
       const cursorableEvents = getCursorableEvents();
       const event = cursorableEvents[appState.cursorIndex];
       if (!event) return;
+      // Pending-inserted events (pi- seq) cannot be modified via this path
+      if (typeof event.seq === 'string' && event.seq.startsWith('pi-')) return;
 
       let newEventType;
       if (modification.type === 'color') {
@@ -2585,6 +2606,26 @@
       const cursorableEvents = getCursorableEvents();
       const event = cursorableEvents[appState.cursorIndex];
       if (!event) return;
+
+      // If cursor is on a pending-inserted event (seq starts with 'pi-'), cancel that pending insertion
+      if (typeof event.seq === 'string' && event.seq.startsWith('pi-')) {
+        const insertBeforeStr = event.seq.substring('pi-'.length);
+        appState.correctionBuffer = appState.correctionBuffer.filter(
+          c => !(c.insertedEventType && String(c.insertBefore) === insertBeforeStr)
+        );
+        // Clamp cursor after removing the pi- event
+        const newCursorableEvents = getCursorableEvents();
+        if (newCursorableEvents.length === 0) {
+          appState.cursorIndex = null;
+        } else if (appState.cursorIndex !== null && appState.cursorIndex >= newCursorableEvents.length) {
+          appState.cursorIndex = newCursorableEvents.length - 1;
+        }
+        updateTimeline();
+        updateScores();
+        showContextMenuAtCursor();
+        console.log('Cancelled pending insertion for:', insertBeforeStr);
+        return;
+      }
 
       appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
       appState.correctionBuffer.push({ refSeq: event.seq, deleted: true });
@@ -3065,6 +3106,8 @@
       const cursorableEvents = getCursorableEvents();
       const event = cursorableEvents[appState.cursorIndex];
       if (!event) return;
+      // Pending-inserted events (pi- seq) cannot be modified via this path
+      if (typeof event.seq === 'string' && event.seq.startsWith('pi-')) return;
       if (targetType === event.eventType) return; // no change
       appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
       appState.correctionBuffer.push({ refSeq: event.seq, newEventType: targetType });
