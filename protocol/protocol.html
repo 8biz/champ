@@ -185,29 +185,18 @@
       flex: 1 1 5rem;
     }
 
-    /* Container for the three special buttons (5R + 0R1/0R2, or their blue
-       mirrors). The inner .special-stack stacks the two caution buttons. */
+    /* 2×2 grid for the three special buttons (5R/5B + two caution buttons)
+       plus one invisible placeholder cell to complete the grid. */
     .event-group-special {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 0.35rem;
       flex: 1 1 5rem;
     }
 
-    /* 5R / 5B: direct child of .event-group-special, stretches to full height */
-    .event-group-special > .event-btn {
-      flex: 1;
-    }
-
-    /* Vertical stack for 0R1/0R2 (red) or 0B1/0B2 (blue) */
-    .special-stack {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-    }
-
-    .special-stack .event-btn {
-      flex: 1;
+    /* Invisible placeholder cell that fills the empty corner of the 2×2 grid */
+    .event-placeholder {
+      visibility: hidden;
     }
 
     .event-btn {
@@ -767,10 +756,9 @@
           </div>
           <div class="event-group-special">
             <button class="event-btn" type="button">[5R]</button>
-            <div class="special-stack">
-              <button class="event-btn" type="button">[0R1B]</button>
-              <button class="event-btn" type="button">[0R2B]</button>
-            </div>
+            <button class="event-btn" type="button">[0R1B]</button>
+            <span class="event-placeholder" aria-hidden="true"></span>
+            <button class="event-btn" type="button">[0R2B]</button>
           </div>
         </div>
       </article>
@@ -811,11 +799,10 @@
             <button class="event-btn" type="button">[2B]</button>
           </div>
           <div class="event-group-special">
-            <div class="special-stack">
-              <button class="event-btn" type="button">[0B1R]</button>
-              <button class="event-btn" type="button">[0B2R]</button>
-            </div>
+            <button class="event-btn" type="button">[0B1R]</button>
             <button class="event-btn" type="button">[5B]</button>
+            <button class="event-btn" type="button">[0B2R]</button>
+            <span class="event-placeholder" aria-hidden="true"></span>
           </div>
         </div>
       </article>
