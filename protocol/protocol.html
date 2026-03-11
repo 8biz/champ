@@ -157,11 +157,46 @@
       font-weight: 700;
     }
 
-    .event-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* Flex wrapper that holds the points and special event sub-groups
+       side-by-side (landscape) or stacked (portrait / narrow).
+       The injury-time group above is kept separate in .injury-grid. */
+    .event-groups {
+      display: flex;
+      flex-wrap: wrap;
       gap: 0.35rem;
       align-content: start;
+    }
+
+    /* On the blue side the groups are reversed horizontally (mirror of red).
+       flex-direction: row-reverse keeps the DOM order points→special while
+       rendering special on the left in landscape; when the groups wrap to
+       separate rows in portrait the cross-axis is still top-to-bottom so
+       the points group (first in DOM) stays on top. */
+    .button-side.blue .event-groups {
+      flex-direction: row-reverse;
+    }
+
+    /* 2×2 grid for the four point / passivity buttons (1R/2R/4R/PR or their
+       blue mirrors). */
+    .event-group-points {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.35rem;
+      flex: 1 1 5rem;
+    }
+
+    /* 2×2 grid for the three special buttons (5R/5B + two caution buttons)
+       plus one invisible placeholder cell to complete the grid. */
+    .event-group-special {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.35rem;
+      flex: 1 1 5rem;
+    }
+
+    /* Invisible placeholder cell that fills the empty corner of the 2×2 grid */
+    .event-placeholder {
+      visibility: hidden;
     }
 
     .event-btn {
@@ -712,14 +747,19 @@
           <button id="injury-time-red" class="mini-time" type="button">TIR 0:00</button>
           <button id="blood-time-red" class="mini-time" type="button">TBR 0:00</button>
         </div>
-        <div id="event-buttons-red" class="event-grid" aria-label="Red Event Buttons">
-          <button class="event-btn" type="button">[1R]</button>
-          <button class="event-btn" type="button">[4R]</button>
-          <button class="event-btn" type="button">[5R]</button>
-          <button class="event-btn" type="button">[2R]</button>
-          <button class="event-btn" type="button">[PR]</button>
-          <button class="event-btn" type="button">[0R1B]</button>
-          <button class="event-btn" type="button">[0R2B]</button>
+        <div id="event-buttons-red" class="event-groups" aria-label="Red Event Buttons">
+          <div class="event-group-points">
+            <button class="event-btn" type="button">[1R]</button>
+            <button class="event-btn" type="button">[4R]</button>
+            <button class="event-btn" type="button">[2R]</button>
+            <button class="event-btn" type="button">[PR]</button>
+          </div>
+          <div class="event-group-special">
+            <button class="event-btn" type="button">[5R]</button>
+            <button class="event-btn" type="button">[0R1B]</button>
+            <span class="event-placeholder" aria-hidden="true"></span>
+            <button class="event-btn" type="button">[0R2B]</button>
+          </div>
         </div>
       </article>
 
@@ -751,14 +791,19 @@
           <button id="blood-time-blue" class="mini-time" type="button">TBB 0:00</button>
           <button id="injury-time-blue" class="mini-time" type="button">TIB 0:00</button>
         </div>
-        <div id="event-buttons-blue" class="event-grid" aria-label="Blue Event Buttons">
-            <button class="event-btn" type="button">[5B]</button>
+        <div id="event-buttons-blue" class="event-groups" aria-label="Blue Event Buttons">
+          <div class="event-group-points">
             <button class="event-btn" type="button">[4B]</button>
             <button class="event-btn" type="button">[1B]</button>
-            <button class="event-btn" type="button">[0B1R]</button>
             <button class="event-btn" type="button">[PB]</button>
             <button class="event-btn" type="button">[2B]</button>
+          </div>
+          <div class="event-group-special">
+            <button class="event-btn" type="button">[0B1R]</button>
+            <button class="event-btn" type="button">[5B]</button>
             <button class="event-btn" type="button">[0B2R]</button>
+            <span class="event-placeholder" aria-hidden="true"></span>
+          </div>
         </div>
       </article>
     </section>
