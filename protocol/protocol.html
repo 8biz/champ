@@ -807,7 +807,7 @@
         <div id="completion-form" aria-label="Completion Form">
           <div id="compl-bout-time-row" style="display:none">
             <input id="compl-bout-time" type="text" pattern="\d+:[0-5]\d" placeholder="M:SS" maxlength="5" autocomplete="off" aria-label="Total Bout Time" />
-            <div id="compl-bout-time-error" style="display:none;">Ungültiges Format oder Zeit überschreitet Maximum.</div>
+            <div id="compl-bout-time-error" role="alert" aria-live="polite" style="display:none;">Ungültiges Format oder Zeit überschreitet Maximum.</div>
           </div>
           <select id="compl-winner" aria-label="Winner" disabled>
             <option value="-">-</option>
@@ -1004,6 +1004,14 @@
       const seconds = totalSeconds % 60;
       const fraction = Math.floor((time100ms % 10));
       return `${minutes}:${seconds.toString().padStart(2, "0")}.${fraction}`;
+    }
+
+    /** Format a 100ms-unit time value as "M:SS" (no fraction). */
+    function formatMMSS(time100ms) {
+      const totalSeconds = Math.floor(time100ms / 10);
+      const m = Math.floor(totalSeconds / 60);
+      const s = totalSeconds % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
     }
 
     function updateBoutTimeDisplay() {
@@ -1714,11 +1722,8 @@
       }
 
       // Pre-fill total bout time field with current elapsed time.
-      const elapsedSecs = Math.floor(appState.boutTime100ms / 10);
-      const m = Math.floor(elapsedSecs / 60);
-      const s = elapsedSecs % 60;
       const boutTimeField = document.getElementById('compl-bout-time');
-      boutTimeField.value = `${m}:${s.toString().padStart(2, '0')}`;
+      boutTimeField.value = formatMMSS(appState.boutTime100ms);
       boutTimeField.classList.remove('invalid');
       document.getElementById('compl-bout-time-error').style.display = 'none';
 
@@ -1746,7 +1751,10 @@
       const [mStr, sStr] = boutTimeRaw.split(':');
       const enteredSecs = parseInt(mStr, 10) * 60 + parseInt(sStr, 10);
       const ruleset = loadEmbeddedRuleset();
-      const maxSecs = ruleset ? ruleset.periodTimesInSeconds.reduce((a, b) => a + b, 0) : Infinity;
+      const maxSecs = ruleset
+        ? ruleset.periodTimesInSeconds.reduce((a, b) => a + b, 0)
+        : 360; // fallback: 2 × 3-minute periods
+      if (!ruleset) console.warn('No ruleset loaded – using default bout time maximum of 360 s');
       if (enteredSecs > maxSecs) {
         boutTimeField.classList.add('invalid');
         boutTimeError.style.display = '';
