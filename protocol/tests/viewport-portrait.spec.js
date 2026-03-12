@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { BASE_URL } from "./helpers.js";
+import { BASE_URL, releaseScoresheet, recordEventAtTime } from "./helpers.js";
 
 // ── Portrait Viewport (360×600) ─────────────────────────────────────────────
 
@@ -47,5 +47,23 @@ test.describe("CHAMP Protocol - Portrait Viewport 360×600", () => {
       const box = await buttons.nth(i).boundingBox();
       expect(box.width).toBeGreaterThanOrEqual(box.height - 1); // allow 1px rounding
     }
+  });
+
+  test("timeline height stays stable when more than 7 events are added", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    const heightBefore = await page.locator("#timeline").evaluate(el => el.getBoundingClientRect().height);
+
+    // Record 10 events (more than 7, enough to trigger horizontal scroll on non-overlay systems)
+    const times = ["2:50","2:45","2:40","2:35","2:30","2:25","2:20","2:15","2:10","2:05"];
+    for (const t of times) {
+      await recordEventAtTime(page, t, ["1", "R"]);
+    }
+
+    const heightAfter = await page.locator("#timeline").evaluate(el => el.getBoundingClientRect().height);
+
+    // Timeline height must remain stable (scrollbar-gutter: stable reserves space upfront)
+    expect(heightAfter).toBeCloseTo(heightBefore, 0);
   });
 });
