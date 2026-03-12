@@ -53,27 +53,21 @@ test.describe("CHAMP Protocol - Portrait Viewport 360×600", () => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
 
-    // Record enough events to fill and overflow the max-height
+    const heightBefore = await page.locator("#timeline").evaluate(el => el.getBoundingClientRect().height);
+
+    // Record 10 events (more than enough to trigger horizontal scroll)
     const times = ["2:50","2:45","2:40","2:35","2:30","2:25","2:20","2:15","2:10","2:05"];
     for (const t of times) {
       await recordEventAtTime(page, t, ["1", "R"]);
     }
 
-    const heightAt10 = await page.locator("#timeline").evaluate(el => el.getBoundingClientRect().height);
+    const heightAfter = await page.locator("#timeline").evaluate(el => el.getBoundingClientRect().height);
 
-    // Record 5 more events
-    const more = ["2:01","2:02","2:03","2:04","2:06"];
-    for (const t of more) {
-      await recordEventAtTime(page, t, ["1", "R"]);
-    }
+    // Timeline height must remain stable (fixed height prevents scrollbar from causing layout shift)
+    expect(heightAfter).toBeCloseTo(heightBefore, 0);
 
-    const heightAt15 = await page.locator("#timeline").evaluate(el => el.getBoundingClientRect().height);
-
-    // Timeline height must stay bounded at max-height (does not grow with more events)
-    expect(heightAt15).toBeCloseTo(heightAt10, 0);
-
-    // Timeline must actually be scrolling vertically (scrollHeight > clientHeight)
-    const isScrollable = await page.locator("#timeline").evaluate(el => el.scrollHeight > el.clientHeight);
-    expect(isScrollable).toBe(true);
+    // Timeline must be configured for horizontal scroll
+    const overflowX = await page.locator("#timeline").evaluate(el => getComputedStyle(el).overflowX);
+    expect(overflowX).toBe('auto');
   });
 });

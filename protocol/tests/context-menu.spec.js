@@ -306,7 +306,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
   // ── Context menu moves with cursor ────────────────────────────────────────
 
-  test("context menu moves when cursor moves up/down", async ({ page }) => {
+  test("context menu moves when cursor moves left/right", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
@@ -324,8 +324,8 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     const pos2 = await page.locator("#context-menu").boundingBox();
 
-    // The menu should have moved up (first event is above second in vertical timeline)
-    expect(pos2.y).toBeLessThan(pos1.y);
+    // The menu should have moved to the left (first event is to the left of second)
+    expect(pos2.x).toBeLessThan(pos1.x);
   });
 
   test("context menu closes when confirm button is clicked", async ({ page }) => {

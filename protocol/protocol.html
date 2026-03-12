@@ -346,20 +346,18 @@
       border-radius: 0.5rem;
       padding: 0.4rem;
       display: flex;
-      flex-direction: column;
       gap: 0.4rem;
-      overflow-x: hidden;
-      overflow-y: auto;
-      scrollbar-gutter: stable;
-      max-height: 9rem;
+      overflow-x: auto;
+      overflow-y: hidden;
+      align-items: flex-start;
+      height: 5.5rem;
     }
 
     .entry {
-      display: flex;
-      flex-direction: row;
-      gap: 0.4rem;
-      align-items: center;
-      flex-shrink: 0;
+      min-width: 3.125rem;
+      display: grid;
+      gap: 0.15rem;
+      justify-items: center;
     }
 
     .entry-box {
@@ -455,7 +453,6 @@
       font-size: 0.5rem;
       color: var(--neutral-3);
       font-variant-numeric: tabular-nums;
-      margin-left: auto;
     }
 
     .timeline.correction-mode {
@@ -2348,12 +2345,10 @@
         updateNextEventDisplay();
       }
 
-      // Scroll the cursored entry into view (correction mode) or scroll to bottom (recording)
+      // Scroll the cursored entry into view
       if (appState.inCorrectionMode) {
         const cursorEntry = timeline.querySelector('.entry-box.cursor')?.closest('.entry');
-        if (cursorEntry) cursorEntry.scrollIntoView({ block: 'nearest' });
-      } else {
-        timeline.scrollTop = timeline.scrollHeight;
+        if (cursorEntry) cursorEntry.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       }
     }
 
@@ -3393,6 +3388,7 @@
     function showContextMenuAtCursor() {
       const cursorEntry = timeline.querySelector('.entry-box.cursor')?.closest('.entry');
       if (!cursorEntry) return;
+      const timelineRect = timeline.getBoundingClientRect();
       const menu = document.getElementById('context-menu');
       menu.classList.add('open');
       // Sync insert-mode state so cancel item and disabled items are correct
@@ -3410,13 +3406,13 @@
       // (showing/hiding the cancel button changes the menu's height)
       const entryRect = cursorEntry.getBoundingClientRect();
       const menuRect = menu.getBoundingClientRect();
-      // Horizontally centered on the cursor entry, vertically above the entry
+      // Lower-left corner centered above the cursored event, fixed vertical above timeline
       const PADDING = 4;
       const left = Math.max(PADDING, Math.min(
         entryRect.left + entryRect.width / 2,
         window.innerWidth - menuRect.width - PADDING
       ));
-      const top = Math.max(PADDING, entryRect.top - menuRect.height - PADDING);
+      const top = Math.max(PADDING, timelineRect.top - menuRect.height - PADDING);
       menu.style.top  = `${top}px`;
       menu.style.left = `${left}px`;
     }
