@@ -610,16 +610,17 @@
       width: 100%;
       font-family: inherit;
       font-size: inherit;
+      cursor: pointer;
+      pointer-events: none;
     }
 
-    #compl-bout-time.invalid {
-      border-color: var(--red);
-      outline-color: var(--red);
+    #compl-bout-time-row {
+      cursor: pointer;
     }
 
-    #compl-bout-time-error {
-      color: var(--red);
-      font-size: 0.8em;
+    #compl-bout-time-row:hover #compl-bout-time {
+      background: var(--neutral-1);
+      border-color: var(--neutral-2);
     }
 
     .compl-points-row {
@@ -801,8 +802,7 @@
         </button>
         <div id="completion-form" aria-label="Completion Form">
           <div id="compl-bout-time-row" style="display:none">
-            <input id="compl-bout-time" type="text" pattern="\d+:[0-5]\d" placeholder="M:SS" maxlength="5" autocomplete="off" aria-label="Total Bout Time" />
-            <div id="compl-bout-time-error" role="alert" aria-live="polite" style="display:none;">Ungültiges Format oder Zeit überschreitet Maximum.</div>
+            <input id="compl-bout-time" type="text" disabled aria-label="Gesamtkampfzeit (klicken zum Ändern)" />
           </div>
           <select id="compl-winner" aria-label="Winner" disabled>
             <option value="-">-</option>
@@ -1385,7 +1385,11 @@
     }
 
     function openTimeModModal(timerKey = null) {
-      if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return;
+      if (timerKey === 'completionBoutTime') {
+        if (appState.mode !== 'Completing' && appState.mode !== 'Re-released') return;
+      } else {
+        if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return;
+      }
 
       // For bout time only: require timer to be stopped to avoid race conditions.
       if (!timerKey && appState.timerRunning) {
@@ -1399,7 +1403,15 @@
       const error = document.getElementById('time-mod-error');
       const title = document.getElementById('time-mod-title');
 
-      if (timerKey === 'correctionBoutTime') {
+      if (timerKey === 'completionBoutTime') {
+        // Completion mode: modify the total elapsed bout time
+        title.textContent = 'Gesamtkampfzeit ändern';
+        document.getElementById('time-mod-hint').textContent = 'Abgelaufene Kampfzeit eingeben (M:SS)';
+        const totalSeconds = Math.floor(appState.boutTime100ms / 10);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        input.value = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      } else if (timerKey === 'correctionBoutTime') {
         // Correction mode: modify the bout time of the event at the cursor
         const corrEvent = appState.timeModCorrectionEvent;
         title.textContent = 'Ereigniszeit korrigieren [T]';
@@ -1465,6 +1477,27 @@
       const newTime100ms = (minutes * 60 + seconds) * 10;
 
       const timerKey = appState.timeModTarget;
+
+      if (timerKey === 'completionBoutTime') {
+        // Completion mode: modify the total elapsed bout time shown in the completion form
+        const ruleset = loadEmbeddedRuleset();
+        const maxSecs = ruleset
+          ? ruleset.periodTimesInSeconds.reduce((a, b) => a + b, 0)
+          : 360; // fallback: 2 × 3-minute periods
+        const maxTime100ms = maxSecs * 10;
+        if (newTime100ms > maxTime100ms) {
+          input.classList.add('invalid');
+          error.textContent = 'Eingegebene Zeit überschreitet die maximale Kampfzeit.';
+          error.style.display = '';
+          input.focus();
+          input.select();
+          return;
+        }
+        appState.boutTime100ms = newTime100ms;
+        document.getElementById('compl-bout-time').value = formatMMSS(newTime100ms);
+        closeTimeModModal();
+        return;
+      }
 
       if (timerKey === 'correctionBoutTime') {
         // Correction mode: modify the bout time of the event at cursor position
@@ -1671,7 +1704,11 @@
 
       // Freeze or unfreeze the completion form controls.
       const freezeForm   = () => { formControls.forEach(el => { el.disabled = true;  }); };
-      const unfreezeForm = () => { formControls.forEach(el => { el.disabled = false; }); };
+      const unfreezeForm = () => {
+        formControls.forEach(el => { el.disabled = false; });
+        // compl-bout-time is always disabled; clicking opens the time-mod modal
+        document.getElementById('compl-bout-time').disabled = true;
+      };
 
       // State-specific labels, locks and visibility.
       // Format: [buttonLabel, freezeForm, freezeEventBtns, showExport, lockTopBar]
@@ -1717,10 +1754,7 @@
       }
 
       // Pre-fill total bout time field with current elapsed time.
-      const boutTimeField = document.getElementById('compl-bout-time');
-      boutTimeField.value = formatMMSS(appState.boutTime100ms);
-      boutTimeField.classList.remove('invalid');
-      document.getElementById('compl-bout-time-error').style.display = 'none';
+      document.getElementById('compl-bout-time').value = formatMMSS(appState.boutTime100ms);
 
       applyState('Completing');
       console.log('Entering Completing state');
@@ -1731,34 +1765,9 @@
       const victoryTypeSelect = document.getElementById('compl-victory-type');
       const redInput = document.getElementById('compl-points-red');
       const blueInput = document.getElementById('compl-points-blue');
-      const boutTimeField = document.getElementById('compl-bout-time');
-      const boutTimeError = document.getElementById('compl-bout-time-error');
 
-      // Validate total bout time field.
-      const boutTimeRaw = boutTimeField.value.trim();
-      const timePattern = /^\d+:[0-5]\d$/;
-      if (!timePattern.test(boutTimeRaw)) {
-        boutTimeField.classList.add('invalid');
-        boutTimeError.style.display = '';
-        boutTimeField.focus();
-        return;
-      }
-      const [mStr, sStr] = boutTimeRaw.split(':');
-      const enteredSecs = parseInt(mStr, 10) * 60 + parseInt(sStr, 10);
-      const ruleset = loadEmbeddedRuleset();
-      const maxSecs = ruleset
-        ? ruleset.periodTimesInSeconds.reduce((a, b) => a + b, 0)
-        : 360; // fallback: 2 × 3-minute periods
-      if (!ruleset) console.warn('No ruleset loaded – using default bout time maximum of 360 s');
-      if (enteredSecs > maxSecs) {
-        boutTimeField.classList.add('invalid');
-        boutTimeError.style.display = '';
-        boutTimeField.focus();
-        return;
-      }
-      boutTimeField.classList.remove('invalid');
-      boutTimeError.style.display = 'none';
-      appState.complBoutTime100ms = enteredSecs * 10;
+      // Total bout time is set via the time-mod modal; read from appState.
+      appState.complBoutTime100ms = appState.boutTime100ms;
 
       const winner = winnerSelect.value === '-' ? 'none' : winnerSelect.value;
       const victoryType = victoryTypeSelect.value;
@@ -1882,10 +1891,8 @@
 
     document.getElementById('compl-winner').addEventListener('change', updateCompletionPoints);
     document.getElementById('compl-victory-type').addEventListener('change', updateCompletionPoints);
-    document.getElementById('compl-bout-time').addEventListener('input', () => {
-      const field = document.getElementById('compl-bout-time');
-      field.classList.remove('invalid');
-      document.getElementById('compl-bout-time-error').style.display = 'none';
+    document.getElementById('compl-bout-time-row').addEventListener('click', () => {
+      openTimeModModal('completionBoutTime');
     });
     exportButton.addEventListener('click', downloadExport);
 
@@ -4144,10 +4151,7 @@
       document.getElementById('compl-victory-type').value = '-';
       document.getElementById('compl-points-red').value = '0';
       document.getElementById('compl-points-blue').value = '0';
-      const boutTimeField = document.getElementById('compl-bout-time');
-      boutTimeField.value = '';
-      boutTimeField.classList.remove('invalid');
-      document.getElementById('compl-bout-time-error').style.display = 'none';
+      document.getElementById('compl-bout-time').value = '';
       
       // Apply initial state
       applyState('New');

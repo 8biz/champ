@@ -56,6 +56,13 @@ test.describe("CHAMP Protocol - Completion Bout Time", () => {
     await expect(page.locator("#compl-bout-time")).toHaveValue("0:10");
   });
 
+  test("compl-bout-time field is always disabled", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await page.keyboard.press("F4"); // → Completing
+    await expect(page.locator("#compl-bout-time")).toBeDisabled();
+  });
+
   test("compl-bout-time field is visible and disabled in Completed mode", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
@@ -67,7 +74,7 @@ test.describe("CHAMP Protocol - Completion Bout Time", () => {
     await expect(page.locator("#compl-bout-time")).toBeDisabled();
   });
 
-  test("compl-bout-time field is visible and editable when re-released", async ({ page }) => {
+  test("compl-bout-time field is visible and disabled when re-released", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
@@ -76,59 +83,128 @@ test.describe("CHAMP Protocol - Completion Bout Time", () => {
     await page.keyboard.press("F4"); // → Completed
     await page.keyboard.press("F4"); // → Re-released
     await expect(page.locator("#compl-bout-time")).toBeVisible();
-    await expect(page.locator("#compl-bout-time")).not.toBeDisabled();
+    await expect(page.locator("#compl-bout-time")).toBeDisabled();
   });
 
-  test("compl-bout-time shows error for invalid format", async ({ page }) => {
+  test("clicking compl-bout-time-row in Completing mode opens time-mod modal", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await page.keyboard.press("F4"); // → Completing
-    await page.fill("#compl-bout-time", "abc");
-    await page.keyboard.press("F4"); // try to complete
-    await expect(page.locator("#compl-bout-time-error")).toBeVisible();
-    // Should remain in Completing mode
-    await expect(page.locator("#release-complete-button")).toContainText("Abschließen");
+    await page.click("#compl-bout-time-row");
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
   });
 
-  test("compl-bout-time shows error when exceeding max total time", async ({ page }) => {
+  test("time-mod modal for completion bout time is pre-filled with current bout time", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]); // elapsed = 0:10
+    await page.keyboard.press("F4"); // → Completing
+    await page.click("#compl-bout-time-row");
+    await expect(page.locator("#time-mod-input")).toHaveValue("0:10");
+  });
+
+  test("time-mod modal for completion bout time shows correct title", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await page.keyboard.press("F4"); // → Completing
+    await page.click("#compl-bout-time-row");
+    await expect(page.locator("#time-mod-title")).toContainText("Gesamtkampfzeit");
+  });
+
+  test("time-mod modal rejects invalid format for completion bout time", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await page.keyboard.press("F4"); // → Completing
+    await page.click("#compl-bout-time-row");
+    await page.fill("#time-mod-input", "abc");
+    await page.click("#time-mod-confirm");
+    // Modal stays open, error shown
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
+    await expect(page.locator("#time-mod-error")).toBeVisible();
+  });
+
+  test("time-mod modal rejects completion bout time exceeding max total time", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await page.keyboard.press("F4"); // → Completing
+    await page.click("#compl-bout-time-row");
     // Default ruleset: [180, 180] = 360 seconds = 6:00 max
-    await page.fill("#compl-bout-time", "6:01");
-    await page.keyboard.press("F4"); // try to complete
-    await expect(page.locator("#compl-bout-time-error")).toBeVisible();
-    await expect(page.locator("#release-complete-button")).toContainText("Abschließen");
+    await page.fill("#time-mod-input", "6:01");
+    await page.click("#time-mod-confirm");
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
+    await expect(page.locator("#time-mod-error")).toBeVisible();
   });
 
-  test("compl-bout-time exactly at max total time is accepted", async ({ page }) => {
+  test("time-mod modal accepts valid completion bout time and updates display", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await page.keyboard.press("F4"); // → Completing
-    // Max is 6:00 (360 seconds)
-    await page.fill("#compl-bout-time", "6:00");
-    await page.keyboard.press("F4"); // complete
+    await page.click("#compl-bout-time-row");
+    await page.fill("#time-mod-input", "3:00");
+    await page.click("#time-mod-confirm");
+    // Modal closes, field updated
+    await expect(page.locator("#time-mod-modal")).not.toBeVisible();
+    await expect(page.locator("#compl-bout-time")).toHaveValue("3:00");
+  });
+
+  test("time-mod modal accepts 0:00 as completion bout time", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await page.keyboard.press("F4"); // → Completing
+    await page.click("#compl-bout-time-row");
+    await page.fill("#time-mod-input", "0:00");
+    await page.click("#time-mod-confirm");
+    await expect(page.locator("#time-mod-modal")).not.toBeVisible();
+    await expect(page.locator("#compl-bout-time")).toHaveValue("0:00");
+  });
+
+  test("time-mod modal accepts max total bout time (6:00)", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await page.keyboard.press("F4"); // → Completing
+    await page.click("#compl-bout-time-row");
+    await page.fill("#time-mod-input", "6:00");
+    await page.click("#time-mod-confirm");
+    await expect(page.locator("#time-mod-modal")).not.toBeVisible();
+    await expect(page.locator("#compl-bout-time")).toHaveValue("6:00");
+  });
+
+  test("updated completion bout time is used when completing", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await page.keyboard.press("F4"); // → Completing
+    // Change bout time via modal
+    await page.click("#compl-bout-time-row");
+    await page.fill("#time-mod-input", "3:00");
+    await page.click("#time-mod-confirm");
+    await page.selectOption("#compl-winner", "red");
+    await page.keyboard.press("F4"); // → Completed
+    // Should reach Completed state
     await expect(page.locator("#release-complete-button")).toContainText("Korrigieren");
+    await expect(page.locator("#compl-bout-time")).toHaveValue("3:00");
   });
 
-  test("compl-bout-time 0:00 is accepted", async ({ page }) => {
+  test("clicking compl-bout-time-row in Completed mode does NOT open modal", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
     await page.keyboard.press("F4"); // → Completing
-    await page.fill("#compl-bout-time", "0:00");
-    await page.keyboard.press("F4"); // complete
-    await expect(page.locator("#release-complete-button")).toContainText("Korrigieren");
+    await page.selectOption("#compl-winner", "red");
+    await page.keyboard.press("F4"); // → Completed
+    await page.click("#compl-bout-time-row");
+    await expect(page.locator("#time-mod-modal")).not.toBeVisible();
   });
 
-  test("compl-bout-time error clears when value corrected", async ({ page }) => {
+  test("clicking compl-bout-time-row in Re-released mode opens time-mod modal", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
     await page.keyboard.press("F4"); // → Completing
-    await page.fill("#compl-bout-time", "6:01");
-    await page.keyboard.press("F4"); // trigger validation error
-    await expect(page.locator("#compl-bout-time-error")).toBeVisible();
-    await page.fill("#compl-bout-time", "3:00");
-    await expect(page.locator("#compl-bout-time-error")).not.toBeVisible();
+    await page.selectOption("#compl-winner", "red");
+    await page.keyboard.press("F4"); // → Completed
+    await page.keyboard.press("F4"); // → Re-released
+    await page.click("#compl-bout-time-row");
+    await expect(page.locator("#time-mod-modal")).toBeVisible();
   });
 
   test("compl-bout-time field resets on page reload", async ({ page }) => {
