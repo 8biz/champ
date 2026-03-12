@@ -569,8 +569,17 @@
       background: var(--neutral-1);
       padding: 0.4rem;
       display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 0.3rem;
       transition: background 0.2s, border-color 0.2s;
+    }
+
+    /* At narrow viewports the completion form switches to single-column:
+       bout time, winner, victory type, points stacked vertically */
+    @media (max-width: 659px) {
+      #completion-form {
+        grid-template-columns: 1fr;
+      }
     }
 
     #completion-form.winner-red {
@@ -590,6 +599,28 @@
       padding: 0 0.4rem;
       background: #fff;
       width: 100%;
+    }
+
+    #compl-bout-time {
+      min-height: 2rem;
+      border: 0.0625rem solid var(--border);
+      border-radius: 0.375rem;
+      padding: 0 0.4rem;
+      background: #fff;
+      width: 100%;
+      font-family: inherit;
+      font-size: inherit;
+      cursor: pointer;
+      pointer-events: none;
+    }
+
+    #compl-bout-time-row {
+      cursor: pointer;
+    }
+
+    #compl-bout-time-row:hover #compl-bout-time {
+      background: var(--neutral-1);
+      border-color: var(--neutral-2);
     }
 
     .compl-points-row {
@@ -770,6 +801,9 @@
           <div class="time-note">[Leertaste]</div>
         </button>
         <div id="completion-form" aria-label="Completion Form">
+          <div id="compl-bout-time-row" style="display:none">
+            <input id="compl-bout-time" type="text" disabled aria-label="Gesamtkampfzeit (klicken zum Ändern)" />
+          </div>
           <select id="compl-winner" aria-label="Winner" disabled>
             <option value="-">-</option>
             <option value="red">Rot</option>
@@ -912,6 +946,7 @@
       victoryType: null,
       victoryDescription: null,
       classificationPoints: null,
+      complBoutTime100ms: null, // total bout time confirmed on completion form
       keyBuffer: [],
       currentPeriodIndex: 0,
       breakTimerRunning: false,
@@ -964,6 +999,14 @@
       const seconds = totalSeconds % 60;
       const fraction = Math.floor((time100ms % 10));
       return `${minutes}:${seconds.toString().padStart(2, "0")}.${fraction}`;
+    }
+
+    /** Format a 100ms-unit time value as "M:SS" (no fraction). */
+    function formatMMSS(time100ms) {
+      const totalSeconds = Math.floor(time100ms / 10);
+      const m = Math.floor(totalSeconds / 60);
+      const s = totalSeconds % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
     }
 
     function updateBoutTimeDisplay() {
@@ -1342,7 +1385,11 @@
     }
 
     function openTimeModModal(timerKey = null) {
-      if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return;
+      if (timerKey === 'completionBoutTime') {
+        if (appState.mode !== 'Completing' && appState.mode !== 'Re-released') return;
+      } else {
+        if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return;
+      }
 
       // For bout time only: require timer to be stopped to avoid race conditions.
       if (!timerKey && appState.timerRunning) {
@@ -1356,7 +1403,15 @@
       const error = document.getElementById('time-mod-error');
       const title = document.getElementById('time-mod-title');
 
-      if (timerKey === 'correctionBoutTime') {
+      if (timerKey === 'completionBoutTime') {
+        // Completion mode: modify the total elapsed bout time
+        title.textContent = 'Gesamtkampfzeit ändern';
+        document.getElementById('time-mod-hint').textContent = 'Abgelaufene Kampfzeit eingeben (M:SS)';
+        const totalSeconds = Math.floor(appState.boutTime100ms / 10);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        input.value = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      } else if (timerKey === 'correctionBoutTime') {
         // Correction mode: modify the bout time of the event at the cursor
         const corrEvent = appState.timeModCorrectionEvent;
         title.textContent = 'Ereigniszeit korrigieren [T]';
@@ -1422,6 +1477,27 @@
       const newTime100ms = (minutes * 60 + seconds) * 10;
 
       const timerKey = appState.timeModTarget;
+
+      if (timerKey === 'completionBoutTime') {
+        // Completion mode: modify the total elapsed bout time shown in the completion form
+        const ruleset = loadEmbeddedRuleset();
+        const maxSecs = ruleset
+          ? ruleset.periodTimesInSeconds.reduce((a, b) => a + b, 0)
+          : 360; // fallback: 2 × 3-minute periods
+        const maxTime100ms = maxSecs * 10;
+        if (newTime100ms > maxTime100ms) {
+          input.classList.add('invalid');
+          error.textContent = 'Eingegebene Zeit überschreitet die maximale Kampfzeit.';
+          error.style.display = '';
+          input.focus();
+          input.select();
+          return;
+        }
+        appState.boutTime100ms = newTime100ms;
+        document.getElementById('compl-bout-time').value = formatMMSS(newTime100ms);
+        closeTimeModModal();
+        return;
+      }
 
       if (timerKey === 'correctionBoutTime') {
         // Correction mode: modify the bout time of the event at cursor position
@@ -1628,7 +1704,11 @@
 
       // Freeze or unfreeze the completion form controls.
       const freezeForm   = () => { formControls.forEach(el => { el.disabled = true;  }); };
-      const unfreezeForm = () => { formControls.forEach(el => { el.disabled = false; }); };
+      const unfreezeForm = () => {
+        formControls.forEach(el => { el.disabled = false; });
+        // compl-bout-time is always disabled; clicking opens the time-mod modal
+        document.getElementById('compl-bout-time').disabled = true;
+      };
 
       // State-specific labels, locks and visibility.
       // Format: [buttonLabel, freezeForm, freezeEventBtns, showExport, lockTopBar]
@@ -1646,6 +1726,11 @@
       setEventButtonsFrozen(doFreezeEvt);
       exportButton.style.display = showExport ? '' : 'none';
       lockTopBar(doLockTopBar);
+
+      // Show/hide the bout-time button and the total bout time field.
+      const showBoutTimeField = (state === 'Completing' || state === 'Completed' || state === 'Re-released');
+      boutTimeButton.style.display = showBoutTimeField ? 'none' : '';
+      document.getElementById('compl-bout-time-row').style.display = showBoutTimeField ? '' : 'none';
 
       updateTimeline();
     }
@@ -1668,6 +1753,9 @@
         stopTimer();
       }
 
+      // Pre-fill total bout time field with current elapsed time.
+      document.getElementById('compl-bout-time').value = formatMMSS(appState.boutTime100ms);
+
       applyState('Completing');
       console.log('Entering Completing state');
     }
@@ -1677,6 +1765,9 @@
       const victoryTypeSelect = document.getElementById('compl-victory-type');
       const redInput = document.getElementById('compl-points-red');
       const blueInput = document.getElementById('compl-points-blue');
+
+      // Total bout time is set via the time-mod modal; read from appState.
+      appState.complBoutTime100ms = appState.boutTime100ms;
 
       const winner = winnerSelect.value === '-' ? 'none' : winnerSelect.value;
       const victoryType = victoryTypeSelect.value;
@@ -1800,6 +1891,9 @@
 
     document.getElementById('compl-winner').addEventListener('change', updateCompletionPoints);
     document.getElementById('compl-victory-type').addEventListener('change', updateCompletionPoints);
+    document.getElementById('compl-bout-time-row').addEventListener('click', () => {
+      openTimeModModal('completionBoutTime');
+    });
     exportButton.addEventListener('click', downloadExport);
 
     // Centralised action for the release/complete button and F4 shortcut.
@@ -4057,6 +4151,7 @@
       document.getElementById('compl-victory-type').value = '-';
       document.getElementById('compl-points-red').value = '0';
       document.getElementById('compl-points-blue').value = '0';
+      document.getElementById('compl-bout-time').value = '';
       
       // Apply initial state
       applyState('New');
