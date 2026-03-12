@@ -569,16 +569,16 @@
       background: var(--neutral-1);
       padding: 0.4rem;
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1fr;
       gap: 0.3rem;
       transition: background 0.2s, border-color 0.2s;
     }
 
-    /* At wider viewports the completion form uses a two-column layout:
-       bout time | winner in the first row, victory type | points in the second row */
-    @media (min-width: 660px) {
+    /* At narrow viewports the completion form switches to single-column:
+       bout time, winner, victory type, points stacked vertically */
+    @media (max-width: 659px) {
       #completion-form {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
       }
     }
 
