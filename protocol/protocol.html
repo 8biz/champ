@@ -569,8 +569,22 @@
       background: var(--neutral-1);
       padding: 0.4rem;
       display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 0.3rem;
       transition: background 0.2s, border-color 0.2s;
+    }
+
+    /* Full-width rows inside the 2-column completion form */
+    #compl-bout-time-row,
+    .compl-points-row {
+      grid-column: 1 / -1;
+    }
+
+    /* At wider viewports the completion form switches to single column */
+    @media (min-width: 660px) {
+      #completion-form {
+        grid-template-columns: 1fr;
+      }
     }
 
     #completion-form.winner-red {
@@ -590,6 +604,27 @@
       padding: 0 0.4rem;
       background: #fff;
       width: 100%;
+    }
+
+    #compl-bout-time {
+      min-height: 2rem;
+      border: 0.0625rem solid var(--border);
+      border-radius: 0.375rem;
+      padding: 0 0.4rem;
+      background: #fff;
+      width: 100%;
+      font-family: inherit;
+      font-size: inherit;
+    }
+
+    #compl-bout-time.invalid {
+      border-color: var(--red);
+      outline-color: var(--red);
+    }
+
+    #compl-bout-time-error {
+      color: var(--red);
+      font-size: 0.8em;
     }
 
     .compl-points-row {
@@ -770,6 +805,10 @@
           <div class="time-note">[Leertaste]</div>
         </button>
         <div id="completion-form" aria-label="Completion Form">
+          <div id="compl-bout-time-row" style="display:none">
+            <input id="compl-bout-time" type="text" pattern="\d+:[0-5]\d" placeholder="M:SS" maxlength="5" autocomplete="off" aria-label="Total Bout Time" />
+            <div id="compl-bout-time-error" style="display:none;">Ungültiges Format oder Zeit überschreitet Maximum.</div>
+          </div>
           <select id="compl-winner" aria-label="Winner" disabled>
             <option value="-">-</option>
             <option value="red">Rot</option>
@@ -912,6 +951,7 @@
       victoryType: null,
       victoryDescription: null,
       classificationPoints: null,
+      complBoutTime100ms: null, // total bout time confirmed on completion form
       keyBuffer: [],
       currentPeriodIndex: 0,
       breakTimerRunning: false,
@@ -1647,6 +1687,11 @@
       exportButton.style.display = showExport ? '' : 'none';
       lockTopBar(doLockTopBar);
 
+      // Show/hide the bout-time button and the total bout time field.
+      const showBoutTimeField = (state === 'Completing' || state === 'Completed' || state === 'Re-released');
+      boutTimeButton.style.display = showBoutTimeField ? 'none' : '';
+      document.getElementById('compl-bout-time-row').style.display = showBoutTimeField ? '' : 'none';
+
       updateTimeline();
     }
 
@@ -1668,6 +1713,15 @@
         stopTimer();
       }
 
+      // Pre-fill total bout time field with current elapsed time.
+      const elapsedSecs = Math.floor(appState.boutTime100ms / 10);
+      const m = Math.floor(elapsedSecs / 60);
+      const s = elapsedSecs % 60;
+      const boutTimeField = document.getElementById('compl-bout-time');
+      boutTimeField.value = `${m}:${s.toString().padStart(2, '0')}`;
+      boutTimeField.classList.remove('invalid');
+      document.getElementById('compl-bout-time-error').style.display = 'none';
+
       applyState('Completing');
       console.log('Entering Completing state');
     }
@@ -1677,6 +1731,31 @@
       const victoryTypeSelect = document.getElementById('compl-victory-type');
       const redInput = document.getElementById('compl-points-red');
       const blueInput = document.getElementById('compl-points-blue');
+      const boutTimeField = document.getElementById('compl-bout-time');
+      const boutTimeError = document.getElementById('compl-bout-time-error');
+
+      // Validate total bout time field.
+      const boutTimeRaw = boutTimeField.value.trim();
+      const timePattern = /^\d+:[0-5]\d$/;
+      if (!timePattern.test(boutTimeRaw)) {
+        boutTimeField.classList.add('invalid');
+        boutTimeError.style.display = '';
+        boutTimeField.focus();
+        return;
+      }
+      const [mStr, sStr] = boutTimeRaw.split(':');
+      const enteredSecs = parseInt(mStr, 10) * 60 + parseInt(sStr, 10);
+      const ruleset = loadEmbeddedRuleset();
+      const maxSecs = ruleset ? ruleset.periodTimesInSeconds.reduce((a, b) => a + b, 0) : Infinity;
+      if (enteredSecs > maxSecs) {
+        boutTimeField.classList.add('invalid');
+        boutTimeError.style.display = '';
+        boutTimeField.focus();
+        return;
+      }
+      boutTimeField.classList.remove('invalid');
+      boutTimeError.style.display = 'none';
+      appState.complBoutTime100ms = enteredSecs * 10;
 
       const winner = winnerSelect.value === '-' ? 'none' : winnerSelect.value;
       const victoryType = victoryTypeSelect.value;
@@ -1800,6 +1879,11 @@
 
     document.getElementById('compl-winner').addEventListener('change', updateCompletionPoints);
     document.getElementById('compl-victory-type').addEventListener('change', updateCompletionPoints);
+    document.getElementById('compl-bout-time').addEventListener('input', () => {
+      const field = document.getElementById('compl-bout-time');
+      field.classList.remove('invalid');
+      document.getElementById('compl-bout-time-error').style.display = 'none';
+    });
     exportButton.addEventListener('click', downloadExport);
 
     // Centralised action for the release/complete button and F4 shortcut.
@@ -4057,6 +4141,10 @@
       document.getElementById('compl-victory-type').value = '-';
       document.getElementById('compl-points-red').value = '0';
       document.getElementById('compl-points-blue').value = '0';
+      const boutTimeField = document.getElementById('compl-bout-time');
+      boutTimeField.value = '';
+      boutTimeField.classList.remove('invalid');
+      document.getElementById('compl-bout-time-error').style.display = 'none';
       
       // Apply initial state
       applyState('New');
