@@ -140,35 +140,52 @@ test.describe("CHAMP Protocol - Completion Bout Time", () => {
     await expect(page.locator("#compl-bout-time")).not.toBeVisible();
   });
 
-  test("completion form uses two-column layout at narrow viewport", async ({ page }) => {
+  test("completion form uses single-column layout at narrow viewport", async ({ page }) => {
     await page.setViewportSize({ width: 600, height: 600 });
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
-    await page.keyboard.press("F4"); // → Completing
-    // Check that compl-winner and compl-victory-type are side by side (same Y position)
+    await page.keyboard.press("F4"); // → Completing (shows compl-bout-time-row)
+    // Check that all items are stacked vertically (single column)
+    const boutTimeBox = await page.locator("#compl-bout-time-row").boundingBox();
     const winnerBox = await page.locator("#compl-winner").boundingBox();
     const victoryBox = await page.locator("#compl-victory-type").boundingBox();
+    const pointsBox = await page.locator(".compl-points-row").boundingBox();
+    expect(boutTimeBox).not.toBeNull();
     expect(winnerBox).not.toBeNull();
     expect(victoryBox).not.toBeNull();
-    // In 2-column layout, they share the same row (approximately same top Y)
-    expect(Math.abs(winnerBox.y - victoryBox.y)).toBeLessThan(5);
-    // They should be side by side (different x positions)
-    expect(winnerBox.x).toBeLessThan(victoryBox.x);
+    expect(pointsBox).not.toBeNull();
+    // In single-column layout, items are stacked top-to-bottom
+    expect(winnerBox.y).toBeGreaterThan(boutTimeBox.y);
+    expect(victoryBox.y).toBeGreaterThan(winnerBox.y);
+    expect(pointsBox.y).toBeGreaterThan(victoryBox.y);
+    // They should all have the same x (all full width)
+    expect(Math.abs(boutTimeBox.x - winnerBox.x)).toBeLessThan(5);
+    expect(Math.abs(winnerBox.x - victoryBox.x)).toBeLessThan(5);
   });
 
-  test("completion form uses single-column layout at wide viewport", async ({ page }) => {
+  test("completion form uses two-column layout at wide viewport", async ({ page }) => {
     await page.setViewportSize({ width: 900, height: 700 });
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
-    await page.keyboard.press("F4"); // → Completing
-    // Check that compl-winner and compl-victory-type are stacked vertically (different Y)
+    await page.keyboard.press("F4"); // → Completing (shows compl-bout-time-row)
+    // At wide viewport: bout-time|winner in row 1, victory-type|points in row 2
+    const boutTimeBox = await page.locator("#compl-bout-time-row").boundingBox();
     const winnerBox = await page.locator("#compl-winner").boundingBox();
     const victoryBox = await page.locator("#compl-victory-type").boundingBox();
+    const pointsBox = await page.locator(".compl-points-row").boundingBox();
+    expect(boutTimeBox).not.toBeNull();
     expect(winnerBox).not.toBeNull();
     expect(victoryBox).not.toBeNull();
-    // In single-column layout, winner is above victory-type
+    expect(pointsBox).not.toBeNull();
+    // Row 1: bout-time and winner share the same Y (side by side)
+    expect(Math.abs(boutTimeBox.y - winnerBox.y)).toBeLessThan(5);
+    // bout-time is left of winner
+    expect(boutTimeBox.x).toBeLessThan(winnerBox.x);
+    // Row 2: victory-type and points share the same Y (side by side)
+    expect(Math.abs(victoryBox.y - pointsBox.y)).toBeLessThan(5);
+    // victory-type is left of points
+    expect(victoryBox.x).toBeLessThan(pointsBox.x);
+    // Row 2 is below row 1
     expect(victoryBox.y).toBeGreaterThan(winnerBox.y);
-    // They should be at the same x (both full width)
-    expect(Math.abs(winnerBox.x - victoryBox.x)).toBeLessThan(5);
   });
 });

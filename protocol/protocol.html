@@ -569,21 +569,16 @@
       background: var(--neutral-1);
       padding: 0.4rem;
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 0.3rem;
       transition: background 0.2s, border-color 0.2s;
     }
 
-    /* Full-width rows inside the 2-column completion form */
-    #compl-bout-time-row,
-    .compl-points-row {
-      grid-column: 1 / -1;
-    }
-
-    /* At wider viewports the completion form switches to single column */
+    /* At wider viewports the completion form uses a two-column layout:
+       bout time | winner in the first row, victory type | points in the second row */
     @media (min-width: 660px) {
       #completion-form {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
       }
     }
 
