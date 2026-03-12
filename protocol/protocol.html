@@ -54,7 +54,7 @@
 
     .top-bar {
       display: grid;
-      grid-template-columns: minmax(7.5rem, 1fr) auto auto auto;
+      grid-template-columns: minmax(0, 1fr) auto auto auto;
       gap: 0.5rem;
       align-items: center;
     }
@@ -90,7 +90,7 @@
 
     .buttons {
       display: grid;
-      grid-template-columns: 1fr minmax(8.125rem, 11.25rem) 1fr;
+      grid-template-columns: minmax(0, 1fr) 7rem minmax(0, 1fr);
       gap: 0.5rem;
       min-height: 0;
     }
@@ -203,6 +203,7 @@
       border: 0.0625rem solid transparent;
       border-radius: 0.375rem;
       min-height: 3rem;
+      min-width: 3rem;
       font-weight: 700;
       cursor: default;
       color: #fff;
@@ -780,16 +781,16 @@
         </div>
         <div id="event-buttons-red" class="event-groups" aria-label="Red Event Buttons">
           <div class="event-group-points">
-            <button class="event-btn" type="button">[1R]</button>
-            <button class="event-btn" type="button">[4R]</button>
-            <button class="event-btn" type="button">[2R]</button>
-            <button class="event-btn" type="button">[PR]</button>
+            <button class="event-btn" type="button">1R</button>
+            <button class="event-btn" type="button">4R</button>
+            <button class="event-btn" type="button">2R</button>
+            <button class="event-btn" type="button">PR</button>
           </div>
           <div class="event-group-special">
-            <button class="event-btn" type="button">[5R]</button>
-            <button class="event-btn" type="button">[0R1B]</button>
+            <button class="event-btn" type="button">5R</button>
+            <button class="event-btn" type="button">0R1</button>
             <span class="event-placeholder" aria-hidden="true"></span>
-            <button class="event-btn" type="button">[0R2B]</button>
+            <button class="event-btn" type="button">0R2</button>
           </div>
         </div>
       </article>
@@ -827,15 +828,15 @@
         </div>
         <div id="event-buttons-blue" class="event-groups" aria-label="Blue Event Buttons">
           <div class="event-group-points">
-            <button class="event-btn" type="button">[4B]</button>
-            <button class="event-btn" type="button">[1B]</button>
-            <button class="event-btn" type="button">[PB]</button>
-            <button class="event-btn" type="button">[2B]</button>
+            <button class="event-btn" type="button">4B</button>
+            <button class="event-btn" type="button">1B</button>
+            <button class="event-btn" type="button">PB</button>
+            <button class="event-btn" type="button">2B</button>
           </div>
           <div class="event-group-special">
-            <button class="event-btn" type="button">[0B1R]</button>
-            <button class="event-btn" type="button">[5B]</button>
-            <button class="event-btn" type="button">[0B2R]</button>
+            <button class="event-btn" type="button">0B1</button>
+            <button class="event-btn" type="button">5B</button>
+            <button class="event-btn" type="button">0B2</button>
             <span class="event-placeholder" aria-hidden="true"></span>
           </div>
         </div>
@@ -3327,7 +3328,7 @@
     
     /**
      * Attach click handlers to all event buttons.
-     * Buttons are labelled like [1R], [PR], [0R1B], [4B], etc.
+     * Buttons are labelled like 1R, PR, 0R1, 4B, etc.
      * Per UI spec, each click sends the colour key first, then the event key.
      */
     // ===================================================================
@@ -3616,21 +3617,24 @@
         document.querySelectorAll(`#${containerId} .event-btn`).forEach(btn => {
           const label = btn.textContent.trim();
           let keys;
+          let eventType;
 
-          // Caution button: [0R1B], [0R2B], [0B1R], [0B2R]
-          const cautionMatch = label.match(new RegExp(`\\[0${color}([12])${opponent}\\]`));
+          // Caution button: 0R1, 0R2, 0B1, 0B2 (short form without trailing opponent letter)
+          const cautionMatch = label.match(new RegExp(`^0${color}([12])$`));
           if (cautionMatch) {
             keys = [color, '0', cautionMatch[1]];
+            // Full internal event type includes the opponent letter: 0R1B, 0R2B, 0B1R, 0B2R
+            eventType = `0${color}${cautionMatch[1]}${opponent}`;
           } else {
-            // Regular point / passivity button: [1R], [PR], [4B] …
-            const regularMatch = label.match(new RegExp(`\\[([0-9P]+)${color}\\]`));
-            if (regularMatch) keys = [color, regularMatch[1]];
+            // Regular point / passivity button: 1R, PR, 4B …
+            const regularMatch = label.match(new RegExp(`^([0-9P]+)${color}$`));
+            if (regularMatch) {
+              keys = [color, regularMatch[1]];
+              eventType = label; // label is already the event type
+            }
           }
 
           if (keys) {
-            // The event type is the button label with brackets stripped.
-            // All event buttons follow the [TYPE] format (e.g. [1R], [PR], [0R1B]).
-            const eventType = label.slice(1, -1); // e.g. "[1R]" → "1R", "[0R1B]" → "0R1B"
             btn.addEventListener('click', () => {
               if (appState.inCorrectionMode && appState.inInsertMode) {
                 applyButtonEventTypeAsInsert(eventType);

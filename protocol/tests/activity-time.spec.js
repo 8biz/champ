@@ -383,12 +383,12 @@ test.describe("CHAMP Protocol - Activity Time", () => {
 
   // ── Button click ───────────────────────────────────────────────────────────
 
-  test("[PR] button records AR on 2nd red passivity", async ({ page }) => {
+  test("PR button records AR on 2nd red passivity", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
 
-    await page.locator('#event-buttons-red .event-btn', { hasText: '[PR]' }).click();
-    await page.locator('#event-buttons-red .event-btn', { hasText: '[PR]' }).click();
+    await page.locator('#event-buttons-red .event-btn', { hasText: 'PR' }).click();
+    await page.locator('#event-buttons-red .event-btn', { hasText: 'PR' }).click();
 
     const events = await page.evaluate(() => window.exportHelper.generate().bout.events);
     const passivityEvents = events.filter(e => e.eventType === "PR" || e.eventType === "AR");
