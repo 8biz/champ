@@ -1732,6 +1732,10 @@
       exportButton.style.display = showExport ? '' : 'none';
       lockTopBar(doLockTopBar);
 
+      // Completion form is hidden before the scoresheet is released.
+      // It becomes visible in all post-release states.
+      form.style.display = (state === 'New') ? 'none' : '';
+
       // Show/hide the bout-time button and the total bout time field.
       const showBoutTimeField = (state === 'Completing' || state === 'Completed' || state === 'Re-released');
       boutTimeButton.style.display = showBoutTimeField ? 'none' : '';
