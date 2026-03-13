@@ -307,8 +307,8 @@ test.describe("Button click resets next-event", () => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
 
-    // Click the [1R] award button directly (no pre-existing buffer)
-    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[1R]" }).click();
+    // Click the 1R award button directly (no pre-existing buffer)
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "1R" }).click();
 
     const box = nextEventBox(page);
     await expect(box).toHaveText("+");
@@ -320,7 +320,7 @@ test.describe("Button click resets next-event", () => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
 
-    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "[2B]" }).click();
+    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "2B" }).click();
 
     const box = nextEventBox(page);
     await expect(box).toHaveText("+");

@@ -481,7 +481,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
     await page.locator("#ctx-insert").click();
-    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[2R]" }).click();
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "2R" }).click();
 
     const state = await page.evaluate(() => window.testHelper.getState());
     expect(state.correctionBuffer).toHaveLength(1);
@@ -495,7 +495,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
     await page.locator("#ctx-insert").click();
-    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "[2B]" }).click();
+    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "2B" }).click();
 
     const state = await page.evaluate(() => window.testHelper.getState());
     expect(state.inInsertMode).toBe(false);
@@ -509,20 +509,20 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
     await page.locator("#ctx-insert").click();
-    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[2R]" }).click();
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "2R" }).click();
 
     await expect(page.locator("#ctx-delete")).not.toHaveAttribute("data-noop", "");
     await expect(page.locator("#ctx-insert-cancel")).toBeHidden();
   });
 
-  test("clicking event button [0R1B] in insert mode inserts 0R1B caution event", async ({ page }) => {
+  test("clicking event button 0R1 in insert mode inserts 0R1B caution event", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
 
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
     await page.locator("#ctx-insert").click();
-    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[0R1B]" }).click();
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "0R1" }).click();
 
     const state = await page.evaluate(() => window.testHelper.getState());
     expect(state.correctionBuffer[0].insertedEventType).toBe("0R1B");
@@ -562,7 +562,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
     await page.locator("#ctx-insert").click();
-    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[2R]" }).click();
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "2R" }).click();
 
     // Cursor should now be on the newly inserted 2R event
     const state = await page.evaluate(() => window.testHelper.getState());
@@ -580,7 +580,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     // Enter correction mode on the second event (2B, index 1) and insert before it
     await page.keyboard.press("ArrowLeft"); // cursor at 1 (2B)
     await page.locator("#ctx-insert").click();
-    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[4R]" }).click();
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "4R" }).click();
 
     // Context menu should now be above the newly inserted event (to the left)
     const menuBox = await page.locator("#context-menu").boundingBox();
@@ -591,7 +591,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
   // ── Event button click in correction mode modifies current event ──────────
 
-  test("clicking event button [2B] in correction mode modifies cursored event to 2B", async ({ page }) => {
+  test("clicking event button 2B in correction mode modifies cursored event to 2B", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
@@ -599,22 +599,22 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     // Enter correction mode
     await page.keyboard.press("ArrowLeft");
 
-    // Click the [2B] button
-    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "[2B]" }).click();
+    // Click the 2B button
+    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "2B" }).click();
 
     const state = await page.evaluate(() => window.testHelper.getState());
     expect(state.correctionBuffer).toHaveLength(1);
     expect(state.correctionBuffer[0].newEventType).toBe("2B");
   });
 
-  test("clicking event button [PR] in correction mode modifies cursored event to PR", async ({ page }) => {
+  test("clicking event button PR in correction mode modifies cursored event to PR", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
 
     await page.keyboard.press("ArrowLeft");
 
-    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[PR]" }).click();
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "PR" }).click();
 
     const state = await page.evaluate(() => window.testHelper.getState());
     expect(state.correctionBuffer).toHaveLength(1);
@@ -629,21 +629,21 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     await page.keyboard.press("ArrowLeft");
 
-    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "[2B]" }).click();
+    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "2B" }).click();
 
     // Score should reflect the modification (1R → 2B), not a new event added
     await expect(page.locator("#score-red")).toHaveText("0");
     await expect(page.locator("#score-blue")).toHaveText("2");
   });
 
-  test("clicking event button [0R1B] in correction mode modifies cursored event to 0R1B", async ({ page }) => {
+  test("clicking event button 0R1 in correction mode modifies cursored event to 0R1B", async ({ page }) => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
 
     await page.keyboard.press("ArrowLeft");
 
-    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[0R1B]" }).click();
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "0R1" }).click();
 
     const state = await page.evaluate(() => window.testHelper.getState());
     expect(state.correctionBuffer).toHaveLength(1);
@@ -659,8 +659,8 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#time-mod-input").fill("2:50");
     await page.locator("#time-mod-input").press("Enter");
 
-    // Click [1R] button (not in correction mode)
-    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "[1R]" }).click();
+    // Click 1R button (not in correction mode)
+    await page.locator("#event-buttons-red .event-btn").filter({ hasText: "1R" }).click();
 
     const state = await page.evaluate(() => window.testHelper.getState());
     expect(state.inCorrectionMode).toBe(false);
@@ -696,7 +696,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     // Enter correction mode and modify event
     await page.keyboard.press("ArrowLeft");
-    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "[2B]" }).click();
+    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "2B" }).click();
 
     // Click confirm button
     await page.locator("#corr-confirm").click();
@@ -715,7 +715,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     // Enter correction mode and modify event
     await page.keyboard.press("ArrowLeft");
-    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "[2B]" }).click();
+    await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "2B" }).click();
 
     // Click cancel button
     await page.locator("#corr-cancel").click();

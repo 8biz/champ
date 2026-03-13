@@ -54,7 +54,7 @@ test.describe("CHAMP Protocol - Timer", () => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
 
-    await page.locator('#event-buttons-red .event-btn', { hasText: '[1R]' }).click();
+    await page.locator('#event-buttons-red .event-btn', { hasText: '1R' }).click();
     await expect(page.locator("#score-red")).toHaveText("1");
 
     const entries = page.locator('.timeline .entry:not(#next-event)');

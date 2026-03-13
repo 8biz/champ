@@ -21,9 +21,8 @@ The **Release-Completion button** shows "Release" and is enabled. Once the user 
 
 ### Info fields
 - Mandatory: User selects wrestling style **Freestyle** | **Greco-Roman**.
-- Optional: User selects ruleset from a dropdown. One ore more pre-defined rulesets are included and the first one is selected by default. Users can load custom rulesets via file input.
+- Optional: User selects ruleset from a dropdown. Embedded/pre-defined rulesets are included and one is selected by default.
 - Optional: user fills bout info in a text field. See **Edit text specification** below.
-- Optional: user fills info for Red and Blue wrestlers. The first pair is always the key "Name". If the first key is not "Name", it is ignored and replaced with "Name". See **Edit text specification** below.
 
 
 ### Edit text specification:
@@ -123,10 +122,9 @@ When the user want to modify the period time, one of the injury times or the bou
 The bout is over, when a victory condition is reached ahead of bout time or the bout time is runs out.
 
 - The user has to start the completion process manually.
-- Then a modal pop-up appears, where the user has to select the victory type and classification points according to the ruleset.
+- Then the completion form is shown, where the user selects winner and victory type; classification points are derived from the ruleset and can be adjusted in the form.
 - On confirmation, a `ScoresheetCompleted` event is recorded with the corresponding fields.
 - The scoresheet is now locked and no more events can be recorded.
-- Changes to bout or wrestler info are still possible and recorded as mentioned in **Event Specification**.
 - The **Release-Completion button** changes to "Re-release" and is enabled.
   - This allows the user to enter the **Correction mode** to make corrections to the bout after completion.
   - Entering **Normal mode** is not possible after completion.
@@ -149,8 +147,6 @@ The bout is over, when a victory condition is reached ahead of bout time or the 
 |---|---|
 | `ScoresheetReleased` | User clicks "Release" button to start recording events |
 | `ScoresheetCompleted` |Bout completed; additional fields `victoryType` and `classificationPoints` are determined from ruleset |
-| `BoutInfoUpdated` | Bout info changed after completion; `newContent` keeps new content |
-| `RedInfoUpdated`, `BlueInfoUpdated` | Wrestler info changed after completion; `newContent` keeps new content |
 
 ### Bout events
 
@@ -160,6 +156,7 @@ These events are shown in the timeline.
 |---|---|
 | `1R`, `2R`, `4R`, `5R`, `1B`, `2B`, `4B`, `5B` | Technical points; `boutTime100ms` keeps bout time when recorded. |
 | `PR`, `PB` | Passivity; `boutTime100ms` keeps bout time when recorded. |
+| `AR`, `AB` | Activity-time passivity events (style/ruleset dependent); `boutTime100ms` keeps bout time when recorded. |
 | `0R1B`, `0R2B`, `0B1R`, `0B2R` | Cautions; `boutTime100ms` keeps bout time when recorded. |
 
 ### Time control events
@@ -191,6 +188,7 @@ These events are shown in the timeline.
   - **Bout event insert entry**: Shows an empty bout event entry, visually distinct from bout event entries, colored neutrally. On inputting an event type, it becomes a normal bout event entry.
   - **Period end entry**: Is automatically inserted, when a period ends. It shows the scores of red and blue at the end of the period and is visually distinct from bout events entries.
 - The **Next event entry** is a special entry in Normal mode at the end of the timeline that indicates where the next event will be recorded. It is visually the same as a bout event insert entry.
+- In Normal mode, the timeline auto-scrolls to the rightmost side so the newest entries and the Next event entry remain visible.
 - The **cursor** highlights the entry at the current position in the timeline.
   - In Normal mode, this is always the Next event entry.
   - In Correction mode, this is the historical event entry that is being corrected.
@@ -200,7 +198,7 @@ These events are shown in the timeline.
 
 ## Ruleset specification ⚙️
 
-Rulesets define the timing rules, victory conditions, and style-specific configurations for wrestling bouts. They are stored as JSON objects and can be embedded in the application or loaded from external files.
+Rulesets define the timing rules, victory conditions, and style-specific configurations for wrestling bouts. They are stored as JSON objects and are embedded in the application.
 
 ### Ruleset schema
 

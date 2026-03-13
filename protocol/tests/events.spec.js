@@ -62,18 +62,18 @@ test.describe("CHAMP Protocol - Event Recording", () => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
 
-    await page.locator('#event-buttons-red .event-btn', { hasText: '[1R]' }).click();
+    await page.locator('#event-buttons-red .event-btn', { hasText: '1R' }).click();
     await expect(page.locator("#score-red")).toHaveText("1");
     await expect(page.locator("#score-blue")).toHaveText("0");
 
-    await page.locator('#event-buttons-blue .event-btn', { hasText: '[2B]' }).click();
+    await page.locator('#event-buttons-blue .event-btn', { hasText: '2B' }).click();
     await expect(page.locator("#score-red")).toHaveText("1");
     await expect(page.locator("#score-blue")).toHaveText("2");
 
-    await page.locator('#event-buttons-red .event-btn', { hasText: '[4R]' }).click();
+    await page.locator('#event-buttons-red .event-btn', { hasText: '4R' }).click();
     await expect(page.locator("#score-red")).toHaveText("5");
 
-    await page.locator('#event-buttons-blue .event-btn', { hasText: '[5B]' }).click();
+    await page.locator('#event-buttons-blue .event-btn', { hasText: '5B' }).click();
     await expect(page.locator("#score-blue")).toHaveText("7");
 
     await expect(page.locator('.timeline .entry:not(#next-event)')).toHaveCount(4);
@@ -83,8 +83,8 @@ test.describe("CHAMP Protocol - Event Recording", () => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
 
-    await page.locator('#event-buttons-red .event-btn', { hasText: '[PR]' }).click();
-    await page.locator('#event-buttons-blue .event-btn', { hasText: '[PB]' }).click();
+    await page.locator('#event-buttons-red .event-btn', { hasText: 'PR' }).click();
+    await page.locator('#event-buttons-blue .event-btn', { hasText: 'PB' }).click();
 
     const entries = page.locator('.timeline .entry:not(#next-event)');
     await expect(entries).toHaveCount(2);
@@ -97,7 +97,7 @@ test.describe("CHAMP Protocol - Event Recording", () => {
     await releaseScoresheet(page);
 
     // 0R1B: Red caution, Blue +1
-    await page.locator('#event-buttons-red .event-btn', { hasText: '[0R1B]' }).click();
+    await page.locator('#event-buttons-red .event-btn', { hasText: '0R1' }).click();
     await expect(page.locator("#score-red")).toHaveText("0");
     await expect(page.locator("#score-blue")).toHaveText("1");
 
@@ -106,7 +106,7 @@ test.describe("CHAMP Protocol - Event Recording", () => {
     await expect(entries.nth(0).locator('.entry-box')).toHaveClass(/caution/);
 
     // 0B2R: Blue caution, Red +2
-    await page.locator('#event-buttons-blue .event-btn', { hasText: '[0B2R]' }).click();
+    await page.locator('#event-buttons-blue .event-btn', { hasText: '0B2' }).click();
     await expect(page.locator("#score-red")).toHaveText("2");
     await expect(page.locator("#score-blue")).toHaveText("1");
     await expect(entries).toHaveCount(2);
