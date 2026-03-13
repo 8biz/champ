@@ -2345,7 +2345,16 @@
         updateNextEventDisplay();
       }
 
-      // Scroll the cursored entry into view
+      // Keep the "next-event" visible while recording/completing by pinning
+      // timeline scroll to the right-most edge after each render.
+      if (!appState.inCorrectionMode) {
+        timeline.scrollLeft = timeline.scrollWidth;
+        requestAnimationFrame(() => {
+          timeline.scrollLeft = timeline.scrollWidth;
+        });
+      }
+
+      // Scroll the cursored entry into view in correction mode.
       if (appState.inCorrectionMode) {
         const cursorEntry = timeline.querySelector('.entry-box.cursor')?.closest('.entry');
         if (cursorEntry) cursorEntry.scrollIntoView({ block: 'nearest', inline: 'nearest' });
