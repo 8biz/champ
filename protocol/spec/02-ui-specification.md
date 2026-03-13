@@ -14,10 +14,11 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 
 ### UI Constraints 🎯
 
-- All elements must be shown in the viewport without scrolling.
+- The page layout must fit in the viewport without page-level horizontal scrolling.
+- The timeline is intentionally horizontally scrollable when there are many events.
 - The minimum size of the viewport shall be
-    - 700px in width and 320px in height for landscape orientation.
-    - 320px in width and 700px in height for portrait orientation.
+    - 600px in width and 360px in height for landscape orientation.
+    - 360px in width and 600px in height for portrait orientation.
 - The UI should adapt to different screen sizes and orientations while maintaining usability and readability.
 - Color scheme:
     - The main colors should be dominant red and blue tones, representing the two wrestlers.
@@ -46,7 +47,7 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 |---|---|---|
 | `bout-info` | `top-bar` | Editable bout information field (competition, weight class, etc.) |
 | `style-select` | `top-bar` | Ruleset style selector (Freestyle / Greco-Roman) |
-| `ruleset-select` | `top-bar` | Ruleset dropdown (predefined/custom ruleset selection) |
+| `ruleset-select` | `top-bar` | Ruleset dropdown (embedded/predefined ruleset selection) |
 
 ---
 
@@ -119,17 +120,19 @@ The application has five states that determine which controls are interactive an
 | `ruleset-select` | ✓ enabled | ✗ locked | ✗ locked | ✗ locked | ✓ enabled |
 | `.event-btn` (event buttons) | ✗ disabled | ✓ enabled | ✓ enabled | ✗ disabled | ✓ enabled¹ |
 | `bout-time-button` | ✗ disabled | ✓ enabled | ✓ enabled | ✗ disabled | ✓ enabled¹ |
-| `injury-time-red/blue` | ✓ enabled | ✓ enabled | ✓ enabled | ✓ enabled | ✓ enabled |
-| `blood-time-red/blue` | ✓ enabled | ✓ enabled | ✓ enabled | ✓ enabled | ✓ enabled |
+| `injury-time-red/blue` | ✓ visible² | ✓ enabled | ✓ enabled | ✓ visible² | ✓ visible² |
+| `blood-time-red/blue` | ✓ visible² | ✓ enabled | ✓ enabled | ✓ visible² | ✓ visible² |
 | `compl-winner` | ✗ disabled | ✗ disabled | ✓ enabled | ✗ disabled | ✓ enabled |
 | `compl-victory-type` | ✗ disabled | ✗ disabled | ✓ enabled | ✗ disabled | ✓ enabled |
 | `compl-points-red` | ✗ disabled | ✗ disabled | ✓ enabled | ✗ disabled | ✓ enabled |
 | `compl-points-blue` | ✗ disabled | ✗ disabled | ✓ enabled | ✗ disabled | ✓ enabled |
+| `completion-form` | hidden | visible | visible | visible | visible |
 | `release-complete-button` | ✓ "Freigeben [F4]" | ✓ "Fertigstellen [F4]" | ✓ "Abschließen [F4]" | ✓ "Korrigieren [F4]" | ✓ "Abschließen [F4]" |
 | `export-button` | hidden | hidden | hidden | ✓ visible | hidden |
 | `next-event` (timeline) | absent | present | present | absent | absent |
 
 ¹ In Re-released state, event buttons and `bout-time-button` are visually enabled but recording new bout events is not active — only the completion form editing is functional.
+² Buttons are visible in all states. Starting/stopping injury/blood timers is only active in **Recording** and **Completing**.
 
 ### New
 
@@ -137,7 +140,7 @@ Initial state on page load. The scoresheet is being prepared before any recordin
 
 - `top-bar` fields (`bout-info`, `style-select`, `ruleset-select`) are enabled and editable.
 - Event buttons and `bout-time-button` are disabled.
-- Completion form controls are disabled.
+- Completion form is hidden.
 - `release-complete-button` shows "Freigeben [F4]" — clicking it transitions to **Recording**.
 - `export-button` is hidden.
 - `next-event` entry is absent from the timeline.
@@ -200,6 +203,7 @@ A completed scoresheet re-released to correct the top-bar information or complet
 ## Timeline Design Guidelines 📊
 - The timeline grows from left to right, with the most recent events on the right.
 - The timeline is horizontally scrollable if the number of events exceeds the available width.
+- In Normal mode (non-correction), the timeline auto-scrolls to the right so the newest entries and `next-event` stay visible.
 - All blocks
     - have the same width capable to take 2 numbers (e.g., "01", "02").
     - have the same height, which is enough to take two rows of numbers.
@@ -254,11 +258,10 @@ A completed scoresheet re-released to correct the top-bar information or complet
 ### Key sequences for scoresheet preparation
 | `eventType` | Key Sequence | Action |
 |---|---|---|
-| `ScoresheetReleased` | `F4` | Release scoresheet for recording, if not released; Re-release scoresheet if completed |
-| `ScoresheetCompleted` | `F4` | Complete bout, if scoresheet is recording |
-| `BoutInfoUpdated` | `F5` | Edit bout info (enter **Edit text mode**) |
-| `RedInfoUpdated` | `F6` | Edit Red wrestler info (enter **Edit text mode**) |
-| `BlueInfoUpdated` | `F7` | Edit Blue wrestler info (enter **Edit text mode**) |
+| `ScoresheetReleased` | `F4` | Release scoresheet for recording (state: **New** → **Recording**) |
+| — | `F4` | Start completion flow (state: **Recording** → **Completing**) |
+| `ScoresheetCompleted` | `F4` | Complete bout (state: **Completing**/**Re-released** → **Completed**) |
+| — | `F4` | Re-release completed scoresheet (state: **Completed** → **Re-released**) |
 
 
 ### Key sequences in Normal mode
@@ -275,6 +278,8 @@ A completed scoresheet re-released to correct the top-bar information or complet
 | `5B` | `B` + `5` / `5` + `B` | Award 5 points to Blue (5B) |
 | `PR` | `R` + `P` / `P` + `R` | Red passivity (PR) |
 | `PB` | `B` + `P` / `P` + `B` | Blue passivity (PB) |
+| `AR` | `R` + `P` / `P` + `R` | Red activity event (AR) when the ruleset activity condition is met |
+| `AB` | `B` + `P` / `P` + `B` | Blue activity event (AB) when the ruleset activity condition is met |
 | `0R1B` | `R` + `0` + `1` / `0` + `R` + `1` | Red caution, Blue +1 (0R1B) |
 | `0R2B` | `R` + `0` + `2` / `0` + `R` + `2` | Red caution, Blue +2 (0R2B) |
 | `0B1R` | `B` + `0` + `1` / `0` + `B` + `1` | Blue caution, Red +1 (0B1R) |
@@ -325,9 +330,9 @@ The correction context menu is a small popup that appears above the cursored tim
 | Emoji | Label | Action |
 |---|---|---|
 | 🗑️ | `[Entf]` Ereignis löschen | Delete the cursored event (stores in correction buffer, same as `Delete` key) |
-| ➕ | `[##]` Ereignis einfügen | Insert a new bout event prior to the cursored event — **not yet implemented** (no-op) |
-| 🔄 | `[#][←\|→]` Ereignisse tauschen | Swap the cursored event with another — **not yet implemented** (no-op) |
-| ⏱️ | `[T]` Zeit ändern | Modify the bout time of the cursored event — **not yet implemented** (no-op) |
+| ➕ | `[##]` Ereignis einfügen | Enter insert mode and insert a bout event before the cursor |
+| 🔄 | `[#][←\|→]` Ereignisse tauschen | Enter swap mode and swap the cursored event with another event |
+| ⏱️ | `[T]` Zeit ändern | Open time modification for the cursored event |
 
 The context menu **moves with the cursor** — whenever the cursor moves (via `Left arrow` / `Right arrow` or any other cursor movement), the menu repositions above the new cursored entry.
 
