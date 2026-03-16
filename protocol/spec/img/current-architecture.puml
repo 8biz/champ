@@ -1,0 +1,82 @@
+@startuml current-architecture
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle rectangle
+
+title Current Architecture — Monolithic Single-File Structure
+
+package "protocol.html" {
+  [HTML Markup] as HTML
+  [Inline CSS (~740 lines)] as CSS
+  [Embedded Ruleset JSON] as RULESET
+
+  package "Inline JavaScript (~3400 lines)" {
+    [appState (Global Object)] as STATE
+
+    package "Timer Subsystem" {
+      [Bout Timer] as BT
+      [Injury Timer] as IT
+      [Activity Timer] as AT
+      [Break Timer] as BREAK
+    }
+
+    package "Event Subsystem" {
+      [recordEvent()] as REC
+      [processKeySequence()] as KEY
+      [Event Buttons] as BTNS
+    }
+
+    package "Correction Subsystem" {
+      [Correction Mode] as CORR
+      [Swap Mode] as SWAP
+      [Insert Mode] as INS
+      [Time Modification] as TMOD
+    }
+
+    package "Score & Timeline" {
+      [calculateScores()] as CALC
+      [getEffectiveBoutEvents()] as EFF
+      [updateTimeline()] as TL
+      [updateScores()] as US
+    }
+
+    package "State Management" {
+      [applyState()] as APPLY
+      [releaseScoresheet()] as REL
+      [completeScoresheet()] as COMP
+    }
+
+    package "Ruleset Engine" {
+      [loadEmbeddedRuleset()] as LOAD
+      [evaluateCondition()] as EVAL
+      [resolveClassificationPoints()] as RESOLVE
+    }
+
+    package "Export" {
+      [generateExport()] as EXP
+      [downloadExport()] as DL
+    }
+  }
+}
+
+STATE --> BT : reads/writes
+STATE --> IT : reads/writes
+STATE --> AT : reads/writes
+STATE --> REC : appends events
+STATE --> CORR : correctionBuffer
+STATE --> EFF : reads events +\ncorrectionBuffer
+EFF --> TL : provides data
+CALC --> US : updates DOM
+REC --> US : triggers
+REC --> TL : triggers
+KEY --> REC : calls
+BTNS --> KEY : delegates
+LOAD --> RULESET : parses
+
+note right of STATE
+  Single mutable object — 25+ fields
+  No encapsulation, no accessors.
+  Directly mutated by ~50 functions.
+end note
+
+@enduml

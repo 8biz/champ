@@ -1,0 +1,67 @@
+@startuml state-machine
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Application State Machine
+
+[*] --> New : Page load
+
+state New {
+  state "top-bar editable" as NF
+  state "events disabled" as NE
+}
+
+state Recording {
+  state "top-bar locked" as RF
+  state "events enabled" as RE
+  state "timer available" as RT
+}
+
+state Completing {
+  state "form enabled" as CF
+  state "events enabled" as CE
+}
+
+state Completed {
+  state "all locked" as CL
+  state "export available" as EX
+}
+
+state "Re-released" as Rereleased {
+  state "top-bar editable" as RRF
+  state "form enabled" as RRCF
+}
+
+New --> Recording : Release [F4]
+Recording --> Completing : Complete [F4]\n(stops timer)
+Completing --> Completed : Confirm [F4]
+Completed --> Rereleased : Re-release [F4]
+Rereleased --> Completed : Confirm [F4]
+
+state "Sub-States (Recording/Completing)" as SubStates {
+  state "Normal Mode" as NM
+  state "Correction Mode" as CM
+  state "Swap Mode" as SM
+  state "Insert Mode" as IM
+  state "Time Mod Modal" as TMM
+
+  NM --> CM : ArrowLeft / click entry
+  CM --> NM : Enter (confirm) /\nEscape (cancel)
+  CM --> SM : # key
+  SM --> CM : Enter / Escape
+  SM --> IM : # key (## sequence)
+  CM --> IM : ## sequence
+  IM --> CM : Enter / Escape /\nevent type entered
+  NM --> TMM : TT / right-click time
+  CM --> TMM : T key / ctx-time
+  TMM --> NM : confirm / cancel
+  TMM --> CM : confirm / cancel\n(if in correction)
+}
+
+note right of SubStates
+  Sub-states are tracked via boolean flags:
+  inCorrectionMode, inSwapMode, inInsertMode
+  Not a formal state machine — just ad-hoc flags.
+end note
+
+@enduml

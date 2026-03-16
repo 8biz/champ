@@ -1,0 +1,150 @@
+@startuml proposed-domain-model
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam classAttributeIconSize 0
+
+title Proposed Domain Model (Refactored)
+
+package "Domain Layer" {
+  class BoutEvent <<Value Object>> {
+    +seq: number
+    +timestamp: string
+    +eventType: EventType
+    +boutTime100ms: number
+    +metadata: object
+  }
+
+  class EventLog <<Aggregate Root>> {
+    -events: BoutEvent[]
+    -sequenceCounter: number
+    +append(event): BoutEvent
+    +getEvents(): BoutEvent[]
+    +getEffectiveEvents(): BoutEvent[]
+    +applyCorrections(buffer): BoutEvent[]
+  }
+
+  class ScoreCalculator <<Domain Service>> {
+    +calculate(events): Scores
+    +calculateStatistics(events): Statistics
+  }
+
+  class TimerManager <<Domain Service>> {
+    -boutTimer: Timer
+    -injuryTimers: Map<string, Timer>
+    -activityTimers: Map<string, Timer>
+    -breakTimer: Timer
+    +start(type): void
+    +stop(type): void
+    +toggle(type): void
+    +getTime(type): number
+    +setTime(type, value): void
+  }
+
+  class Timer <<Value Object>> {
+    +running: boolean
+    +time100ms: number
+    +direction: "Up" | "Down"
+    +maxTime100ms: number
+    +tick(): void
+  }
+
+  class CorrectionBuffer <<Entity>> {
+    -buffer: Correction[]
+    +addModification(seq, newType): void
+    +addDeletion(seq): void
+    +addInsertion(before, type, time): void
+    +addSwap(seq1, seq2): void
+    +addTimeMod(seq, newTime): void
+    +clear(): void
+    +commit(eventLog): void
+  }
+
+  class RulesetEngine <<Domain Service>> {
+    -ruleset: Ruleset
+    +load(json): void
+    +validate(): ValidationResult
+    +evaluateCondition(cond, ctx): boolean
+    +resolveVictoryType(ctx): VictoryType
+    +resolvePoints(cp, ctx): Points
+    +getPeriodTime(index): number
+  }
+
+  class ScoresheetState <<Aggregate Root>> {
+    -mode: Mode
+    +transition(action): void
+    +canRecord(): boolean
+    +canModify(): boolean
+    +isCompleted(): boolean
+  }
+
+  enum Mode {
+    New
+    Recording
+    Completing
+    Completed
+    Rereleased
+  }
+}
+
+package "Application Layer" {
+  class BoutController <<Application Service>> {
+    +release(): void
+    +recordEvent(type, time): void
+    +startCompletion(): void
+    +complete(winner, type, points): void
+    +rerelease(): void
+    +export(): ExportData
+  }
+
+  class CorrectionController <<Application Service>> {
+    +enter(): void
+    +modifyEvent(modification): void
+    +deleteEvent(): void
+    +insertEvent(type): void
+    +swapEvents(seq1, seq2): void
+    +modifyTime(seq, newTime): void
+    +confirm(): void
+    +cancel(): void
+  }
+
+  class InputHandler <<Application Service>> {
+    +handleKey(key): void
+    +handleButtonClick(type): void
+    +processKeySequence(buffer): boolean
+  }
+}
+
+package "Presentation Layer" {
+  class TimelineRenderer {
+    +render(events, cursor): void
+    +createEntry(event): HTMLElement
+  }
+
+  class ScoreDisplay {
+    +update(scores): void
+  }
+
+  class TimerDisplay {
+    +updateBoutTime(time): void
+    +updateInjuryTime(key, time): void
+  }
+}
+
+BoutController --> EventLog
+BoutController --> ScoresheetState
+BoutController --> TimerManager
+BoutController --> ScoreCalculator
+CorrectionController --> CorrectionBuffer
+CorrectionController --> EventLog
+InputHandler --> BoutController
+InputHandler --> CorrectionController
+
+EventLog --> BoutEvent
+CorrectionBuffer --> EventLog
+ScoreCalculator --> EventLog
+RulesetEngine ..> ScoreCalculator
+
+TimelineRenderer --> EventLog
+ScoreDisplay --> ScoreCalculator
+
+@enduml

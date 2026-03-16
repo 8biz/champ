@@ -1,0 +1,62 @@
+@startuml correction-flow
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Correction Mode Interaction Flow
+
+actor User
+participant "handleCorrectionModeKey()" as HCMK
+participant "handleSwapModeKey()" as HSMK
+participant "handleInsertModeKey()" as HIMK
+participant "correctionBuffer[]" as BUF
+participant "getEffectiveBoutEvents()" as EFF
+participant "getCursorableEvents()" as CUR
+participant "updateTimeline()" as TL
+participant "exitCorrectionMode()" as EXIT
+participant "recordEvent()" as REC
+
+== Enter Correction Mode ==
+User -> HCMK : ArrowLeft
+HCMK -> CUR : getCursorableEvents()
+CUR -> EFF : getEffectiveBoutEvents()
+EFF --> CUR : filtered events
+CUR --> HCMK : cursorable events
+HCMK -> TL : updateTimeline()
+note over TL : renders cursor highlight
+
+== Modify Event ==
+User -> HCMK : R / B / 1-5 / P / 01 / 02
+HCMK -> BUF : push({refSeq, newEventType})
+HCMK -> TL : updateTimeline()
+note over TL : shows old→new annotation
+
+== Delete Event ==
+User -> HCMK : Delete
+HCMK -> BUF : push({refSeq, deleted:true})
+HCMK -> TL : updateTimeline()
+note over TL : crossed-out entry
+
+== Swap Mode ==
+User -> HCMK : # key
+HCMK -> HSMK : activate swap mode
+User -> HSMK : ArrowLeft / ArrowRight
+HSMK -> TL : live preview swap
+User -> HSMK : Enter
+HSMK -> BUF : push({swapped:true, refSeq1, refSeq2})
+
+== Insert Mode ==
+User -> HCMK : ## keys
+HCMK -> HIMK : activate insert mode
+User -> HIMK : event type keys
+HIMK -> BUF : push({insertBefore, boutTime100ms, insertedEventType})
+
+== Confirm ==
+User -> HCMK : Enter
+HCMK -> EXIT : exitCorrectionMode(true)
+EXIT -> BUF : iterate corrections
+loop each correction
+  EXIT -> REC : recordEvent(EventDeleted/EventModified/\nEventInserted/EventSwapped)
+end
+EXIT -> TL : updateTimeline()
+
+@enduml

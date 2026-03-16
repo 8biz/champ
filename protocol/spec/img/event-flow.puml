@@ -1,0 +1,45 @@
+@startuml event-flow
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Event Recording & Rendering Flow
+
+actor User
+participant "Keyboard /\nButton" as Input
+participant "processKeySequence()" as PKS
+participant "recordEvent()" as REC
+participant "appState.events[]" as LOG
+participant "getEffectiveBoutEvents()" as EFF
+participant "calculateScores()" as CALC
+participant "updateTimeline()" as TL
+participant "DOM" as DOM
+
+User -> Input : Press key / Click btn
+Input -> PKS : key sequence
+PKS -> REC : {eventType, boutTime100ms}
+
+REC -> LOG : push({seq, timestamp, ...})
+REC -> CALC : updateScores()
+CALC -> EFF : get events
+EFF -> LOG : read raw events
+EFF -> EFF : apply corrections\n(EventModified,\nEventDeleted,\nEventInserted,\nEventSwapped)
+EFF --> CALC : effective events[]
+CALC --> DOM : scoreRedDisplay\nscoreBlueDisplay
+
+REC -> TL : updateTimeline()
+TL -> EFF : get events
+EFF --> TL : effective events[]
+TL -> TL : iterate & create\nDOM elements
+TL --> DOM : timeline.innerHTML
+
+note over EFF
+  **getEffectiveBoutEvents()** is called
+  multiple times per cycle:
+  - updateScores() → calculateScores()
+  - updateTimeline()
+  - autoUpdateCompletionForm()
+  Each call re-filters the full event log
+  and re-applies all corrections.
+end note
+
+@enduml

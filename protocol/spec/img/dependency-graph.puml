@@ -1,0 +1,96 @@
+@startuml dependency-graph
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Function Dependency Graph (Critical Paths)
+
+rectangle "**Entry Points**" {
+  (keydown handler) as KD
+  (button click) as BC
+  (timer tick) as TI
+  (initializeApp) as INIT
+}
+
+rectangle "**Input Processing**" {
+  (processKeySequence) as PKS
+  (simulateKeySequence) as SKS
+  (isValidContinuation) as IVC
+  (handleCorrectionModeKey) as HCMK
+  (handleSwapModeKey) as HSMK
+  (handleInsertModeKey) as HIMK
+}
+
+rectangle "**Core Logic**" {
+  (recordEvent) as REC
+  (getEffectiveBoutEvents) as EFF
+  (getBoutEventsForTimelineRendering) as EFFR
+  (calculateScores) as CALC
+  (calculateStatistics) as STATS
+}
+
+rectangle "**State Transitions**" {
+  (applyState) as AS
+  (releaseScoresheet) as REL
+  (startCompleting) as SC
+  (completeScoresheet) as CS
+  (enterCorrectionMode) as ECM
+  (exitCorrectionMode) as XCM
+}
+
+rectangle "**Rendering**" {
+  (updateTimeline) as TL
+  (updateScores) as US
+  (updateBoutTimeDisplay) as BTD
+  (updateNextEventDisplay) as NED
+  (createTimelineEntry) as CTE
+  (autoUpdateCompletionForm) as AUCF
+}
+
+rectangle "**Timer Management**" {
+  (startTimer) as ST
+  (stopTimer) as SPT
+  (tick) as TCK
+  (toggleInjuryTimer) as TIT
+  (startActivityTimer) as SAT
+}
+
+KD --> PKS
+KD --> HCMK
+BC --> SKS
+SKS --> PKS
+TI --> TCK
+
+PKS --> REC
+PKS --> TIT
+
+HCMK --> HSMK
+HCMK --> HIMK
+
+REC --> US
+REC --> TL
+US --> CALC
+US --> AUCF
+CALC --> EFF
+AUCF --> EFF
+TL --> EFF
+TL --> EFFR
+TL --> CTE
+TL --> NED
+EFF --> EFF : re-applies\ncorrections
+
+ECM --> TL
+XCM --> REC
+XCM --> TL
+XCM --> US
+
+INIT --> AS
+REL --> AS
+SC --> AS
+CS --> AS
+
+note bottom of EFF
+  Called 3-5 times per user action
+  O(n²) in worst case with many corrections
+end note
+
+@enduml
