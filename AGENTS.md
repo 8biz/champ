@@ -1,36 +1,45 @@
 # AGENTS
 
-Purpose
-- Provide instructions and guidance for AI agents working in this repository.
+AI agent quick-reference for the CHAMP repository.
 
-Quick CLI (implemented)
-- Install Node dependencies: `npm install`
-- Install Playwright browsers: `npx playwright install`
-- Run tests: `npm test` (runs `npx playwright test`) or `npx playwright test`
+## Setup
 
-How to run the demo
-- Open [protocol/protocol.html](protocol/protocol.html) in a browser.
-- Public preview: https://raw.githack.com/8biz/champ/main/protocol/protocol.html
+```bash
+npm install
+npx playwright install   # browser binaries; warnings are safe to ignore
+```
 
-Repository layout (important locations)
-- [spec](spec) — project-wide specifications and glossary.
-- [protocol](protocol) — frontend protocol tool and its tests.
-- [protocol/protocol.html](protocol/protocol.html) — single-file web app demo.
-- [protocol/tests](protocol/tests) — Playwright tests for the protocol tool.
-- [package.json](package.json) — repository scripts and devDependencies.
+## Test
 
-Coding & contribution notes
-- Frontend: HTML, CSS, JavaScript. Keep changes small and browser-friendly.
-- Backend: Python is the preferred language for any backend tools.
-- Tests: Use Playwright for end-to-end testing. Always run `npx playwright install` after adding browser tests.
-- Style: Follow PEP8 for Python and a consistent JS style (Airbnb rules encouraged).
+```bash
+npm test   # runs all Playwright E2E tests via CI-equivalent pipeline
+```
 
-Agent guidance (how AI agents should operate)
-- Run `npm install` and `npx playwright install` before running tests.
-- Run `npm test` after changes that affect the UI or tests.
-- Prefer minimal, focused edits; update specs in `spec/` when changing behavior.
-- Add or update tests in `protocol/tests` for any protocol UI changes.
-- If adding new CLI scripts, update `package.json` and this `AGENTS.md`.
+CI runs on every push/PR via `.github/workflows/ci.yml`.
 
-Contact / next steps
-- If you want me to add script badges, CI steps, or a CONTRIBUTING guide, tell me which part to implement next.
+## Repository Layout
+
+```
+protocol/
+  protocol.html      # the entire app — single HTML file, ~4 000 lines, inline CSS+JS
+  spec/              # source of truth: 00-overview, 01-specification, 02-ui-specification
+  tests/             # Playwright E2E tests (one file per feature area)
+  rulesets/          # embedded ruleset JSON files
+package.json         # defines only the `test` script
+```
+
+## Key Rules
+
+- `protocol.html` must stay **one file** — no build step, no CDN links, no external deps.
+- Read `protocol/spec/` **before** making changes.
+- Run `npm test` **before and after** every change.
+- Add or update tests in `protocol/tests/` for every behavior change.
+- Update specs when changing defined behavior.
+
+## Pull Requests
+
+Always include a live preview link in the PR description:
+
+```
+https://raw.githack.com/8biz/champ/[branch]/protocol/protocol.html
+```
