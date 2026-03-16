@@ -1,47 +1,40 @@
 # Contributing
 
-Thank you for contributing to CHAMP — tools for the competition office. This file explains how to get the repository running locally, coding and testing expectations, and how to propose changes.
-
-Getting started
-- Clone the repository and install dev dependencies:
+## Setup
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/8biz/champ.git
 cd champ
 npm install
+npx playwright install   # downloads browser binaries for tests
 ```
 
-- Install Playwright browsers (required for tests):
-
-```bash
-npx playwright install
-```
-
-Running tests
-- Run the Playwright test suite:
+## Run Tests
 
 ```bash
 npm test
-# Or directly:
-npx playwright test
 ```
 
-Coding standards
-- Frontend: HTML, CSS, JavaScript. Keep changes small and browser-friendly.
-- JavaScript style: follow an established style (Airbnb recommended).
-- Backend tools (if added): Python is preferred; follow PEP 8.
-- Add unit or integration tests for any behavior you change.
+CI runs the same suite on every push and PR.
 
-Branching & pull requests
-- Work on feature branches named `feature/short-desc` or `fix/short-desc`.
-- Open a pull request against `main` with a clear title and description.
-- Include a short summary of changes, motivation, and any manual test steps.
+## Making Changes
 
-Tests and CI
-- The repository uses Playwright for browser tests. Run `npx playwright install` when adding tests.
-- If you add or change automated checks, update `package.json` and document the commands here.
+1. **Read the specs** in `protocol/spec/` before touching any code.
+2. Work on a branch: `feature/short-desc` or `fix/short-desc`.
+3. Edit `protocol/protocol.html` directly — it is the entire app (single file, no build step).
+4. Add or update tests in `protocol/tests/` for every behavior change.
+5. Run `npm test` — all tests must pass.
+6. Open a PR against `main` with a clear title and a live preview link:
+   ```
+   https://raw.githack.com/8biz/champ/[branch]/protocol/protocol.html
+   ```
 
-Reporting issues
-- Open an issue for bugs, feature requests, or spec changes. Provide reproduction steps and expected behavior.
+## Code Style
 
-Thanks for helping improve CHAMP.
+- HTML/CSS/JavaScript: ES6+, Airbnb JS style (not enforced by tooling — apply manually).
+- Keep `protocol.html` as a single file; no external dependencies or CDN links.
+
+## Reporting Issues
+
+Open a GitHub issue with reproduction steps and expected vs. actual behavior.
+
