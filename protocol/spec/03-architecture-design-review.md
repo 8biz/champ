@@ -48,7 +48,7 @@ The CHAMP Protocol is a well-functioning prototype with solid domain coverage. I
 
 ## 2. Current Architecture Overview
 
-![Current Architecture](img/current-architecture.puml)
+![Current Architecture](img/current-architecture.png)
 
 The entire application lives in a single HTML file with three inline sections:
 
@@ -140,7 +140,7 @@ appState.inSwapMode        // boolean — implies inCorrectionMode
 appState.inInsertMode      // boolean — implies inCorrectionMode
 ```
 
-![State Machine](img/state-machine.puml)
+![State Machine](img/state-machine.png)
 
 This creates a **combinatorial explosion** of possible states. For example, the keyboard handler must check:
 
@@ -219,7 +219,7 @@ function dispatch(command) {
 
 ### 5.1 Current Coupling
 
-![Event Flow](img/event-flow.puml)
+![Event Flow](img/event-flow.png)
 
 The codebase intermixes four distinct concerns:
 
@@ -547,7 +547,7 @@ The spec defines a clear vocabulary (Bout Event, Timeline, Cursor, Period Time, 
 | Period time | `appState.periodTime100ms` | ✓ Yes |
 | Bout time | `appState.boutTime100ms` | ✓ Yes |
 
-![Proposed Domain Model](img/proposed-domain-model.puml)
+![Proposed Domain Model](img/proposed-domain-model.png)
 
 ---
 
@@ -606,7 +606,7 @@ This provides actual encapsulation without violating the single-file constraint.
 
 ### 12.1 Redundant `getEffectiveBoutEvents()` Calls
 
-![Dependency Graph](img/dependency-graph.puml)
+![Dependency Graph](img/dependency-graph.png)
 
 A single `recordEvent()` call triggers this chain:
 1. `updateScores()` → `calculateScores(getEffectiveBoutEvents())` — **1st call**
@@ -713,7 +713,7 @@ The application uses Playwright E2E tests exclusively. Tests interact with the a
 
 ### 15.2 Correction Flow (Current)
 
-![Correction Flow](img/correction-flow.puml)
+![Correction Flow](img/correction-flow.png)
 
 ### 15.3 Concrete Refactoring Example
 
