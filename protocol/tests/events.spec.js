@@ -134,3 +134,58 @@ test.describe("CHAMP Protocol - Event Recording", () => {
     await expect(box.locator('.caution-row').last()).toHaveClass(/red/);
   });
 });
+
+// ── Dispatch path ────────────────────────────────────────────────────────────
+
+test.describe("CHAMP Protocol - Dispatch", () => {
+  test("dispatch records a point event directly", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    const result = await page.evaluate(() => window.testHelper.dispatch('2R'));
+    expect(result).toBe(true);
+    await expect(page.locator("#score-red")).toHaveText("2");
+    await expect(page.locator("#timeline .entry-box").first()).toContainText("2R");
+  });
+
+  test("dispatch records a passivity event directly", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    const result = await page.evaluate(() => window.testHelper.dispatch('PB'));
+    expect(result).toBe(true);
+    await expect(page.locator("#timeline .entry-box").first()).toContainText("PB");
+  });
+
+  test("dispatch records a caution event directly", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    const result = await page.evaluate(() => window.testHelper.dispatch('0R1B'));
+    expect(result).toBe(true);
+    await expect(page.locator("#score-blue")).toHaveText("1");
+    await expect(page.locator("#timeline .entry-box.caution").first()).toBeVisible();
+  });
+
+  test("dispatch returns false in New mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    const result = await page.evaluate(() => window.testHelper.dispatch('1R'));
+    expect(result).toBe(false);
+    await expect(page.locator("#score-red")).toHaveText("0");
+  });
+
+  test("dispatch keeps key buffer unchanged", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+
+    // Partially fill the buffer
+    await page.keyboard.press("r");
+    await expect(page.locator("#next-event .entry-box").first()).toHaveText("R");
+
+    // Dispatch directly — buffer must not be affected
+    await page.evaluate(() => window.testHelper.dispatch('2B'));
+    await expect(page.locator("#score-blue")).toHaveText("2");
+    await expect(page.locator("#next-event .entry-box").first()).toHaveText("R");
+  });
+});

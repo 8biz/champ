@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { BASE_URL, releaseScoresheet, recordEventAtTime } from "./helpers.js";
+import { BASE_URL, releaseScoresheet, recordEventAtTime, getAppState, generateExport } from "./helpers.js";
 
 // ── Correction Mode – Time Modification (T key) ───────────────────────────────
 
@@ -53,7 +53,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     await page.locator("#time-mod-input").press("Escape");
 
     await expect(page.locator("#time-mod-modal")).not.toBeVisible();
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer).toHaveLength(0);
   });
 
@@ -69,7 +69,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     await page.locator("#time-mod-input").fill("0:05");
     await page.locator("#time-mod-input").press("Enter");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     const tm = state.correctionBuffer.find(c => c.timeModified);
     expect(tm).toBeDefined();
     expect(tm.newBoutTime100ms).toBe(50); // 5 s = 50 × 100 ms
@@ -87,7 +87,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     await page.locator("#time-mod-input").fill("0:05");
     await page.locator("#time-mod-input").press("Enter");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     const tm = state.correctionBuffer.find(c => c.timeModified);
     expect(tm.oldBoutTime100ms).toBe(100); // 10 s original elapsed time
   });
@@ -102,7 +102,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     await page.locator("#time-mod-input").fill("0:05");
     await page.locator("#time-mod-input").press("Enter");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer).toHaveLength(1);
   });
 
@@ -115,7 +115,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     await page.keyboard.press("t");
     await page.locator("#time-mod-cancel").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer).toHaveLength(0);
   });
 
@@ -275,7 +275,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     // Confirm corrections
     await page.keyboard.press("Enter");
 
-    const events = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const events = await generateExport(page).then(d => d.bout.events);
     expect(events.some(e => e.eventType === "EventDeleted")).toBe(true);
     expect(events.some(e => e.eventType === "EventInserted")).toBe(true);
   });
@@ -291,7 +291,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     await page.locator("#time-mod-input").press("Enter");
     await page.keyboard.press("Enter"); // confirm
 
-    const events = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const events = await generateExport(page).then(d => d.bout.events);
     const inserted = events.find(e => e.eventType === "EventInserted");
     expect(inserted).toBeDefined();
     expect(inserted.boutTime100ms).toBe(50); // 5 s = 50 × 100 ms
@@ -353,7 +353,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     await page.locator("#time-mod-input").fill("0:05");
     await page.locator("#time-mod-input").press("Enter");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     const tm = state.correctionBuffer.find(c => c.timeModified);
     expect(tm.eventType).toBe("2B");
   });
@@ -368,7 +368,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     await page.keyboard.press("ArrowLeft");
     // First change event type: 1R → 2R
     await page.keyboard.press("2");
-    const stateAfterMod = await page.evaluate(() => window.testHelper.getState());
+    const stateAfterMod = await getAppState(page);
     expect(stateAfterMod.correctionBuffer.some(c => c.newEventType === "2R")).toBe(true);
 
     // Then modify time: this should supersede the type-change correction
@@ -376,7 +376,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     await page.locator("#time-mod-input").fill("0:05");
     await page.locator("#time-mod-input").press("Enter");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     // Only timeModified correction should remain (newEventType correction removed)
     expect(state.correctionBuffer).toHaveLength(1);
     const tm = state.correctionBuffer.find(c => c.timeModified);
@@ -397,7 +397,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     await page.locator("#time-mod-input").fill("0:05");
     await page.locator("#time-mod-input").press("Enter");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(true);
   });
 
@@ -416,7 +416,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     await page.locator("#time-mod-input").fill("0:15");
     await page.locator("#time-mod-input").press("Enter");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     const tm = state.correctionBuffer.find(c => c.timeModified);
     expect(tm).toBeDefined();
     expect(tm.eventType).toBe("2B");
@@ -466,7 +466,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     // Cursor is now on the tm- virtual event; pressing Delete cancels the time modification
     await page.keyboard.press("Delete");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer).toHaveLength(0);
   });
 
@@ -519,7 +519,7 @@ test.describe("CHAMP Protocol - Correction Mode Time Modification", () => {
     await page.locator("#time-mod-input").fill("0:08");
     await page.locator("#time-mod-input").press("Enter");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer).toHaveLength(1);
     const tm = state.correctionBuffer.find(c => c.timeModified);
     expect(tm).toBeDefined();

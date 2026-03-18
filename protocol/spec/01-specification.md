@@ -467,3 +467,16 @@ window.exportHelper.download()  // Downloads as JSON file
 Exported files follow the naming pattern: `champ-export-YYYY-MM-DDTHH-MM-SS.json`
 
 ---
+
+## Test-Helper Migration Note
+
+> **Refactor-01 note:** The Playwright test suite accesses application state through
+> `window.testHelper`, `window.exportHelper`, and `window.rulesetHelper`. The shape of these
+> helpers — including all field names exposed by `window.testHelper.getState()` and the
+> structure of the object returned by `window.exportHelper.generate()` — forms the
+> **supported test contract** that must be preserved during application refactoring.
+>
+> See [`04-test-contract.md`](04-test-contract.md) for the full inventory of test couplings,
+> the supported helper surface, and migration priorities.
+
+---

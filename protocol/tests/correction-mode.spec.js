@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { BASE_URL, releaseScoresheet, recordEventAtTime } from "./helpers.js";
+import { BASE_URL, releaseScoresheet, recordEventAtTime, getAppState } from "./helpers.js";
 
 // ── Correction Mode ──────────────────────────────────────────────────────────
 
@@ -14,7 +14,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
 
     await page.keyboard.press("ArrowLeft");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(true);
     expect(state.cursorIndex).toBe(0);
   });
@@ -26,7 +26,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
 
     await page.keyboard.press("Backspace");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(true);
     expect(state.correctionBuffer).toHaveLength(1);
     expect(state.correctionBuffer[0].deleted).toBe(true);
@@ -38,7 +38,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
 
     await page.keyboard.press("ArrowLeft");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(false);
   });
 
@@ -53,7 +53,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     // Confirm
     await page.keyboard.press("Enter");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(false);
   });
 
@@ -65,7 +65,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("Escape");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(false);
   });
 
@@ -80,7 +80,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     // Now buffer has ['0'], press Escape
     await page.keyboard.press("Escape");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     // Buffer should be cleared but still in correction mode
     expect(state.inCorrectionMode).toBe(true);
     expect(state.correctionBuffer).toHaveLength(0);
@@ -96,7 +96,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
 
     await page.keyboard.press("ArrowLeft");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.cursorIndex).toBe(1); // 2nd event (0-indexed)
   });
 
@@ -109,7 +109,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     await page.keyboard.press("ArrowLeft"); // enter correction mode at index 1
     await page.keyboard.press("ArrowLeft"); // move to index 0
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.cursorIndex).toBe(0);
   });
 
@@ -123,7 +123,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     await page.keyboard.press("ArrowLeft"); // move to index 0
     await page.keyboard.press("ArrowRight"); // back to index 1
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.cursorIndex).toBe(1);
   });
 
@@ -135,7 +135,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     await page.keyboard.press("ArrowLeft"); // enter, cursorIndex = 0
     await page.keyboard.press("ArrowLeft"); // try to go further left, should stay
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.cursorIndex).toBe(0);
   });
 
@@ -219,7 +219,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
 
     await expect(page.locator("#score-red")).toHaveText("1");
     // No EventModified should be recorded
-    const events = await page.evaluate(() => window.testHelper.getState());
+    const events = await getAppState(page);
     // correctionBuffer should be empty (no change was made)
   });
 
@@ -343,7 +343,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     await page.keyboard.press("0"); // start caution sequence
     await page.keyboard.press("Escape"); // clear buffer, stay in correction mode
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(true);
     expect(state.correctionBuffer).toHaveLength(0);
 
@@ -514,7 +514,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
 
     await page.keyboard.press(" "); // start timer
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.timerRunning).toBe(true);
     expect(state.inCorrectionMode).toBe(true); // still in correction mode
   });
@@ -525,13 +525,13 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     await recordEventAtTime(page, "2:50", ["1", "R"]);
 
     await page.keyboard.press(" "); // start timer in normal mode
-    const stateBefore = await page.evaluate(() => window.testHelper.getState());
+    const stateBefore = await getAppState(page);
     expect(stateBefore.timerRunning).toBe(true);
 
     await page.keyboard.press("ArrowLeft"); // enter correction mode
     await page.keyboard.press(" "); // stop timer
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.timerRunning).toBe(false);
     expect(state.inCorrectionMode).toBe(true); // still in correction mode
   });
@@ -602,7 +602,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     await page.keyboard.press("ArrowLeft"); // enter correction mode
     await page.keyboard.press("Delete");    // mark only event as pending-deleted
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(true);
     expect(state.cursorIndex).toBeNull();
   });
@@ -616,7 +616,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     await page.keyboard.press("Delete");
     await page.keyboard.press("Enter"); // confirm all deletions
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(false);
     // All entries removed from timeline
     await expect(page.locator(".timeline .entry:not(#next-event)")).toHaveCount(0);
@@ -631,11 +631,11 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     await recordEventAtTime(page, "2:40", ["2", "B"]);
 
     await page.keyboard.press("ArrowLeft"); // enter correction mode, cursor at index 1 (2B)
-    const stateBefore = await page.evaluate(() => window.testHelper.getState());
+    const stateBefore = await getAppState(page);
     expect(stateBefore.cursorIndex).toBe(1);
 
     await page.keyboard.press("Backspace"); // move left to index 0 (1R) and delete it
-    const stateAfter = await page.evaluate(() => window.testHelper.getState());
+    const stateAfter = await getAppState(page);
     expect(stateAfter.cursorIndex).toBe(0);
     expect(stateAfter.inCorrectionMode).toBe(true);
     expect(stateAfter.correctionBuffer).toHaveLength(1);
@@ -648,11 +648,11 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
     await recordEventAtTime(page, "2:50", ["1", "R"]);
 
     await page.keyboard.press("ArrowLeft"); // enter correction mode, cursor at index 0
-    const stateBefore = await page.evaluate(() => window.testHelper.getState());
+    const stateBefore = await getAppState(page);
     expect(stateBefore.cursorIndex).toBe(0);
 
     await page.keyboard.press("Backspace"); // already at leftmost – no movement, no deletion
-    const stateAfter = await page.evaluate(() => window.testHelper.getState());
+    const stateAfter = await getAppState(page);
     expect(stateAfter.cursorIndex).toBe(0);
     expect(stateAfter.inCorrectionMode).toBe(true);
     expect(stateAfter.correctionBuffer).toHaveLength(0);
@@ -664,7 +664,7 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
 
     await page.keyboard.press("Backspace");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(false);
   });
 
@@ -677,23 +677,23 @@ test.describe("CHAMP Protocol - Correction Mode", () => {
 
     // First Backspace from normal mode: enters correction mode and deletes last event (4R)
     await page.keyboard.press("Backspace");
-    const state1 = await page.evaluate(() => window.testHelper.getState());
+    const state1 = await getAppState(page);
     expect(state1.inCorrectionMode).toBe(true);
     expect(state1.correctionBuffer).toHaveLength(1);
 
     // Second Backspace in correction mode: moves cursor left and deletes 2B
     await page.keyboard.press("Backspace");
-    const state2 = await page.evaluate(() => window.testHelper.getState());
+    const state2 = await getAppState(page);
     expect(state2.correctionBuffer).toHaveLength(2);
 
     // Third Backspace: moves cursor left and deletes 1R
     await page.keyboard.press("Backspace");
-    const state3 = await page.evaluate(() => window.testHelper.getState());
+    const state3 = await getAppState(page);
     expect(state3.correctionBuffer).toHaveLength(3);
 
     // Fourth Backspace: cursor is at leftmost – no-op
     await page.keyboard.press("Backspace");
-    const state4 = await page.evaluate(() => window.testHelper.getState());
+    const state4 = await getAppState(page);
     expect(state4.correctionBuffer).toHaveLength(3);
     expect(state4.inCorrectionMode).toBe(true);
   });
@@ -713,7 +713,7 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     await page.keyboard.press("#");
     await page.keyboard.press("#");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(true);
     expect(state.inInsertMode).toBe(true);
   });
@@ -726,7 +726,7 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("#");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inInsertMode).toBe(false);
     expect(state.inCorrectionMode).toBe(true);
   });
@@ -741,7 +741,7 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     await page.keyboard.press("#");
     await page.keyboard.press("Escape");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inInsertMode).toBe(false);
     expect(state.inCorrectionMode).toBe(true);
   });
@@ -758,7 +758,7 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     await page.keyboard.press("1");
     await page.keyboard.press("r");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inInsertMode).toBe(false);
     expect(state.inCorrectionMode).toBe(true);
     expect(state.correctionBuffer).toHaveLength(1);
@@ -776,7 +776,7 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     await page.keyboard.press("r");
     await page.keyboard.press("1");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer[0].insertedEventType).toBe("1R");
   });
 
@@ -791,7 +791,7 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     await page.keyboard.press("p");
     await page.keyboard.press("b");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer[0].insertedEventType).toBe("PB");
   });
 
@@ -807,7 +807,7 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     await page.keyboard.press("0");
     await page.keyboard.press("1");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer[0].insertedEventType).toBe("0R1B");
   });
 
@@ -823,12 +823,10 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     await page.keyboard.press("b");
     await page.keyboard.press("Enter"); // confirm
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(false);
 
-    // Check that EventInserted is now in the event log
-    const events = await page.evaluate(() => window.appState ? window.appState.events : []);
-    // We check via the timeline: there should be 2 bout events visible
+    // Check that EventInserted is now in the event log via the timeline
     const entries = page.locator(".timeline .entry:not(#next-event)");
     await expect(entries).toHaveCount(2);
   });
@@ -932,7 +930,7 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     await page.keyboard.press("r"); // insert 2R before 1R
 
     // Cursor should now be on the newly inserted event (index 0)
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.cursorIndex).toBe(0);
     // The cursor ring should be on the pending-inserted entry (2R)
     await expect(page.locator(".entry-box.cursor.pending-inserted")).toBeVisible();
@@ -952,9 +950,153 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     await page.keyboard.press("r"); // insert 4R before 2B
 
     // Cursor should move to the inserted 4R event (still index 1, now points to pi-event)
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.cursorIndex).toBe(1);
     await expect(page.locator(".entry-box.cursor.pending-inserted")).toHaveText("4R");
+  });
+
+});
+
+// ── CorrectionSM State Machine ───────────────────────────────────────────────
+
+test.describe("CHAMP Protocol - CorrectionSM State Machine", () => {
+
+  test("CorrectionSM is exposed on window", async ({ page }) => {
+    await page.goto(BASE_URL);
+    const exposed = await page.evaluate(() => typeof window.CorrectionSM);
+    expect(exposed).toBe("object");
+  });
+
+  test("CorrectionSM.get() returns 'idle' initially", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    const state = await page.evaluate(() => window.CorrectionSM.get());
+    expect(state).toBe("idle");
+  });
+
+  test("CorrectionSM.get() returns 'cursor' after entering correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await page.keyboard.press("ArrowLeft");
+    const state = await page.evaluate(() => window.CorrectionSM.get());
+    expect(state).toBe("cursor");
+  });
+
+  test("CorrectionSM.get() returns 'swap' after pressing #", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+    await page.keyboard.press("ArrowLeft"); // enter correction mode
+    await page.keyboard.press("#");         // enter swap mode
+    const state = await page.evaluate(() => window.CorrectionSM.get());
+    expect(state).toBe("swap");
+  });
+
+  test("CorrectionSM.get() returns 'insert' after pressing ##", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await page.keyboard.press("ArrowLeft"); // enter correction mode
+    await page.keyboard.press("#");         // enter swap mode
+    await page.keyboard.press("#");         // transition to insert mode
+    const state = await page.evaluate(() => window.CorrectionSM.get());
+    expect(state).toBe("insert");
+  });
+
+  test("CorrectionSM.get() returns 'idle' after exiting correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await page.keyboard.press("ArrowLeft"); // enter
+    await page.keyboard.press("Enter");     // confirm exit
+    const state = await page.evaluate(() => window.CorrectionSM.get());
+    expect(state).toBe("idle");
+  });
+
+  test("CorrectionSM.is() correctly identifies the current state", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    const result = await page.evaluate(() => ({
+      isIdle: window.CorrectionSM.is("idle"),
+      isCursor: window.CorrectionSM.is("cursor"),
+    }));
+    expect(result.isIdle).toBe(true);
+    expect(result.isCursor).toBe(false);
+  });
+
+  test("CorrectionSM illegal transition idle→insert is blocked", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    const result = await page.evaluate(() => {
+      const before = window.CorrectionSM.get();
+      const applied = window.CorrectionSM.apply("insert"); // illegal: idle → insert
+      const after = window.CorrectionSM.get();
+      return { before, applied, after };
+    });
+    expect(result.before).toBe("idle");
+    expect(result.applied).toBe(false);
+    expect(result.after).toBe("idle"); // state unchanged
+  });
+
+  test("CorrectionSM illegal transition idle→swap is blocked", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    const result = await page.evaluate(() => {
+      const applied = window.CorrectionSM.apply("swap"); // illegal: idle → swap
+      return { applied, after: window.CorrectionSM.get() };
+    });
+    expect(result.applied).toBe(false);
+    expect(result.after).toBe("idle");
+  });
+
+  test("CorrectionSM illegal transition insert→swap is blocked", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await page.keyboard.press("ArrowLeft"); // cursor
+    await page.keyboard.press("#");         // swap
+    await page.keyboard.press("#");         // insert
+    // Now in insert; attempt illegal insert → swap
+    const result = await page.evaluate(() => {
+      const before = window.CorrectionSM.get();
+      const applied = window.CorrectionSM.apply("swap"); // illegal: insert → swap
+      const after = window.CorrectionSM.get();
+      return { before, applied, after };
+    });
+    expect(result.before).toBe("insert");
+    expect(result.applied).toBe(false);
+    expect(result.after).toBe("insert"); // state unchanged
+  });
+
+  test("CorrectionSM canTransition reports legal transitions correctly", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    const result = await page.evaluate(() => ({
+      idleToCursor: window.CorrectionSM.canTransition("cursor"),
+      idleToInsert: window.CorrectionSM.canTransition("insert"),
+      idleToSwap:   window.CorrectionSM.canTransition("swap"),
+      idleToIdle:   window.CorrectionSM.canTransition("idle"),
+    }));
+    expect(result.idleToCursor).toBe(true);
+    expect(result.idleToInsert).toBe(false);
+    expect(result.idleToSwap).toBe(false);
+    expect(result.idleToIdle).toBe(false);
+  });
+
+  test("CorrectionSM STATES are frozen and contain the four state names", async ({ page }) => {
+    await page.goto(BASE_URL);
+    const result = await page.evaluate(() => {
+      const states = window.CorrectionSM.STATES;
+      const isFrozen = Object.isFrozen(states);
+      // Attempt mutation — should be silently ignored in strict mode or throw in non-strict
+      try { states.extra = 'x'; } catch (_) { /* frozen objects throw in strict mode */ }
+      return { states, isFrozen, mutationIgnored: states.extra === undefined };
+    });
+    expect(result.states).toEqual({ idle: "idle", cursor: "cursor", insert: "insert", swap: "swap" });
+    expect(result.isFrozen).toBe(true);
+    expect(result.mutationIgnored).toBe(true);
   });
 
 });
