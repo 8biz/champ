@@ -938,24 +938,11 @@
     // ===================================================================
     const appState = {
       mode: 'New', // 'New' | 'Recording' | 'Completing' | 'Completed' | 'Re-released'
-      timerRunning: false,
-      timerIntervalId: null,
-      boutTime100ms: 0, // in 100ms units
-      periodTime100ms: 1800, // 3 minutes = 180 seconds = 1800 * 100ms units
       sequenceCounter: 0,
       events: [],
       createdAt: null,
-      completed: false,
-      completedAt: null,
-      winner: null,
-      victoryType: null,
-      victoryDescription: null,
-      classificationPoints: null,
-      complBoutTime100ms: null, // total bout time confirmed on completion form
       keyBuffer: [],
       currentPeriodIndex: 0,
-      breakTimerRunning: false,
-      breakTime100ms: 0,
       injuryTimers: {
         IR: { running: false, time100ms: 0, intervalId: null },
         IB: { running: false, time100ms: 0, intervalId: null },
@@ -966,15 +953,95 @@
         AR: { active: false, time100ms: 0, seq: null }, // activity time for red
         AB: { active: false, time100ms: 0, seq: null }  // activity time for blue
       },
-      timeModTarget: null,  // null = bout time, 'IR'/'IB'/'BR'/'BB' = injury timer, 'correctionBoutTime' = correction mode
-      timeModCorrectionEvent: null, // event being time-modified in correction mode
-      inCorrectionMode: false,
-      inInsertMode: false,  // sub-mode of correction: ## pressed, waiting for event type
-      inSwapMode: false,    // sub-mode of correction: # pressed, selecting swap partner
-      swapOriginIndex: null, // cursorIndex when swap mode was entered (fixed origin)
-      cursorIndex: null,    // null = at next-event; integer = index in cursorsable bout events
-      correctionBuffer: []  // pending {refSeq, newEventType} or {refSeq, deleted:true} or {insertBefore, boutTime100ms, insertedEventType} or {swapped:true, refSeq1, refSeq2} or {timeModified:true, refSeq, oldBoutTime100ms, newBoutTime100ms, eventType, insertBefore}
+
+      // --- Timer domain ---
+      timers: {
+        running: false,         // was: timerRunning
+        intervalId: null,       // was: timerIntervalId
+        boutTime100ms: 0,       // elapsed bout time in 100ms units
+        periodTime100ms: 1800,  // remaining period time (3 min = 1800 * 100ms)
+        breakRunning: false,    // was: breakTimerRunning
+        breakTime100ms: 0       // was: breakTime100ms
+      },
+
+      // --- Correction domain ---
+      correction: {
+        active: false,          // was: inCorrectionMode
+        insertMode: false,      // was: inInsertMode — sub-mode: ## pressed, waiting for event type
+        swapMode: false,        // was: inSwapMode   — sub-mode: # pressed, selecting swap partner
+        swapOriginIndex: null,  // was: swapOriginIndex — cursorIndex when swap mode was entered
+        cursorIndex: null,      // was: cursorIndex  — null = at next-event; integer = index in cursorable events
+        buffer: [],             // was: correctionBuffer — pending {refSeq, newEventType} | {refSeq, deleted:true} | {insertBefore, boutTime100ms, insertedEventType} | {swapped:true, refSeq1, refSeq2} | {timeModified:true, ...}
+        timeModTarget: null,    // was: timeModTarget — null=bout, 'IR'/'IB'/'BR'/'BB'=injury, 'correctionBoutTime'=correction
+        timeModEvent: null      // was: timeModCorrectionEvent — event being time-modified in correction mode
+      },
+
+      // --- Completion domain ---
+      completion: {
+        done: false,                  // was: completed
+        at: null,                     // was: completedAt
+        winner: null,                 // was: winner
+        victoryType: null,            // was: victoryType
+        victoryDescription: null,     // was: victoryDescription
+        classificationPoints: null,   // was: classificationPoints
+        boutTime100ms: null           // was: complBoutTime100ms — total bout time confirmed on completion form
+      }
     };
+
+    // ===================================================================
+    // STATE COMPATIBILITY SHIMS
+    // Flat property names on appState delegate to domain sub-objects so
+    // existing code continues to work during the incremental migration.
+    // ===================================================================
+    Object.defineProperties(appState, {
+      // Timer domain
+      timerRunning:      { get() { return this.timers.running; },         set(v) { this.timers.running = v; },         enumerable: false, configurable: true },
+      timerIntervalId:   { get() { return this.timers.intervalId; },      set(v) { this.timers.intervalId = v; },      enumerable: false, configurable: true },
+      boutTime100ms:     { get() { return this.timers.boutTime100ms; },   set(v) { this.timers.boutTime100ms = v; },   enumerable: false, configurable: true },
+      periodTime100ms:   { get() { return this.timers.periodTime100ms; }, set(v) { this.timers.periodTime100ms = v; }, enumerable: false, configurable: true },
+      breakTimerRunning: { get() { return this.timers.breakRunning; },    set(v) { this.timers.breakRunning = v; },    enumerable: false, configurable: true },
+      breakTime100ms:    { get() { return this.timers.breakTime100ms; },  set(v) { this.timers.breakTime100ms = v; },  enumerable: false, configurable: true },
+      // Correction domain
+      inCorrectionMode:       { get() { return this.correction.active; },          set(v) { this.correction.active = v; },          enumerable: false, configurable: true },
+      inInsertMode:           { get() { return this.correction.insertMode; },      set(v) { this.correction.insertMode = v; },      enumerable: false, configurable: true },
+      inSwapMode:             { get() { return this.correction.swapMode; },        set(v) { this.correction.swapMode = v; },        enumerable: false, configurable: true },
+      swapOriginIndex:        { get() { return this.correction.swapOriginIndex; }, set(v) { this.correction.swapOriginIndex = v; }, enumerable: false, configurable: true },
+      cursorIndex:            { get() { return this.correction.cursorIndex; },     set(v) { this.correction.cursorIndex = v; },     enumerable: false, configurable: true },
+      correctionBuffer:       { get() { return this.correction.buffer; },          set(v) { this.correction.buffer = v; },          enumerable: false, configurable: true },
+      timeModTarget:          { get() { return this.correction.timeModTarget; },   set(v) { this.correction.timeModTarget = v; },   enumerable: false, configurable: true },
+      timeModCorrectionEvent: { get() { return this.correction.timeModEvent; },    set(v) { this.correction.timeModEvent = v; },    enumerable: false, configurable: true },
+      // Completion domain
+      completed:            { get() { return this.completion.done; },                  set(v) { this.completion.done = v; },                  enumerable: false, configurable: true },
+      completedAt:          { get() { return this.completion.at; },                    set(v) { this.completion.at = v; },                    enumerable: false, configurable: true },
+      winner:               { get() { return this.completion.winner; },                set(v) { this.completion.winner = v; },                enumerable: false, configurable: true },
+      victoryType:          { get() { return this.completion.victoryType; },           set(v) { this.completion.victoryType = v; },           enumerable: false, configurable: true },
+      victoryDescription:   { get() { return this.completion.victoryDescription; },    set(v) { this.completion.victoryDescription = v; },    enumerable: false, configurable: true },
+      classificationPoints: { get() { return this.completion.classificationPoints; },  set(v) { this.completion.classificationPoints = v; },  enumerable: false, configurable: true },
+      complBoutTime100ms:   { get() { return this.completion.boutTime100ms; },         set(v) { this.completion.boutTime100ms = v; },         enumerable: false, configurable: true }
+    });
+
+    // ===================================================================
+    // STATE ACCESSOR HELPERS
+    // Domain-focused read helpers — prefer these in new code over direct
+    // flat appState property access.
+    // ===================================================================
+    /**
+     * Returns the timer domain sub-object.
+     * Shape: { running, intervalId, boutTime100ms, periodTime100ms, breakRunning, breakTime100ms }
+     */
+    function getTimers() { return appState.timers; }
+
+    /**
+     * Returns the correction domain sub-object.
+     * Shape: { active, insertMode, swapMode, swapOriginIndex, cursorIndex, buffer, timeModTarget, timeModEvent }
+     */
+    function getCorrection() { return appState.correction; }
+
+    /**
+     * Returns the completion domain sub-object.
+     * Shape: { done, at, winner, victoryType, victoryDescription, classificationPoints, boutTime100ms }
+     */
+    function getCompletion() { return appState.completion; }
 
     // ===================================================================
     // PURE NAMESPACES
@@ -4179,32 +4246,36 @@
 
     window.testHelper = {
       injectEvent: (evt) => { appState.events.push(evt); updateTimeline(); },
-      getState: () => ({
-        mode: appState.mode,
-        inCorrectionMode: appState.inCorrectionMode,
-        inInsertMode: appState.inInsertMode,
-        inSwapMode: appState.inSwapMode,
-        cursorIndex: appState.cursorIndex,
-        correctionBuffer: appState.correctionBuffer.slice(),
-        breakTimerRunning: appState.breakTimerRunning,
-        breakTime100ms: appState.breakTime100ms,
-        currentPeriodIndex: appState.currentPeriodIndex,
-        periodTime100ms: appState.periodTime100ms,
-        boutTime100ms: appState.boutTime100ms,
-        timerRunning: appState.timerRunning,
-        injuryTimers: {
-          IR: { running: appState.injuryTimers.IR.running, time100ms: appState.injuryTimers.IR.time100ms },
-          IB: { running: appState.injuryTimers.IB.running, time100ms: appState.injuryTimers.IB.time100ms },
-          BR: { running: appState.injuryTimers.BR.running, time100ms: appState.injuryTimers.BR.time100ms },
-          BB: { running: appState.injuryTimers.BB.running, time100ms: appState.injuryTimers.BB.time100ms }
-        },
-        activityTimers: {
-          AR: { active: appState.activityTimers.AR.active, time100ms: appState.activityTimers.AR.time100ms, seq: appState.activityTimers.AR.seq },
-          AB: { active: appState.activityTimers.AB.active, time100ms: appState.activityTimers.AB.time100ms, seq: appState.activityTimers.AB.seq }
-        }
-      }),
-      setPeriodTime100ms: (value) => { appState.periodTime100ms = value; updateBoutTimeDisplay(); },
-      setBoutTime100ms: (value) => { appState.boutTime100ms = value; },
+      getState: () => {
+        const t = getTimers();
+        const c = getCorrection();
+        return {
+          mode: appState.mode,
+          inCorrectionMode: c.active,
+          inInsertMode: c.insertMode,
+          inSwapMode: c.swapMode,
+          cursorIndex: c.cursorIndex,
+          correctionBuffer: c.buffer.slice(),
+          breakTimerRunning: t.breakRunning,
+          breakTime100ms: t.breakTime100ms,
+          currentPeriodIndex: appState.currentPeriodIndex,
+          periodTime100ms: t.periodTime100ms,
+          boutTime100ms: t.boutTime100ms,
+          timerRunning: t.running,
+          injuryTimers: {
+            IR: { running: appState.injuryTimers.IR.running, time100ms: appState.injuryTimers.IR.time100ms },
+            IB: { running: appState.injuryTimers.IB.running, time100ms: appState.injuryTimers.IB.time100ms },
+            BR: { running: appState.injuryTimers.BR.running, time100ms: appState.injuryTimers.BR.time100ms },
+            BB: { running: appState.injuryTimers.BB.running, time100ms: appState.injuryTimers.BB.time100ms }
+          },
+          activityTimers: {
+            AR: { active: appState.activityTimers.AR.active, time100ms: appState.activityTimers.AR.time100ms, seq: appState.activityTimers.AR.seq },
+            AB: { active: appState.activityTimers.AB.active, time100ms: appState.activityTimers.AB.time100ms, seq: appState.activityTimers.AB.seq }
+          }
+        };
+      },
+      setPeriodTime100ms: (value) => { getTimers().periodTime100ms = value; updateBoutTimeDisplay(); },
+      setBoutTime100ms: (value) => { getTimers().boutTime100ms = value; },
       setInjuryTime100ms: (key, value) => {
         appState.injuryTimers[key].time100ms = value;
         updateInjuryTimerDisplay(key);
