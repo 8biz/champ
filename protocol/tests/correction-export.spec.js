@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { BASE_URL, releaseScoresheet, recordEventAtTime } from "./helpers.js";
+import { BASE_URL, releaseScoresheet, recordEventAtTime, generateExport } from "./helpers.js";
 
 // ── Export consistency after corrections ─────────────────────────────────────
 //
@@ -25,7 +25,7 @@ test.describe("CHAMP Protocol - Export consistency after corrections", () => {
     await expect(page.locator("#score-red")).toHaveText("0");
     await expect(page.locator("#score-blue")).toHaveText("2");
 
-    const exportData = await page.evaluate(() => window.exportHelper.generate());
+    const exportData = await generateExport(page);
 
     // Export scores must match browser
     expect(exportData.bout.summary.scores.red).toBe(0);
@@ -57,7 +57,7 @@ test.describe("CHAMP Protocol - Export consistency after corrections", () => {
     await expect(page.locator("#score-red")).toHaveText("2");
     await expect(page.locator("#score-blue")).toHaveText("0");
 
-    const exportData = await page.evaluate(() => window.exportHelper.generate());
+    const exportData = await generateExport(page);
 
     expect(exportData.bout.summary.scores.red).toBe(2);
     expect(exportData.bout.summary.scores.blue).toBe(0);
@@ -87,7 +87,7 @@ test.describe("CHAMP Protocol - Export consistency after corrections", () => {
     await expect(page.locator("#score-red")).toHaveText("2");
     await expect(page.locator("#score-blue")).toHaveText("0");
 
-    const exportData = await page.evaluate(() => window.exportHelper.generate());
+    const exportData = await generateExport(page);
 
     expect(exportData.bout.summary.scores.red).toBe(2);
     expect(exportData.bout.summary.scores.blue).toBe(0);
@@ -120,7 +120,7 @@ test.describe("CHAMP Protocol - Export consistency after corrections", () => {
     await expect(page.locator("#score-red")).toHaveText("4");
     await expect(page.locator("#score-blue")).toHaveText("2");
 
-    const exportData = await page.evaluate(() => window.exportHelper.generate());
+    const exportData = await generateExport(page);
 
     expect(exportData.bout.summary.scores.red).toBe(4);
     expect(exportData.bout.summary.scores.blue).toBe(2);
@@ -164,7 +164,7 @@ test.describe("CHAMP Protocol - Export consistency after corrections", () => {
     await expect(page.locator("#score-red")).toHaveText("8");
     await expect(page.locator("#score-blue")).toHaveText("2");
 
-    const exportData = await page.evaluate(() => window.exportHelper.generate());
+    const exportData = await generateExport(page);
 
     // Export must match browser (was broken: showed 10:0)
     expect(exportData.bout.summary.scores.red).toBe(8);

@@ -37,3 +37,54 @@ export function nextEventBox(page) {
   // outer .entry-box is still the first child.
   return page.locator("#next-event .entry-box").first();
 }
+
+/** Toggle the bout timer via the Space key (start if stopped, stop if running). */
+export async function toggleTimer(page) {
+  await page.keyboard.press(" ");
+}
+
+/**
+ * Return the current full app state snapshot from the browser-side test helper.
+ * Prefer this over direct `page.evaluate(() => window.testHelper.getState())` calls.
+ * @returns {Promise<object>}
+ */
+export async function getAppState(page) {
+  return page.evaluate(() => window.testHelper.getState());
+}
+
+/**
+ * Generate and return the export data object via the browser-side export helper.
+ * Prefer this over direct `page.evaluate(() => window.exportHelper.generate())` calls.
+ * @returns {Promise<object>}
+ */
+export async function generateExport(page) {
+  return page.evaluate(() => window.exportHelper.generate());
+}
+
+/**
+ * Return the injury timer state for a given key ('IR', 'IB', 'BR', 'BB').
+ * @param {import('@playwright/test').Page} page
+ * @param {'IR'|'IB'|'BR'|'BB'} key
+ * @returns {Promise<{running: boolean, time100ms: number}>}
+ */
+export async function getInjuryTimerState(page, key) {
+  return (await getAppState(page)).injuryTimers[key];
+}
+
+/**
+ * Return the activity timer state for a given key ('AR', 'AB').
+ * @param {import('@playwright/test').Page} page
+ * @param {'AR'|'AB'} key
+ * @returns {Promise<{active: boolean, time100ms: number, seq: *}>}
+ */
+export async function getActivityTimerState(page, key) {
+  return (await getAppState(page)).activityTimers[key];
+}
+
+/**
+ * Returns a locator for all recorded (non-next-event) timeline entries.
+ * @param {import('@playwright/test').Page} page
+ */
+export function timelineEntries(page) {
+  return page.locator(".timeline .entry:not(#next-event)");
+}

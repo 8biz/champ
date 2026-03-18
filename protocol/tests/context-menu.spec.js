@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { BASE_URL, releaseScoresheet, recordEventAtTime } from "./helpers.js";
+import { BASE_URL, releaseScoresheet, recordEventAtTime, getAppState } from "./helpers.js";
 
 // ── Mouse / Touch Correction Mode ────────────────────────────────────────────
 
@@ -14,7 +14,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     await page.locator("#timeline .entry .entry-box").first().click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(false);
   });
 
@@ -27,7 +27,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(true);
     expect(state.cursorIndex).toBe(0);
   });
@@ -145,7 +145,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#time-mod-input").fill("0:05");
     await page.locator("#time-mod-input").press("Enter");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     const tm = state.correctionBuffer.find(c => c.timeModified);
     expect(tm).toBeDefined();
     expect(tm.newBoutTime100ms).toBe(50); // 5 s = 50 × 100 ms
@@ -230,7 +230,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     await page.locator("#ctx-delete").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer).toHaveLength(0);
   });
 
@@ -287,7 +287,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
     await page.locator("#ctx-delete").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(true);
     expect(state.correctionBuffer).toHaveLength(1);
     expect(state.correctionBuffer[0].deleted).toBe(true);
@@ -364,7 +364,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
     await page.locator("#ctx-insert").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inInsertMode).toBe(true);
     expect(state.inCorrectionMode).toBe(true);
   });
@@ -377,7 +377,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
     await page.locator("#ctx-insert").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer).toHaveLength(0);
   });
 
@@ -433,7 +433,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#ctx-insert").click();
     await page.locator("#ctx-insert-cancel").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inInsertMode).toBe(false);
     expect(state.inCorrectionMode).toBe(true);
   });
@@ -483,7 +483,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#ctx-insert").click();
     await page.locator("#event-buttons-red .event-btn").filter({ hasText: "2R" }).click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer).toHaveLength(1);
     expect(state.correctionBuffer[0].insertedEventType).toBe("2R");
   });
@@ -497,7 +497,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#ctx-insert").click();
     await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "2B" }).click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inInsertMode).toBe(false);
     expect(state.inCorrectionMode).toBe(true);
   });
@@ -524,7 +524,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#ctx-insert").click();
     await page.locator("#event-buttons-red .event-btn").filter({ hasText: "0R1" }).click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer[0].insertedEventType).toBe("0R1B");
   });
 
@@ -565,7 +565,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#event-buttons-red .event-btn").filter({ hasText: "2R" }).click();
 
     // Cursor should now be on the newly inserted 2R event
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.cursorIndex).toBe(0);
     await expect(page.locator(".entry-box.cursor.pending-inserted")).toBeVisible();
     await expect(page.locator(".entry-box.cursor.pending-inserted")).toHaveText("2R");
@@ -602,7 +602,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     // Click the 2B button
     await page.locator("#event-buttons-blue .event-btn").filter({ hasText: "2B" }).click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer).toHaveLength(1);
     expect(state.correctionBuffer[0].newEventType).toBe("2B");
   });
@@ -616,7 +616,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     await page.locator("#event-buttons-red .event-btn").filter({ hasText: "PR" }).click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer).toHaveLength(1);
     expect(state.correctionBuffer[0].newEventType).toBe("PR");
   });
@@ -625,7 +625,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.goto(BASE_URL);
     await releaseScoresheet(page);
     await recordEventAtTime(page, "2:50", ["1", "R"]);
-    const eventsBefore = await page.evaluate(() => window.testHelper.getState());
+    const eventsBefore = await getAppState(page);
 
     await page.keyboard.press("ArrowLeft");
 
@@ -645,7 +645,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
 
     await page.locator("#event-buttons-red .event-btn").filter({ hasText: "0R1" }).click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer).toHaveLength(1);
     expect(state.correctionBuffer[0].newEventType).toBe("0R1B");
   });
@@ -662,7 +662,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     // Click 1R button (not in correction mode)
     await page.locator("#event-buttons-red .event-btn").filter({ hasText: "1R" }).click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(false);
     await expect(page.locator("#score-red")).toHaveText("1");
   });
@@ -701,7 +701,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     // Click confirm button
     await page.locator("#corr-confirm").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(false);
     // Modification was applied: score should reflect 2B instead of 1R
     await expect(page.locator("#score-red")).toHaveText("0");
@@ -720,7 +720,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     // Click cancel button
     await page.locator("#corr-cancel").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(false);
     // Modification was discarded: score should still show original 1R
     await expect(page.locator("#score-red")).toHaveText("1");
@@ -757,7 +757,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#timeline .entry .entry-box").first().click({ button: "right" });
     await page.locator("#ctx-swap").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inSwapMode).toBe(true);
     expect(state.inCorrectionMode).toBe(true);
     expect(state.inInsertMode).toBe(false);
@@ -828,7 +828,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#ctx-swap").click();
     await page.locator("#ctx-insert-cancel").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inSwapMode).toBe(false);
     expect(state.inCorrectionMode).toBe(true);
   });
@@ -885,7 +885,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     // Click the first timeline entry to swap with it
     await page.locator("#timeline .entry .entry-box").first().click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.correctionBuffer).toHaveLength(1);
     expect(state.correctionBuffer[0].swapped).toBe(true);
   });
@@ -900,7 +900,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     await page.locator("#ctx-swap").click();
     await page.locator("#timeline .entry .entry-box").first().click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inSwapMode).toBe(false);
     expect(state.inCorrectionMode).toBe(true);
   });
@@ -929,7 +929,7 @@ test.describe("CHAMP Protocol - Mouse/Touch Correction Mode", () => {
     // Click the same (origin) entry
     await page.locator("#timeline .entry .entry-box").first().click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.inSwapMode).toBe(false);
     expect(state.correctionBuffer).toHaveLength(0);
   });

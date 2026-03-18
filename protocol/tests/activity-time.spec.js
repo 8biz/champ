@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { BASE_URL, releaseScoresheet, recordEventAtTime } from "./helpers.js";
+import { BASE_URL, releaseScoresheet, recordEventAtTime, getAppState, generateExport, getActivityTimerState } from "./helpers.js";
 
 // ── Activity Time ────────────────────────────────────────────────────────────
 //
@@ -18,7 +18,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
 
     await recordEventAtTime(page, "2:50", ["P", "R"]);
 
-    const events = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const events = await generateExport(page).then(d => d.bout.events);
     const passivity = events.find(e => e.eventType === "PR" || e.eventType === "AR");
     expect(passivity?.eventType).toBe("PR");
   });
@@ -30,7 +30,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:50", ["P", "R"]);
     await recordEventAtTime(page, "2:40", ["P", "R"]);
 
-    const events = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const events = await generateExport(page).then(d => d.bout.events);
     const second = events.filter(e => e.eventType === "PR" || e.eventType === "AR")[1];
     expect(second?.eventType).toBe("AR");
   });
@@ -43,7 +43,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:40", ["P", "R"]);
     await recordEventAtTime(page, "2:30", ["P", "R"]);
 
-    const events = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const events = await generateExport(page).then(d => d.bout.events);
     const passivityEvents = events.filter(e => e.eventType === "PR" || e.eventType === "AR");
     expect(passivityEvents[0]?.eventType).toBe("PR");
     expect(passivityEvents[1]?.eventType).toBe("AR");
@@ -57,7 +57,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:50", ["P", "B"]);
     await recordEventAtTime(page, "2:40", ["P", "B"]);
 
-    const events = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const events = await generateExport(page).then(d => d.bout.events);
     const second = events.filter(e => e.eventType === "PB" || e.eventType === "AB")[1];
     expect(second?.eventType).toBe("AB");
   });
@@ -71,7 +71,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:50", ["P", "B"]);
     await recordEventAtTime(page, "2:40", ["P", "B"]);
 
-    const events = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const events = await generateExport(page).then(d => d.bout.events);
     const second = events.filter(e => e.eventType === "PB" || e.eventType === "AB")[1];
     expect(second?.eventType).toBe("PB");
   });
@@ -85,7 +85,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:50", ["P", "R"]);
     await recordEventAtTime(page, "2:40", ["P", "R"]);
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.activityTimers.AR.active).toBe(true);
     expect(state.activityTimers.AR.time100ms).toBeGreaterThan(0);
   });
@@ -97,7 +97,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:50", ["P", "B"]);
     await recordEventAtTime(page, "2:40", ["P", "B"]);
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.activityTimers.AB.active).toBe(true);
   });
 
@@ -108,7 +108,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:50", ["P", "R"]);
     await recordEventAtTime(page, "2:40", ["P", "R"]);
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.activityTimers.AR.time100ms).toBe(300); // 30s * 10
   });
 
@@ -124,7 +124,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:30", ["P", "B"]);
     await recordEventAtTime(page, "2:20", ["P", "B"]);
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.activityTimers.AR.active).toBe(true);
     expect(state.activityTimers.AB.active).toBe(true);
   });
@@ -138,14 +138,14 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:50", ["P", "R"]);
     await recordEventAtTime(page, "2:40", ["P", "R"]);
 
-    const before = await page.evaluate(() => window.testHelper.getState().activityTimers.AR.time100ms);
+    const before = await getActivityTimerState(page, "AR").then(t => t.time100ms);
 
     // Start bout timer and let it run for ~0.5s
     await page.keyboard.press(" ");
     await page.waitForTimeout(500);
     await page.keyboard.press(" "); // stop
 
-    const after = await page.evaluate(() => window.testHelper.getState().activityTimers.AR.time100ms);
+    const after = await getActivityTimerState(page, "AR").then(t => t.time100ms);
     expect(after).toBeLessThan(before);
   });
 
@@ -156,12 +156,12 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:50", ["P", "R"]);
     await recordEventAtTime(page, "2:40", ["P", "R"]);
 
-    const before = await page.evaluate(() => window.testHelper.getState().activityTimers.AR.time100ms);
+    const before = await getActivityTimerState(page, "AR").then(t => t.time100ms);
 
     // Wait without running the bout timer
     await page.waitForTimeout(300);
 
-    const after = await page.evaluate(() => window.testHelper.getState().activityTimers.AR.time100ms);
+    const after = await getActivityTimerState(page, "AR").then(t => t.time100ms);
     expect(after).toBe(before);
   });
 
@@ -182,7 +182,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await page.waitForTimeout(400);
     await page.keyboard.press(" ");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.activityTimers.AR.active).toBe(false);
   });
 
@@ -200,7 +200,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await page.keyboard.press(" ");
     await page.waitForTimeout(400);
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.activityTimers.AR.active).toBe(false);
   });
 
@@ -211,13 +211,13 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:50", ["P", "R"]);
     await recordEventAtTime(page, "2:40", ["P", "R"]);
 
-    const before = await page.evaluate(() => window.testHelper.getState());
+    const before = await getAppState(page);
     expect(before.activityTimers.AR.active).toBe(true);
 
     // Red scores 2 points → AR timer should be deleted
     await recordEventAtTime(page, "2:30", ["2", "R"]);
 
-    const after = await page.evaluate(() => window.testHelper.getState());
+    const after = await getAppState(page);
     expect(after.activityTimers.AR.active).toBe(false);
   });
 
@@ -228,13 +228,13 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:50", ["P", "B"]);
     await recordEventAtTime(page, "2:40", ["P", "B"]);
 
-    const before = await page.evaluate(() => window.testHelper.getState());
+    const before = await getAppState(page);
     expect(before.activityTimers.AB.active).toBe(true);
 
     // Blue scores 4 points → AB timer should be deleted
     await recordEventAtTime(page, "2:30", ["4", "B"]);
 
-    const after = await page.evaluate(() => window.testHelper.getState());
+    const after = await getAppState(page);
     expect(after.activityTimers.AB.active).toBe(false);
   });
 
@@ -248,7 +248,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     // Blue scores → Red's AR timer should remain active
     await recordEventAtTime(page, "2:30", ["2", "B"]);
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.activityTimers.AR.active).toBe(true);
   });
 
@@ -284,7 +284,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     // Record 3rd P → new AR, timer resets to 30s
     await recordEventAtTime(page, "2:30", ["P", "R"]);
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.activityTimers.AR.active).toBe(true);
     expect(state.activityTimers.AR.time100ms).toBe(300);
   });
@@ -366,7 +366,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:50", ["P", "R"]);
     await recordEventAtTime(page, "2:40", ["P", "R"]); // recorded as AR
 
-    const exportData = await page.evaluate(() => window.exportHelper.generate());
+    const exportData = await generateExport(page);
     expect(exportData.bout.summary.statistics.red.passivity).toBe(2);
   });
 
@@ -377,7 +377,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await recordEventAtTime(page, "2:50", ["P", "B"]);
     await recordEventAtTime(page, "2:40", ["P", "B"]); // recorded as AB
 
-    const exportData = await page.evaluate(() => window.exportHelper.generate());
+    const exportData = await generateExport(page);
     expect(exportData.bout.summary.statistics.blue.passivity).toBe(2);
   });
 
@@ -390,7 +390,7 @@ test.describe("CHAMP Protocol - Activity Time", () => {
     await page.locator('#event-buttons-red .event-btn', { hasText: 'PR' }).click();
     await page.locator('#event-buttons-red .event-btn', { hasText: 'PR' }).click();
 
-    const events = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const events = await generateExport(page).then(d => d.bout.events);
     const passivityEvents = events.filter(e => e.eventType === "PR" || e.eventType === "AR");
     expect(passivityEvents[1]?.eventType).toBe("AR");
   });
