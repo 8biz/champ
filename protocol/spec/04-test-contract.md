@@ -135,22 +135,29 @@ pipeline.  They exist to avoid slow real-time simulation.
 
 ### 3.3 Hidden DOM timer hooks (`#start` / `#stop`)
 
-Used **only** in `timer.spec.js` ("Hidden test hooks work correctly").
-These buttons are invisible in the UI (opacity 0, 10 × 10 px) and rely on Playwright's
-`{ force: true }` click to bypass visibility checks.
+**Status (Refactor-03): no longer used by the test suite.**
 
-| Element | Seam | Risk |
-|---------|------|------|
-| `#start` | Calls `startTimer()` without going through the Space-bar handler | If the Space handler gains pre-conditions, this hook will diverge |
-| `#stop` | Calls `stopTimer()` without going through the Space-bar handler | Same as above |
+The `timer.spec.js` "Hidden test hooks work correctly" test has been removed.  The timer is
+now controlled exclusively via the `Space` key and the `toggleTimer` helper in `helpers.js`.
+
+The `#start` and `#stop` buttons remain in the application HTML (opacity 0, 10 × 10 px) but
+are considered legacy infrastructure — they are **not** part of the required test contract and
+may be removed in a future refactoring step without affecting test behaviour.
+
+| Element | Former seam | Status |
+|---------|-------------|--------|
+| `#start` | Called `startTimer()` directly | Unused by tests |
+| `#stop` | Called `stopTimer()` directly | Unused by tests |
 
 ### 3.4 Direct `window.appState` access
 
-| Location | Access | Risk |
-|----------|--------|------|
-| `correction-mode.spec.js:830` | `window.appState ? window.appState.events : []` | Direct read of raw internal state; not mediated by the test helper |
+**Status (Refactor-03): dead code — removed.**
 
-This is the only place in the test suite where tests bypass even `window.testHelper`.
+The `page.evaluate(() => window.appState ? window.appState.events : [])` call on
+`correction-mode.spec.js:830` stored event-log data in a local variable that was never used
+in an assertion; the actual check was already performed via the DOM locator on the following
+lines.  The dead `evaluate` call has been deleted; the test still passes and the verified
+behaviour is unchanged.
 
 ### 3.5 `window.exportHelper` usage
 
@@ -170,8 +177,8 @@ functions; the risk is low unless the ruleset schema changes.
 
 | Priority | Item | Recommended action |
 |----------|------|--------------------|
-| 🔴 HIGH | `window.appState` direct access in `correction-mode.spec.js:830` | Replace with `window.testHelper.getState()` or an appropriate `exportHelper.generate()` call |
-| 🟠 MEDIUM | `#start` / `#stop` hidden DOM hooks | Consider replacing with `window.testHelper` calls or exposing a `startTimer()` / `stopTimer()` method on `testHelper` |
+| ✅ DONE | `window.appState` direct access in `correction-mode.spec.js:830` | Dead code removed (Refactor-03) |
+| ✅ DONE | `#start` / `#stop` hidden DOM hooks | No longer used by tests; retained as legacy but not required (Refactor-03) |
 | 🟠 MEDIUM | `window.testHelper.injectEvent()` and `triggerPeriodBreak()` bypass business logic | Document clearly that these are low-level shortcuts; add usage guard comments |
 | 🟡 LOW | All `getState()` field names mirror internal `appState` names | If `appState` fields are renamed, update `testHelper.getState()` to map old → new names transparently |
 | 🟡 LOW | Export object shape used as implicit contract | Add explicit schema tests to `ruleset.spec.js` / `uc001.spec.js` |

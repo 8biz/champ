@@ -826,9 +826,7 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
     const state = await getAppState(page);
     expect(state.inCorrectionMode).toBe(false);
 
-    // Check that EventInserted is now in the event log
-    const events = await page.evaluate(() => window.appState ? window.appState.events : []);
-    // We check via the timeline: there should be 2 bout events visible
+    // Check that EventInserted is now in the event log via the timeline
     const entries = page.locator(".timeline .entry:not(#next-event)");
     await expect(entries).toHaveCount(2);
   });
