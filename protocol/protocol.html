@@ -1014,6 +1014,54 @@
       return `${m}:${s.toString().padStart(2, '0')}`;
     }
 
+    // --- Shared event-type helpers --------------------------------------
+
+    /**
+     * Parse a technical-point event type (e.g. '1R', '2B', '4R', '5B').
+     * Returns { points: number, side: 'R'|'B' } or null.
+     */
+    function parsePointEvent(eventType) {
+      const m = eventType.match(/^([1245])(R|B)$/);
+      return m ? { points: parseInt(m[1], 10), side: m[2] } : null;
+    }
+
+    /**
+     * Parse a passivity event type ('PR' or 'PB').
+     * Returns { side: 'R'|'B' } or null.
+     */
+    function parsePassivityEvent(eventType) {
+      const m = eventType.match(/^P(R|B)$/);
+      return m ? { side: m[1] } : null;
+    }
+
+    /**
+     * Parse a caution event type (e.g. '0R1B', '0B2R').
+     * Returns { cautionedSide: 'R'|'B', points: number, recipientSide: 'R'|'B' } or null.
+     */
+    function parseCautionEvent(eventType) {
+      const m = eventType.match(/^0(R|B)([12])(R|B)$/);
+      return m ? { cautionedSide: m[1], points: parseInt(m[2], 10), recipientSide: m[3] } : null;
+    }
+
+    /**
+     * Returns true for raw storable bout events: events with a boutTime100ms
+     * that are not timer or meta events (T_*, ScoresheetReleased, ScoresheetCompleted,
+     * EventModified, EventDeleted, EventInserted, EventSwapped).
+     */
+    function isRawBoutEvent(e) {
+      return (
+        e.boutTime100ms !== undefined &&
+        !e.eventType.startsWith('T_') &&
+        e.eventType !== 'ScoresheetReleased' &&
+        e.eventType !== 'ScoresheetCompleted' &&
+        e.eventType !== 'EventModified' &&
+        e.eventType !== 'EventDeleted' &&
+        e.eventType !== 'EventInserted' &&
+        e.eventType !== 'EventSwapped'
+      );
+    }
+
+
     function updateBoutTimeDisplay() {
       // Display minutes:seconds as the textual content (keeps compatibility
       // with existing tests and assistive technologies) and expose the
@@ -1135,13 +1183,6 @@
       return (ruleset.injuryTimeWithBloodInSeconds ?? 240) * 10;
     }
 
-    function formatInjuryTime(time100ms) {
-      const totalSeconds = Math.floor(time100ms / 10);
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = totalSeconds % 60;
-      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    }
-
     function updateInjuryTimerDisplay(timerKey) {
       const el = document.getElementById(INJURY_TIMER_IDS[timerKey]);
       if (!el) return;
@@ -1154,7 +1195,7 @@
       } else {
         displayTime = it.time100ms;
       }
-      el.textContent = `${INJURY_TIMER_LABELS[timerKey]} ${formatInjuryTime(displayTime)}`;
+      el.textContent = `${INJURY_TIMER_LABELS[timerKey]} ${formatMMSS(displayTime)}`;
       el.classList.toggle('running', it.running);
     }
 
@@ -1646,9 +1687,9 @@
       appState.events.push(event);
 
       // Delete activity timer when the wrestler whose timer is running scores points
-      const pointMatch = event.eventType.match(/^[1245](R|B)$/);
-      if (pointMatch) {
-        const timerKey = pointMatch[1] === 'R' ? 'AR' : 'AB';
+      const pt = parsePointEvent(event.eventType);
+      if (pt) {
+        const timerKey = pt.side === 'R' ? 'AR' : 'AB';
         if (appState.activityTimers[timerKey].active) {
           deleteActivityTimer(timerKey, true); // silent — updateTimeline() follows
         }
@@ -1957,16 +1998,7 @@
      * any pending corrections from appState.correctionBuffer.
      */
     function getEffectiveBoutEvents() {
-      const rawBoutEvents = appState.events.filter(e =>
-        e.boutTime100ms !== undefined &&
-        !e.eventType.startsWith('T_') &&
-        e.eventType !== 'ScoresheetReleased' &&
-        e.eventType !== 'ScoresheetCompleted' &&
-        e.eventType !== 'EventModified' &&
-        e.eventType !== 'EventDeleted' &&
-        e.eventType !== 'EventInserted' &&
-        e.eventType !== 'EventSwapped'
-      );
+      const rawBoutEvents = appState.events.filter(isRawBoutEvent);
 
       const deletedSeqs = new Set();
       const modifiedTypes = new Map();
@@ -2101,16 +2133,7 @@
      *   – pending-inserted: { ..., isPendingInserted: true }
      */
     function getBoutEventsForTimelineRendering() {
-      const rawBoutEvents = appState.events.filter(e =>
-        e.boutTime100ms !== undefined &&
-        !e.eventType.startsWith('T_') &&
-        e.eventType !== 'ScoresheetReleased' &&
-        e.eventType !== 'ScoresheetCompleted' &&
-        e.eventType !== 'EventModified' &&
-        e.eventType !== 'EventDeleted' &&
-        e.eventType !== 'EventInserted' &&
-        e.eventType !== 'EventSwapped'
-      );
+      const rawBoutEvents = appState.events.filter(isRawBoutEvent);
 
       const committedDeletedSeqs = new Set();
       const committedModifiedTypes = new Map();
@@ -2241,19 +2264,17 @@
       
       events.forEach(e => {
         // Technical points: 1R, 2R, 4R, 5R, 1B, 2B, 4B, 5B
-        const pointMatch = e.eventType.match(/^([1245])(R|B)$/);
-        if (pointMatch) {
-          const points = parseInt(pointMatch[1]);
-          const side = pointMatch[2] === 'R' ? 'red' : 'blue';
-          scores[side] += points;
+        const pt = parsePointEvent(e.eventType);
+        if (pt) {
+          const side = pt.side === 'R' ? 'red' : 'blue';
+          scores[side] += pt.points;
         }
         
         // Cautions award points to opponent: 0R1B, 0R2B, 0B1R, 0B2R
-        const cautionMatch = e.eventType.match(/^0([RB])([12])([RB])$/);
-        if (cautionMatch) {
-          const points = parseInt(cautionMatch[2]);
-          const recipient = cautionMatch[3] === 'R' ? 'red' : 'blue';
-          scores[recipient] += points;
+        const caution = parseCautionEvent(e.eventType);
+        if (caution) {
+          const recipient = caution.recipientSide === 'R' ? 'red' : 'blue';
+          scores[recipient] += caution.points;
         }
       });
       
@@ -2310,17 +2331,15 @@
 
         // Skip pending-deleted events when accumulating period/running scores
         if (!event.pendingDeleted) {
-          const pointMatch = event.eventType.match(/^([1245])(R|B)$/);
-          if (pointMatch) {
-            const pts = parseInt(pointMatch[1]);
-            if (pointMatch[2] === 'R') { runningRed += pts; periodRed += pts; }
-            else { runningBlue += pts; periodBlue += pts; }
+          const pt = parsePointEvent(event.eventType);
+          if (pt) {
+            if (pt.side === 'R') { runningRed += pt.points; periodRed += pt.points; }
+            else { runningBlue += pt.points; periodBlue += pt.points; }
           }
-          const cautionMatch = event.eventType.match(/^0([RB])([12])([RB])$/);
-          if (cautionMatch) {
-            const pts = parseInt(cautionMatch[2]);
-            if (cautionMatch[3] === 'R') { runningRed += pts; periodRed += pts; }
-            else { runningBlue += pts; periodBlue += pts; }
+          const caution = parseCautionEvent(event.eventType);
+          if (caution) {
+            if (caution.recipientSide === 'R') { runningRed += caution.points; periodRed += caution.points; }
+            else { runningBlue += caution.points; periodBlue += caution.points; }
           }
         }
         let context = null;
@@ -3672,15 +3691,21 @@
     }
 
     // --- Ruleset helper -------------------------------------------------
+    let _rulesetCache = undefined;
     function loadEmbeddedRuleset() {
+      if (_rulesetCache !== undefined) return _rulesetCache;
       const el = document.getElementById('default-ruleset');
-      if (!el) return null;
-      try {
-        return JSON.parse(el.textContent);
-      } catch (e) {
-        console.error('Failed to parse embedded ruleset:', e);
+      if (!el) {
+        _rulesetCache = null;
         return null;
       }
+      try {
+        _rulesetCache = JSON.parse(el.textContent);
+      } catch (e) {
+        console.error('Failed to parse embedded ruleset:', e);
+        _rulesetCache = null;
+      }
+      return _rulesetCache;
     }
 
     function simpleValidateRuleset(r) {
@@ -3892,11 +3917,10 @@
 
       events.forEach(e => {
         // Technical points
-        const pointMatch = e.eventType.match(/^([1245])(R|B)$/);
-        if (pointMatch) {
-          const points = pointMatch[1];
-          const side = pointMatch[2] === 'R' ? 'red' : 'blue';
-          stats[side].technicalPoints[points]++;
+        const pt = parsePointEvent(e.eventType);
+        if (pt) {
+          const side = pt.side === 'R' ? 'red' : 'blue';
+          stats[side].technicalPoints[String(pt.points)]++;
         }
         
         // Passivity — AR/AB (activity time) count as passivity for the respective side
@@ -3904,8 +3928,11 @@
         if (e.eventType === 'PB' || e.eventType === 'AB') stats.blue.passivity++;
         
         // Cautions
-        if (e.eventType.match(/^0R[12]B$/)) stats.red.cautions++;
-        if (e.eventType.match(/^0B[12]R$/)) stats.blue.cautions++;
+        const caution = parseCautionEvent(e.eventType);
+        if (caution) {
+          if (caution.cautionedSide === 'R') stats.red.cautions++;
+          else stats.blue.cautions++;
+        }
         
         // Corrections
         if (e.eventType.startsWith('Event') || e.eventType.includes('_Modified')) {
