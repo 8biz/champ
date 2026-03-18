@@ -91,12 +91,12 @@ This document specifies the user interface (UI) for the CHAMP Protocol.
 
 ---
 
-### Hidden test hooks
+### Hidden timer buttons (legacy)
 
 | ID | Parent element | Intention |
 |---|---|---|
-| `start` | hidden `div` container | Hidden test hook: start timer (used by tests) |
-| `stop` | hidden `div` container | Hidden test hook: stop timer (used by tests) |
+| `start` | hidden `div` container | Legacy hidden button: programmatically starts the period timer (no longer used by the test suite) |
+| `stop` | hidden `div` container | Legacy hidden button: programmatically stops the period timer (no longer used by the test suite) |
 
 
 ## States of the UI
@@ -374,12 +374,14 @@ Examples:
 
 ## Test-Helper Migration Note
 
-> **Refactor-01 note:** The hidden `#start` and `#stop` DOM elements (listed in the
-> **Hidden test hooks** table above) are the only DOM-level test hooks outside
-> `window.testHelper`. They must remain present and functional throughout application
-> refactoring.
+> **Refactor-03 note:** The hidden `#start` and `#stop` DOM elements (listed in the
+> **Hidden timer buttons (legacy)** table above) are no longer used by the test suite.
+> They are retained in the application for now but are **not** part of the required UI
+> contract. Future refactoring may remove them without affecting test behaviour.
 >
-> See [`04-test-contract.md`](04-test-contract.md) for the full inventory of test couplings,
-> the supported browser-side helper contract, and migration priorities.
+> The supported test interface is `window.testHelper` (keyboard/timer control via
+> `Space` key and the `toggleTimer` helper, plus `getState()` / mutation helpers) and
+> `window.exportHelper`. See [`04-test-contract.md`](04-test-contract.md) for the
+> full inventory.
 
 ---
