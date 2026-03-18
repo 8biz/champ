@@ -371,3 +371,15 @@ Examples:
 - clicking/tapping the time field sends `Space` key sequence to start/stop period time
 
 ---
+
+## Test-Helper Migration Note
+
+> **Refactor-01 note:** The hidden `#start` and `#stop` DOM elements (listed in the
+> **Hidden test hooks** table above) are the only DOM-level test hooks outside
+> `window.testHelper`. They must remain present and functional throughout application
+> refactoring.
+>
+> See [`04-test-contract.md`](04-test-contract.md) for the full inventory of test couplings,
+> the supported browser-side helper contract, and migration priorities.
+
+---
