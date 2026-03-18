@@ -956,3 +956,147 @@ test.describe("Event Insertion in Correction Mode (##)", () => {
   });
 
 });
+
+// ── CorrectionSM State Machine ───────────────────────────────────────────────
+
+test.describe("CHAMP Protocol - CorrectionSM State Machine", () => {
+
+  test("CorrectionSM is exposed on window", async ({ page }) => {
+    await page.goto(BASE_URL);
+    const exposed = await page.evaluate(() => typeof window.CorrectionSM);
+    expect(exposed).toBe("object");
+  });
+
+  test("CorrectionSM.get() returns 'idle' initially", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    const state = await page.evaluate(() => window.CorrectionSM.get());
+    expect(state).toBe("idle");
+  });
+
+  test("CorrectionSM.get() returns 'cursor' after entering correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await page.keyboard.press("ArrowLeft");
+    const state = await page.evaluate(() => window.CorrectionSM.get());
+    expect(state).toBe("cursor");
+  });
+
+  test("CorrectionSM.get() returns 'swap' after pressing #", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await recordEventAtTime(page, "2:40", ["2", "B"]);
+    await page.keyboard.press("ArrowLeft"); // enter correction mode
+    await page.keyboard.press("#");         // enter swap mode
+    const state = await page.evaluate(() => window.CorrectionSM.get());
+    expect(state).toBe("swap");
+  });
+
+  test("CorrectionSM.get() returns 'insert' after pressing ##", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await page.keyboard.press("ArrowLeft"); // enter correction mode
+    await page.keyboard.press("#");         // enter swap mode
+    await page.keyboard.press("#");         // transition to insert mode
+    const state = await page.evaluate(() => window.CorrectionSM.get());
+    expect(state).toBe("insert");
+  });
+
+  test("CorrectionSM.get() returns 'idle' after exiting correction mode", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await page.keyboard.press("ArrowLeft"); // enter
+    await page.keyboard.press("Enter");     // confirm exit
+    const state = await page.evaluate(() => window.CorrectionSM.get());
+    expect(state).toBe("idle");
+  });
+
+  test("CorrectionSM.is() correctly identifies the current state", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    const result = await page.evaluate(() => ({
+      isIdle: window.CorrectionSM.is("idle"),
+      isCursor: window.CorrectionSM.is("cursor"),
+    }));
+    expect(result.isIdle).toBe(true);
+    expect(result.isCursor).toBe(false);
+  });
+
+  test("CorrectionSM illegal transition idle→insert is blocked", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    const result = await page.evaluate(() => {
+      const before = window.CorrectionSM.get();
+      const applied = window.CorrectionSM.apply("insert"); // illegal: idle → insert
+      const after = window.CorrectionSM.get();
+      return { before, applied, after };
+    });
+    expect(result.before).toBe("idle");
+    expect(result.applied).toBe(false);
+    expect(result.after).toBe("idle"); // state unchanged
+  });
+
+  test("CorrectionSM illegal transition idle→swap is blocked", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    const result = await page.evaluate(() => {
+      const applied = window.CorrectionSM.apply("swap"); // illegal: idle → swap
+      return { applied, after: window.CorrectionSM.get() };
+    });
+    expect(result.applied).toBe(false);
+    expect(result.after).toBe("idle");
+  });
+
+  test("CorrectionSM illegal transition insert→swap is blocked", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    await recordEventAtTime(page, "2:50", ["1", "R"]);
+    await page.keyboard.press("ArrowLeft"); // cursor
+    await page.keyboard.press("#");         // swap
+    await page.keyboard.press("#");         // insert
+    // Now in insert; attempt illegal insert → swap
+    const result = await page.evaluate(() => {
+      const before = window.CorrectionSM.get();
+      const applied = window.CorrectionSM.apply("swap"); // illegal: insert → swap
+      const after = window.CorrectionSM.get();
+      return { before, applied, after };
+    });
+    expect(result.before).toBe("insert");
+    expect(result.applied).toBe(false);
+    expect(result.after).toBe("insert"); // state unchanged
+  });
+
+  test("CorrectionSM canTransition reports legal transitions correctly", async ({ page }) => {
+    await page.goto(BASE_URL);
+    await releaseScoresheet(page);
+    const result = await page.evaluate(() => ({
+      idleToCursor: window.CorrectionSM.canTransition("cursor"),
+      idleToInsert: window.CorrectionSM.canTransition("insert"),
+      idleToSwap:   window.CorrectionSM.canTransition("swap"),
+      idleToIdle:   window.CorrectionSM.canTransition("idle"),
+    }));
+    expect(result.idleToCursor).toBe(true);
+    expect(result.idleToInsert).toBe(false);
+    expect(result.idleToSwap).toBe(false);
+    expect(result.idleToIdle).toBe(false);
+  });
+
+  test("CorrectionSM STATES are frozen and contain the four state names", async ({ page }) => {
+    await page.goto(BASE_URL);
+    const result = await page.evaluate(() => {
+      const states = window.CorrectionSM.STATES;
+      const isFrozen = Object.isFrozen(states);
+      // Attempt mutation — should be silently ignored in strict mode or throw in non-strict
+      try { states.extra = 'x'; } catch (_) { /* frozen objects throw in strict mode */ }
+      return { states, isFrozen, mutationIgnored: states.extra === undefined };
+    });
+    expect(result.states).toEqual({ idle: "idle", cursor: "cursor", insert: "insert", swap: "swap" });
+    expect(result.isFrozen).toBe(true);
+    expect(result.mutationIgnored).toBe(true);
+  });
+
+});

@@ -1044,6 +1044,98 @@
     function getCompletion() { return appState.completion; }
 
     // ===================================================================
+    // CORRECTION STATE MACHINE
+    // Formalises the four legal correction sub-states and the transitions
+    // between them so illegal boolean combinations are prevented by design.
+    // ===================================================================
+    /**
+     * CorrectionSM — state machine for correction sub-modes.
+     *
+     * States:
+     *   'idle'   – not in correction mode
+     *   'cursor' – correction mode active, cursor placed, no sub-mode
+     *   'insert' – insert sub-mode (## or ctx-insert): waiting for event type
+     *   'swap'   – swap sub-mode (#): selecting swap partner
+     *
+     * Legal transitions:
+     *   idle   → cursor
+     *   cursor → idle | insert | swap
+     *   insert → idle | cursor
+     *   swap   → idle | cursor | insert   (insert via ## sequence)
+     */
+    const CorrectionSM = (() => {
+      /** @type {Readonly<{idle:'idle', cursor:'cursor', insert:'insert', swap:'swap'}>} */
+      const STATES = Object.freeze({ idle: 'idle', cursor: 'cursor', insert: 'insert', swap: 'swap' });
+
+      const TRANSITIONS = {
+        idle:   ['cursor'],
+        cursor: ['idle', 'insert', 'swap'],
+        insert: ['idle', 'cursor'],
+        swap:   ['idle', 'cursor', 'insert'],
+      };
+
+      /** Derive current sub-state from appState.correction. */
+      function get() {
+        const c = appState.correction;
+        if (!c.active)    return STATES.idle;
+        if (c.insertMode) return STATES.insert;
+        if (c.swapMode)   return STATES.swap;
+        return STATES.cursor;
+      }
+
+      /** Return true when the current sub-state equals `state`. */
+      function is(state) { return get() === state; }
+
+      /** Return true when a transition from the current state to `to` is legal. */
+      function canTransition(to) {
+        const from = get();
+        return TRANSITIONS[from].includes(to);
+      }
+
+      /**
+       * Apply a transition to `to`.
+       * Logs a warning and returns false if the transition is not legal.
+       * @param {'idle'|'cursor'|'insert'|'swap'} to
+       * @returns {boolean} true when the transition was applied
+       */
+      function apply(to) {
+        if (!canTransition(to)) {
+          console.warn(`CorrectionSM: illegal transition ${get()} → ${to}`);
+          return false;
+        }
+        const c = appState.correction;
+        switch (to) {
+          case STATES.idle:
+            c.active = false;
+            c.insertMode = false;
+            c.swapMode = false;
+            break;
+          case STATES.cursor:
+            c.active = true;
+            c.insertMode = false;
+            c.swapMode = false;
+            break;
+          case STATES.insert:
+            c.active = true;
+            c.insertMode = true;
+            c.swapMode = false;
+            break;
+          case STATES.swap:
+            c.active = true;
+            c.insertMode = false;
+            c.swapMode = true;
+            break;
+          default:
+            console.warn(`CorrectionSM: unknown state '${to}'`);
+            return false;
+        }
+        return true;
+      }
+
+      return { STATES, get, is, canTransition, apply };
+    })();
+
+    // ===================================================================
     // PURE NAMESPACES
     // ===================================================================
 
@@ -2493,7 +2585,7 @@
       return JSON.stringify({
         ev: appState.events,
         buf: appState.correctionBuffer,
-        swap: appState.inSwapMode,
+        swap: CorrectionSM.is('swap'),
         swapOrigin: appState.swapOriginIndex,
         cursor: appState.cursorIndex
       });
@@ -2504,7 +2596,7 @@
       return Projection.compute(
         appState.events,
         appState.correctionBuffer,
-        { inSwapMode: appState.inSwapMode, swapOriginIndex: appState.swapOriginIndex, cursorIndex: appState.cursorIndex },
+        { inSwapMode: CorrectionSM.is('swap'), swapOriginIndex: appState.swapOriginIndex, cursorIndex: appState.cursorIndex },
         annotate
       );
     }
@@ -2512,7 +2604,7 @@
     /** Delegates to Projection.applyLiveSwapPreview, wiring appState into swapState. */
     function _applyLiveSwapPreview(result, annotate) {
       Projection.applyLiveSwapPreview(result, annotate, {
-        inSwapMode: appState.inSwapMode,
+        inSwapMode: CorrectionSM.is('swap'),
         swapOriginIndex: appState.swapOriginIndex,
         cursorIndex: appState.cursorIndex
       });
@@ -2594,7 +2686,7 @@
 
       // Determine the seq of the cursored event (for cursor ring rendering)
       let cursorSeq = null;
-      if (appState.inCorrectionMode && appState.cursorIndex !== null) {
+      if (!CorrectionSM.is('idle') && appState.cursorIndex !== null) {
         const cursorableEvents = effectiveBoutEvents.filter(isCursorableEvent);
         const cursorEvent = cursorableEvents[appState.cursorIndex];
         if (cursorEvent) cursorSeq = cursorEvent.seq;
@@ -2602,7 +2694,7 @@
 
       // Determine the seq of the swap origin event (for swap-mode visual)
       let swapOriginSeq = null;
-      if (appState.inSwapMode && appState.swapOriginIndex !== null &&
+      if (CorrectionSM.is('swap') && appState.swapOriginIndex !== null &&
           appState.cursorIndex !== appState.swapOriginIndex) {
         const cursorableEvents = effectiveBoutEvents.filter(isCursorableEvent);
         const swapOriginEvent = cursorableEvents[appState.swapOriginIndex];
@@ -2610,17 +2702,17 @@
       }
 
       // Show correction mode indicator
-      timeline.classList.toggle('correction-mode', appState.inCorrectionMode);
+      timeline.classList.toggle('correction-mode', !CorrectionSM.is('idle'));
 
       // In correction mode, use annotated events so pending-deleted/modified are visible
-      const renderEvents = appState.inCorrectionMode
+      const renderEvents = !CorrectionSM.is('idle')
         ? getBoutEventsForTimelineRendering()
         : effectiveBoutEvents;
 
       let runningRed = 0, runningBlue = 0, periodRed = 0, periodBlue = 0, periodCount = 0;
       renderEvents.forEach(event => {
         // In insert mode, inject provisional insert entry before the cursor event
-        if (appState.inInsertMode && event.seq === cursorSeq) {
+        if (CorrectionSM.is('insert') && event.seq === cursorSeq) {
           const insertEntry = createInsertModeEntry(appState.keyBuffer);
           timeline.appendChild(insertEntry);
         }
@@ -2653,7 +2745,7 @@
       });
       
       // Add next-event entry if in Recording or Completing mode and NOT in correction mode
-      if (!appState.inCorrectionMode && (appState.mode === 'Recording' || appState.mode === 'Completing')) {
+      if (CorrectionSM.is('idle') && (appState.mode === 'Recording' || appState.mode === 'Completing')) {
         const nextEventEntry = document.createElement('div');
         nextEventEntry.id = 'next-event';
         nextEventEntry.className = 'entry';
@@ -2668,7 +2760,7 @@
 
       // Keep the "next-event" visible while recording/completing by pinning
       // timeline scroll to the right-most edge after each render.
-      if (!appState.inCorrectionMode) {
+      if (CorrectionSM.is('idle')) {
         timeline.scrollLeft = timeline.scrollWidth;
         requestAnimationFrame(() => {
           timeline.scrollLeft = timeline.scrollWidth;
@@ -2676,7 +2768,7 @@
       }
 
       // Scroll the cursored entry into view in correction mode.
-      if (appState.inCorrectionMode) {
+      if (!CorrectionSM.is('idle')) {
         const cursorEntry = timeline.querySelector('.entry-box.cursor')?.closest('.entry');
         if (cursorEntry) cursorEntry.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       }
@@ -2692,7 +2784,7 @@
       }
 
       const eventType = event.eventType;
-      const swapModeClass = isCursor && appState.inSwapMode ? ' swap-mode' : '';
+      const swapModeClass = isCursor && CorrectionSM.is('swap') ? ' swap-mode' : '';
       const cursorClass = isCursor ? ` cursor${swapModeClass}` : '';
       const insertedClass = event.isPendingInserted ? ' pending-inserted' : '';
       let boxHtml = '';
@@ -3007,7 +3099,7 @@
       }
 
       // Route all keys to correction mode handler when active
-      if (appState.inCorrectionMode) {
+      if (!CorrectionSM.is('idle')) {
         handleCorrectionModeKey(e);
         return;
       }
@@ -3151,7 +3243,7 @@
     function enterCorrectionMode(startAfterEnd = false) {
       const cursorableEvents = getCursorableEvents();
       if (cursorableEvents.length === 0) return;
-      appState.inCorrectionMode = true;
+      CorrectionSM.apply('cursor');
       appState.cursorIndex = startAfterEnd ? cursorableEvents.length : cursorableEvents.length - 1;
       appState.keyBuffer = [];
       updateTimeline();
@@ -3193,10 +3285,8 @@
         });
       }
       appState.correctionBuffer = [];
-      appState.inCorrectionMode = false;
-      appState.inInsertMode = false;
-      if (appState.inSwapMode) setEventButtonsFrozen(false);
-      appState.inSwapMode = false;
+      if (CorrectionSM.is('swap')) setEventButtonsFrozen(false);
+      CorrectionSM.apply('idle');
       appState.swapOriginIndex = null;
       appState.cursorIndex = null;
       appState.timeModCorrectionEvent = null;
@@ -3362,13 +3452,13 @@
       e.preventDefault();
 
       // ── Insert mode sub-handler ──────────────────────────────────────
-      if (appState.inInsertMode) {
+      if (CorrectionSM.is('insert')) {
         handleInsertModeKey(key);
         return;
       }
 
       // ── Swap mode sub-handler ─────────────────────────────────────────
-      if (appState.inSwapMode) {
+      if (CorrectionSM.is('swap')) {
         handleSwapModeKey(key);
         return;
       }
@@ -3405,7 +3495,7 @@
           const cursorEvt = cursorableEvts[appState.cursorIndex];
           // Cannot enter swap mode from a virtual pending event (pi- or tm-)
           if (cursorEvt && isVirtualEvent(cursorEvt)) return;
-          appState.inSwapMode = true;
+          CorrectionSM.apply('swap');
           appState.swapOriginIndex = appState.cursorIndex;
           appState.keyBuffer = [];
           setEventButtonsFrozen(true);
@@ -3467,7 +3557,7 @@
         // Cancel swap mode, return cursor to origin
         appState.cursorIndex = appState.swapOriginIndex;
         appState.swapOriginIndex = null;
-        appState.inSwapMode = false;
+        CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
         setEventButtonsFrozen(false);
         updateTimeline();
@@ -3490,7 +3580,7 @@
           }
         }
         appState.swapOriginIndex = null;
-        appState.inSwapMode = false;
+        CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
         setEventButtonsFrozen(false);
         updateTimeline();
@@ -3502,8 +3592,7 @@
       // '#' in swap mode → exit swap mode and enter insert mode (so ## → insert mode works)
       if (key === '#') {
         appState.swapOriginIndex = null;
-        appState.inSwapMode = false;
-        appState.inInsertMode = true;
+        CorrectionSM.apply('insert');
         appState.keyBuffer = [];
         setEventButtonsFrozen(false);
         updateTimeline();
@@ -3525,7 +3614,7 @@
     function handleInsertModeKey(key) {
       if (key === 'Escape') {
         // Cancel insert mode, return to regular correction mode
-        appState.inInsertMode = false;
+        CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
         updateTimeline();
         showContextMenuAtCursor();
@@ -3535,7 +3624,7 @@
 
       // Enter with empty buffer: also cancel insert mode
       if (key === 'Enter' && appState.keyBuffer.length === 0) {
-        appState.inInsertMode = false;
+        CorrectionSM.apply('cursor');
         updateTimeline();
         showContextMenuAtCursor();
         return;
@@ -3560,7 +3649,7 @@
         const cursorableEvents = getCursorableEvents();
         const cursorEvent = cursorableEvents[appState.cursorIndex];
         if (!cursorEvent) {
-          appState.inInsertMode = false;
+          CorrectionSM.apply('cursor');
           appState.keyBuffer = [];
           updateTimeline();
           showContextMenuAtCursor();
@@ -3568,7 +3657,7 @@
         }
         // Cannot insert before a virtual pending event (pi- or tm-)
         if (isVirtualEvent(cursorEvent)) {
-          appState.inInsertMode = false;
+          CorrectionSM.apply('cursor');
           appState.keyBuffer = [];
           updateTimeline();
           showContextMenuAtCursor();
@@ -3579,7 +3668,7 @@
           boutTime100ms: cursorEvent.boutTime100ms,
           insertedEventType
         });
-        appState.inInsertMode = false;
+        CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
         updateTimeline();
         updateScores();
@@ -3664,7 +3753,7 @@
      * Outside insert mode: existing items restored, cancel item hidden.
      */
     function updateContextMenuInsertMode(inInsertMode) {
-      const inSubMode = inInsertMode || appState.inSwapMode;
+      const inSubMode = inInsertMode || CorrectionSM.is('swap');
       const cancelBtn = document.getElementById('ctx-insert-cancel');
       // ctx-delete, ctx-insert and ctx-swap are normally enabled; disable them in any sub-mode
       ['ctx-delete', 'ctx-insert', 'ctx-swap', 'ctx-time'].forEach(id => {
@@ -3713,9 +3802,9 @@
       const menu = document.getElementById('context-menu');
       menu.classList.add('open');
       // Sync insert-mode state so cancel item and disabled items are correct
-      updateContextMenuInsertMode(appState.inInsertMode);
+      updateContextMenuInsertMode(CorrectionSM.is('insert'));
       // When cursor is on a virtual pending event (pi- or tm-), disable insert and swap actions
-      if (!appState.inInsertMode && !appState.inSwapMode && appState.cursorIndex !== null) {
+      if (CorrectionSM.is('cursor') && appState.cursorIndex !== null) {
         const cursorableEvts = getCursorableEvents();
         const cursorEvt = cursorableEvts[appState.cursorIndex];
         if (cursorEvt && isVirtualEvent(cursorEvt)) {
@@ -3747,12 +3836,12 @@
 
       // ctx-insert: enter event insert mode
       document.getElementById('ctx-insert').addEventListener('click', () => {
-        if (appState.inInsertMode) return; // already in insert mode
+        if (CorrectionSM.is('insert')) return; // already in insert mode
         const cursorableEvts = getCursorableEvents();
         const cursorEvt = appState.cursorIndex !== null ? cursorableEvts[appState.cursorIndex] : null;
         // Cannot enter insert mode from a virtual pending event (pi- or tm-)
         if (cursorEvt && isVirtualEvent(cursorEvt)) return;
-        appState.inInsertMode = true;
+        CorrectionSM.apply('insert');
         appState.keyBuffer = [];
         updateTimeline();
         showContextMenuAtCursor();
@@ -3760,13 +3849,13 @@
 
       // ctx-insert-cancel: cancel event insert mode or swap mode
       document.getElementById('ctx-insert-cancel').addEventListener('click', () => {
-        if (appState.inSwapMode) {
+        if (CorrectionSM.is('swap')) {
           appState.cursorIndex = appState.swapOriginIndex;
           appState.swapOriginIndex = null;
-          appState.inSwapMode = false;
+          CorrectionSM.apply('cursor');
           setEventButtonsFrozen(false);
         } else {
-          appState.inInsertMode = false;
+          CorrectionSM.apply('cursor');
         }
         appState.keyBuffer = [];
         updateTimeline();
@@ -3774,15 +3863,15 @@
       });
 
       // ctx-swap: enter event swap mode
-      // Guard against inSwapMode is intentional: data-noop only disables visually (no pointer-events:none),
+      // Guard against swap state is intentional: data-noop only disables visually (no pointer-events:none),
       // so a click could still fire while in swap mode. The state guard ensures idempotency.
       document.getElementById('ctx-swap').addEventListener('click', () => {
-        if (appState.inSwapMode || appState.cursorIndex === null) return;
+        if (CorrectionSM.is('swap') || appState.cursorIndex === null) return;
         const cursorableEvts = getCursorableEvents();
         const cursorEvt = cursorableEvts[appState.cursorIndex];
         // Cannot enter swap mode from a virtual pending event (pi- or tm-)
         if (cursorEvt && isVirtualEvent(cursorEvt)) return;
-        appState.inSwapMode = true;
+        CorrectionSM.apply('swap');
         appState.swapOriginIndex = appState.cursorIndex;
         appState.keyBuffer = [];
         setEventButtonsFrozen(true);
@@ -3822,8 +3911,8 @@
       const cursorableEvents = getCursorableEvents();
       const idx = cursorableEvents.findIndex(e => String(e.seq) === String(seq));
       if (idx === -1) return;
-      if (!appState.inCorrectionMode) {
-        appState.inCorrectionMode = true;
+      if (CorrectionSM.is('idle')) {
+        CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
       }
       appState.cursorIndex = idx;
@@ -3846,7 +3935,7 @@
 
       // Left-click in swap mode: click a target entry to confirm the swap
       timeline.addEventListener('click', (e) => {
-        if (!appState.inSwapMode) return;
+        if (!CorrectionSM.is('swap')) return;
         const entryBox = e.target.closest('.entry-box');
         if (!entryBox) return;
         const entry = entryBox.closest('.entry[data-seq]');
@@ -3867,7 +3956,7 @@
         }
         appState.cursorIndex = clickedIdx;
         appState.swapOriginIndex = null;
-        appState.inSwapMode = false;
+        CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
         setEventButtonsFrozen(false);
         updateTimeline();
@@ -3904,7 +3993,7 @@
       const cursorableEvents = getCursorableEvents();
       const cursorEvent = cursorableEvents[appState.cursorIndex];
       if (!cursorEvent) {
-        appState.inInsertMode = false;
+        CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
         updateTimeline();
         showContextMenuAtCursor();
@@ -3912,7 +4001,7 @@
       }
       // Cannot insert before a virtual pending event (pi- or tm-)
       if (isVirtualEvent(cursorEvent)) {
-        appState.inInsertMode = false;
+        CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
         updateTimeline();
         showContextMenuAtCursor();
@@ -3923,7 +4012,7 @@
         boutTime100ms: cursorEvent.boutTime100ms,
         insertedEventType
       });
-      appState.inInsertMode = false;
+      CorrectionSM.apply('cursor');
       appState.keyBuffer = [];
       updateTimeline();
       updateScores();
@@ -3959,9 +4048,9 @@
 
           if (keys) {
             btn.addEventListener('click', () => {
-              if (appState.inCorrectionMode && appState.inInsertMode) {
+              if (CorrectionSM.is('insert')) {
                 applyButtonEventTypeAsInsert(eventType);
-              } else if (appState.inCorrectionMode && !appState.inInsertMode && !appState.inSwapMode) {
+              } else if (CorrectionSM.is('cursor')) {
                 applyButtonEventType(eventType);
               } else {
                 simulateKeySequence(keys);
@@ -3995,6 +4084,7 @@
     window.Score = Score;
     window.Ruleset = Ruleset;
     window.Projection = Projection;
+    window.CorrectionSM = CorrectionSM;
 
     // Auto-load and validate at startup (logs result)
     const _embeddedRuleset = Ruleset.load();
@@ -4317,12 +4407,12 @@
 
       // Initialize correction confirm/cancel buttons
       document.getElementById('corr-confirm').addEventListener('click', () => {
-        if (appState.inCorrectionMode) {
+        if (!CorrectionSM.is('idle')) {
           exitCorrectionMode(true);
         }
       });
       document.getElementById('corr-cancel').addEventListener('click', () => {
-        if (appState.inCorrectionMode) {
+        if (!CorrectionSM.is('idle')) {
           exitCorrectionMode(false);
         }
       });
