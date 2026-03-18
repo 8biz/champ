@@ -1974,9 +1974,9 @@
     stopButton.addEventListener("click", testStopTimer);
     boutTimeButton.addEventListener("click", () => {
       if (appState.breakTimerRunning) {
-        endPeriodBreak();
+        dispatch('T_Break_End');
       } else {
-        toggleTimer();
+        dispatch('T_Toggle');
       }
     });
 
@@ -2297,24 +2297,70 @@
       return event;
     }
 
+    /** Maps injury/blood timer toggle commands to timer keys. */
+    const INJURY_TOGGLE_MAP = { T_IR_Toggle: 'IR', T_IB_Toggle: 'IB', T_BR_Toggle: 'BR', T_BB_Toggle: 'BB' };
+
     /**
-     * Central dispatch for normal bout-event recording commands.
+     * Central dispatch for all bout commands: bout-event recording, timer control,
+     * period-break control, injury-timer control, and correction-mode transitions.
      *
-     * Accepts a normalised event type (e.g. '1R', 'PR', '0R1B') and records
-     * the corresponding event against the current bout time.  Passivity
-     * commands may be promoted to activity-time events by the active ruleset.
+     * Bout-event commands (e.g. '1R', 'PR', '0R1B') record the corresponding event
+     * against the current bout time; passivity commands may be promoted to
+     * activity-time events by the active ruleset.
      *
-     * Returns true when the command was handled, false when the current mode
-     * is neither Recording nor Completing.
+     * Timer and correction commands use dedicated string tokens:
+     *   'T_Toggle'       — start/stop the bout timer (Recording mode only)
+     *   'T_Break_End'    — abort/end the period break
+     *   'T_IR_Toggle'    — toggle red injury timer
+     *   'T_IB_Toggle'    — toggle blue injury timer
+     *   'T_BR_Toggle'    — toggle red blood timer
+     *   'T_BB_Toggle'    — toggle blue blood timer
+     *   'Correction_Confirm' — confirm and commit pending corrections
+     *   'Correction_Cancel'  — discard pending corrections
      *
-     * @param {string} eventType  Normalised event type.
+     * Returns true when the command was handled, false otherwise.
+     *
+     * @param {string} command  Normalised event type or command token.
      * @returns {boolean}
      */
-    function dispatch(eventType) {
+    function dispatch(command) {
+      // ── Timer control commands ───────────────────────────────────────────────
+      if (command === 'T_Toggle') {
+        if (appState.mode !== 'Recording') return false;
+        toggleTimer();
+        return true;
+      }
+
+      if (command === 'T_Break_End') {
+        if (!appState.breakTimerRunning) return false;
+        endPeriodBreak();
+        return true;
+      }
+
+      if (INJURY_TOGGLE_MAP[command]) {
+        if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return false;
+        toggleInjuryTimer(INJURY_TOGGLE_MAP[command]);
+        return true;
+      }
+
+      // ── Correction-mode commands ─────────────────────────────────────────────
+      if (command === 'Correction_Confirm') {
+        if (CorrectionSM.is('idle')) return false;
+        exitCorrectionMode(true);
+        return true;
+      }
+
+      if (command === 'Correction_Cancel') {
+        if (CorrectionSM.is('idle')) return false;
+        exitCorrectionMode(false);
+        return true;
+      }
+
+      // ── Bout-event recording ─────────────────────────────────────────────────
       if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return false;
 
       // Passivity: may become activity time per ruleset
-      if (eventType === 'PR') {
+      if (command === 'PR') {
         if (shouldUseActivityTime('red')) {
           const event = recordEvent({ eventType: 'AR', boutTime100ms: appState.boutTime100ms });
           startActivityTimer('AR', event.seq);
@@ -2323,7 +2369,7 @@
         }
         return true;
       }
-      if (eventType === 'PB') {
+      if (command === 'PB') {
         if (shouldUseActivityTime('blue')) {
           const event = recordEvent({ eventType: 'AB', boutTime100ms: appState.boutTime100ms });
           startActivityTimer('AB', event.seq);
@@ -2334,7 +2380,7 @@
       }
 
       // All other bout events (points, cautions)
-      recordEvent({ eventType, boutTime100ms: appState.boutTime100ms });
+      recordEvent({ eventType: command, boutTime100ms: appState.boutTime100ms });
       return true;
     }
 
@@ -3013,13 +3059,8 @@
 
       // Space: abort period break if active, otherwise toggle timer (only in Recording mode)
       if (seq === ' ') {
-        if (appState.breakTimerRunning) {
-          endPeriodBreak();
-          return true;
-        }
-        const isRecording = appState.mode === 'Recording';
-        if (isRecording) toggleTimer();
-        return isRecording;
+        if (appState.breakTimerRunning) return dispatch('T_Break_End');
+        return dispatch('T_Toggle');
       }
       
       // Technical points: R1, 1R, R2, 2R, R4, 4R, R5, 5R, B1, 1B, B2, 2B, B4, 4B, B5, 5B
@@ -3049,12 +3090,12 @@
       }
 
       // Injury time: R, / ,R → T_IR; B, / ,B → T_IB
-      if (seq === 'R,' || seq === ',R') { toggleInjuryTimer('IR'); return true; }
-      if (seq === 'B,' || seq === ',B') { toggleInjuryTimer('IB'); return true; }
+      if (seq === 'R,' || seq === ',R') return dispatch('T_IR_Toggle');
+      if (seq === 'B,' || seq === ',B') return dispatch('T_IB_Toggle');
 
       // Blood time: R. / .R → T_BR; B. / .B → T_BB
-      if (seq === 'R.' || seq === '.R') { toggleInjuryTimer('BR'); return true; }
-      if (seq === 'B.' || seq === '.B') { toggleInjuryTimer('BB'); return true; }
+      if (seq === 'R.' || seq === '.R') return dispatch('T_BR_Toggle');
+      if (seq === 'B.' || seq === '.B') return dispatch('T_BB_Toggle');
       
       return false;
     }
@@ -3150,10 +3191,10 @@
       // Works regardless of key buffer state; does not touch the buffer.
       if (key === ' ') {
         if (appState.breakTimerRunning) {
-          endPeriodBreak();
+          dispatch('T_Break_End');
           e.preventDefault();
         } else if (appState.mode === 'Recording') {
-          toggleTimer();
+          dispatch('T_Toggle');
           e.preventDefault();
         }
         return;
@@ -3457,9 +3498,9 @@
       // Space: abort period break or toggle timer (same as Normal mode)
       if (key === ' ') {
         if (appState.breakTimerRunning) {
-          endPeriodBreak();
+          dispatch('T_Break_End');
         } else if (appState.mode === 'Recording') {
-          toggleTimer();
+          dispatch('T_Toggle');
         }
         e.preventDefault();
         return;
@@ -3484,13 +3525,13 @@
       if (key === 'ArrowRight') { moveCursor(1); return; }
 
       if (key === 'Enter') {
-        exitCorrectionMode(true);
+        dispatch('Correction_Confirm');
         return;
       }
 
       if (key === 'Escape') {
         if (appState.keyBuffer.length === 0) {
-          exitCorrectionMode(false);
+          dispatch('Correction_Cancel');
         } else {
           appState.keyBuffer = [];
         }
@@ -4425,30 +4466,26 @@
 
       // Initialize correction confirm/cancel buttons
       document.getElementById('corr-confirm').addEventListener('click', () => {
-        if (!CorrectionSM.is('idle')) {
-          exitCorrectionMode(true);
-        }
+        dispatch('Correction_Confirm');
       });
       document.getElementById('corr-cancel').addEventListener('click', () => {
-        if (!CorrectionSM.is('idle')) {
-          exitCorrectionMode(false);
-        }
+        dispatch('Correction_Cancel');
       });
 
       // Injury/blood timer button click handlers
-      [['injury-time-red', 'IR'], ['blood-time-red', 'BR'],
-       ['injury-time-blue', 'IB'], ['blood-time-blue', 'BB']].forEach(([id, key]) => {
+      [['injury-time-red', 'T_IR_Toggle'], ['blood-time-red', 'T_BR_Toggle'],
+       ['injury-time-blue', 'T_IB_Toggle'], ['blood-time-blue', 'T_BB_Toggle']].forEach(([id, cmd]) => {
+        const timerKey = INJURY_TOGGLE_MAP[cmd];
         const btn = document.getElementById(id);
         if (btn) {
           btn.addEventListener('click', () => {
-            if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return;
-            toggleInjuryTimer(key);
+            dispatch(cmd);
           });
           btn.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            openTimeModModal(key);
+            openTimeModModal(timerKey);
           });
-          attachLongPress(btn, () => openTimeModModal(key));
+          attachLongPress(btn, () => openTimeModModal(timerKey));
         }
       });
 
