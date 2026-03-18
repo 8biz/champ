@@ -2098,157 +2098,156 @@
       updateNextEventDisplay();
     }
 
-    function confirmTimeModChange() {
+    // ── Time-modification helpers ────────────────────────────────────────────
+
+    // parseTimeInput(val) — parses a "M:SS" string (e.g. "2:30").
+    // Returns { ok: true, newTime100ms } on success, { ok: false } on invalid format.
+    // newTime100ms is the parsed duration in 100 ms units (seconds × 10).
+    function parseTimeInput(val) {
+      const match = val.match(/^(\d+):([0-5]\d)$/);
+      if (!match) return { ok: false };
+      const newTime100ms = (parseInt(match[1]) * 60 + parseInt(match[2])) * 10;
+      return { ok: true, newTime100ms };
+    }
+
+    // showTimeModError(msg) — marks the time-mod input as invalid, displays msg,
+    // and restores focus/selection so the user can correct their input.
+    function showTimeModError(msg) {
       const input = document.getElementById('time-mod-input');
       const error = document.getElementById('time-mod-error');
-      const val = input.value.trim();
+      input.classList.add('invalid');
+      error.textContent = msg;
+      error.style.display = '';
+      input.focus();
+      input.select();
+    }
 
-      const match = val.match(/^(\d+):([0-5]\d)$/);
-      if (!match) {
-        input.classList.add('invalid');
-        error.textContent = 'Ungültiges Format. Bitte M:SS eingeben.';
-        error.style.display = '';
-        input.focus();
-        input.select();
+    function applyLiveBoutTimeMod(newTime100ms) {
+      const ruleset = Ruleset.load();
+      const maxPeriodTime100ms = (ruleset?.periodTimesInSeconds?.[appState.currentPeriodIndex] ?? 180) * 10;
+      if (newTime100ms > maxPeriodTime100ms) {
+        showTimeModError('Eingegebene Zeit überschreitet die Periodenlänge.');
+        return false;
+      }
+
+      // Compute cumulated boutTime by adjusting the current elapsed offset:
+      // newBoutTime = boutTime + (oldRemainingPeriodTime - newRemainingPeriodTime)
+      const newBoutTime100ms = appState.boutTime100ms + appState.periodTime100ms - newTime100ms;
+      const oldBoutTime100ms = appState.boutTime100ms;
+
+      appState.boutTime100ms = newBoutTime100ms;
+      appState.periodTime100ms = newTime100ms;
+      updateBoutTimeDisplay();
+
+      recordEvent({
+        eventType: 'T_Modified',
+        boutTime100ms: oldBoutTime100ms,
+        newTime: newBoutTime100ms
+      });
+      return true;
+    }
+
+    function applyCompletionBoutTimeMod(newTime100ms) {
+      const ruleset = Ruleset.load();
+      const maxSecs = ruleset
+        ? ruleset.periodTimesInSeconds.reduce((a, b) => a + b, 0)
+        : 360; // fallback: 2 × 3-minute periods
+      if (newTime100ms > maxSecs * 10) {
+        showTimeModError('Eingegebene Zeit überschreitet die maximale Kampfzeit.');
+        return false;
+      }
+      appState.boutTime100ms = newTime100ms;
+      document.getElementById('compl-bout-time').value = Fmt.mmss(newTime100ms);
+      return true;
+    }
+
+    function applyCorrectionBoutTimeMod(newTime100ms) {
+      const corrEvent = appState.timeModCorrectionEvent;
+      // No event at cursor — nothing to modify; return true so the modal closes cleanly.
+      if (!corrEvent) return true;
+
+      if (newTime100ms > appState.boutTime100ms) {
+        showTimeModError('Eingegebene Zeit überschreitet die aktuelle Kampfzeit.');
+        return false;
+      }
+
+      // Find insertion point: first effective event with boutTime > newTime (excluding
+      // the event being replaced and PeriodEnd).
+      const effectiveForSort = getEffectiveBoutEvents();
+      const insertBeforeEvent = effectiveForSort.find(e =>
+        e.seq !== corrEvent.seq && e.boutTime100ms > newTime100ms
+      );
+
+      // Remove any existing corrections for this event (superseded by time modification)
+      appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== corrEvent.seq);
+
+      appState.correctionBuffer.push({
+        timeModified: true,
+        refSeq: corrEvent.seq,
+        oldBoutTime100ms: corrEvent.boutTime100ms,
+        newBoutTime100ms: newTime100ms,
+        eventType: corrEvent.eventType,
+        insertBefore: insertBeforeEvent ? insertBeforeEvent.seq : null
+      });
+
+      // Move cursor to the newly created virtual time-modified event (tm- seq)
+      const tmSeq = `tm-${corrEvent.seq}`;
+      const newCursorableEvents = getCursorableEvents();
+      const tmIdx = newCursorableEvents.findIndex(e => e.seq === tmSeq);
+      if (tmIdx >= 0) {
+        appState.cursorIndex = tmIdx;
+      } else if (newCursorableEvents.length === 0) {
+        appState.cursorIndex = null;
+      } else if (appState.cursorIndex !== null && appState.cursorIndex >= newCursorableEvents.length) {
+        appState.cursorIndex = newCursorableEvents.length - 1;
+      }
+
+      updateTimeline();
+      showContextMenuAtCursor();
+      updateScores();
+      console.log('Correction time modification applied:', corrEvent.seq, '->', newTime100ms);
+      return true;
+    }
+
+    function applyInjuryTimeMod(timerKey, newTime100ms) {
+      if (newTime100ms > getInjuryTimerMax(timerKey)) {
+        showTimeModError('Eingegebene Zeit überschreitet die Maximalzeit.');
+        return false;
+      }
+      const oldTime100ms = appState.injuryTimers[timerKey].time100ms;
+      appState.injuryTimers[timerKey].time100ms = newTime100ms;
+      updateInjuryTimerDisplay(timerKey);
+      recordEvent({
+        eventType: `T_${timerKey}_Modified`,
+        boutTime100ms: oldTime100ms,
+        newTime: newTime100ms
+      });
+      return true;
+    }
+
+    function confirmTimeModChange() {
+      const input = document.getElementById('time-mod-input');
+      const parsed = parseTimeInput(input.value.trim());
+      if (!parsed.ok) {
+        showTimeModError('Ungültiges Format. Bitte M:SS eingeben.');
         return;
       }
 
-      const minutes = parseInt(match[1]);
-      const seconds = parseInt(match[2]);
-      const newTime100ms = (minutes * 60 + seconds) * 10;
-
+      const { newTime100ms } = parsed;
       const timerKey = appState.timeModTarget;
+      let success;
 
       if (timerKey === 'completionBoutTime') {
-        // Completion mode: modify the total elapsed bout time shown in the completion form
-        const ruleset = Ruleset.load();
-        const maxSecs = ruleset
-          ? ruleset.periodTimesInSeconds.reduce((a, b) => a + b, 0)
-          : 360; // fallback: 2 × 3-minute periods
-        const maxTime100ms = maxSecs * 10;
-        if (newTime100ms > maxTime100ms) {
-          input.classList.add('invalid');
-          error.textContent = 'Eingegebene Zeit überschreitet die maximale Kampfzeit.';
-          error.style.display = '';
-          input.focus();
-          input.select();
-          return;
-        }
-        appState.boutTime100ms = newTime100ms;
-        document.getElementById('compl-bout-time').value = Fmt.mmss(newTime100ms);
-        closeTimeModModal();
-        return;
-      }
-
-      if (timerKey === 'correctionBoutTime') {
-        // Correction mode: modify the bout time of the event at cursor position
-        const corrEvent = appState.timeModCorrectionEvent;
-        if (!corrEvent) { closeTimeModModal(); return; }
-
-        // Validate: new time must not exceed the current cumulated bout time
-        const maxBoutTime100ms = appState.boutTime100ms;
-        if (newTime100ms > maxBoutTime100ms) {
-          input.classList.add('invalid');
-          error.textContent = 'Eingegebene Zeit überschreitet die aktuelle Kampfzeit.';
-          error.style.display = '';
-          input.focus();
-          input.select();
-          return;
-        }
-
-        // Find insertion point: first effective event with boutTime > newTime (excluding
-        // the event being replaced and PeriodEnd).
-        const effectiveForSort = getEffectiveBoutEvents();
-        const insertBeforeEvent = effectiveForSort.find(e =>
-          e.seq !== corrEvent.seq && e.boutTime100ms > newTime100ms
-        );
-
-        // Remove any existing corrections for this event (superseded by time modification)
-        appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== corrEvent.seq);
-
-        appState.correctionBuffer.push({
-          timeModified: true,
-          refSeq: corrEvent.seq,
-          oldBoutTime100ms: corrEvent.boutTime100ms,
-          newBoutTime100ms: newTime100ms,
-          eventType: corrEvent.eventType,
-          insertBefore: insertBeforeEvent ? insertBeforeEvent.seq : null
-        });
-
-        // Move cursor to the newly created virtual time-modified event (tm- seq)
-        const tmSeq = `tm-${corrEvent.seq}`;
-        const newCursorableEvents = getCursorableEvents();
-        const tmIdx = newCursorableEvents.findIndex(e => e.seq === tmSeq);
-        if (tmIdx >= 0) {
-          appState.cursorIndex = tmIdx;
-        } else if (newCursorableEvents.length === 0) {
-          appState.cursorIndex = null;
-        } else if (appState.cursorIndex !== null && appState.cursorIndex >= newCursorableEvents.length) {
-          appState.cursorIndex = newCursorableEvents.length - 1;
-        }
-
-        closeTimeModModal();
-        updateTimeline();
-        showContextMenuAtCursor();
-        updateScores();
-        console.log('Correction time modification applied:', corrEvent.seq, '->', newTime100ms);
-        return;
-      }
-
-      if (timerKey) {
-        // Injury / blood time modification
-        const maxTime100ms = getInjuryTimerMax(timerKey);
-        if (newTime100ms > maxTime100ms) {
-          input.classList.add('invalid');
-          error.textContent = 'Eingegebene Zeit überschreitet die Maximalzeit.';
-          error.style.display = '';
-          input.focus();
-          input.select();
-          return;
-        }
-
-        const oldTime100ms = appState.injuryTimers[timerKey].time100ms;
-        appState.injuryTimers[timerKey].time100ms = newTime100ms;
-        updateInjuryTimerDisplay(timerKey);
-
-        recordEvent({
-          eventType: `T_${timerKey}_Modified`,
-          boutTime100ms: oldTime100ms,
-          newTime: newTime100ms
-        });
+        success = applyCompletionBoutTimeMod(newTime100ms);
+      } else if (timerKey === 'correctionBoutTime') {
+        success = applyCorrectionBoutTimeMod(newTime100ms);
+      } else if (timerKey) {
+        success = applyInjuryTimeMod(timerKey, newTime100ms);
       } else {
-        // Bout (period) time modification
-        // Validate against ruleset-defined period length. If the entered
-        // remaining time exceeds the configured period length, show an error
-        // and keep the modal open so the user can correct the value.
-        const ruleset = Ruleset.load();
-        const maxPeriodTime100ms = (ruleset?.periodTimesInSeconds?.[appState.currentPeriodIndex] ?? 180) * 10;
-        if (newTime100ms > maxPeriodTime100ms) {
-          input.classList.add('invalid');
-          error.textContent = 'Eingegebene Zeit überschreitet die Periodenlänge.';
-          error.style.display = '';
-          input.focus();
-          input.select();
-          return;
-        }
-
-        // Compute cumulated boutTime by adjusting the current elapsed offset:
-        // newBoutTime = boutTime + (oldRemainingPeriodTime - newRemainingPeriodTime)
-        const newBoutTime100ms = appState.boutTime100ms + appState.periodTime100ms - newTime100ms;
-        const oldBoutTime100ms = appState.boutTime100ms;
-
-        appState.boutTime100ms = newBoutTime100ms;
-        appState.periodTime100ms = newTime100ms;
-        updateBoutTimeDisplay();
-
-        recordEvent({
-          eventType: 'T_Modified',
-          boutTime100ms: oldBoutTime100ms,
-          newTime: newBoutTime100ms
-        });
+        success = applyLiveBoutTimeMod(newTime100ms);
       }
 
-      closeTimeModModal();
+      if (success) closeTimeModModal();
     }
 
     document.getElementById('time-mod-confirm').addEventListener('click', confirmTimeModChange);
