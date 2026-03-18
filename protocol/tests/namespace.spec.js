@@ -109,6 +109,71 @@ test.describe("CHAMP – Pure Namespaces", () => {
       const result = await page.evaluate(() => window.EventType.colorClass("PeriodEnd"));
       expect(result).toBe("next");
     });
+
+    test("EventType.parseActivity returns side for 'AR'", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => window.EventType.parseActivity("AR"));
+      expect(result).toEqual({ side: "R" });
+    });
+
+    test("EventType.parseActivity returns side for 'AB'", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => window.EventType.parseActivity("AB"));
+      expect(result).toEqual({ side: "B" });
+    });
+
+    test("EventType.parseActivity returns null for 'PR'", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => window.EventType.parseActivity("PR"));
+      expect(result).toBeNull();
+    });
+
+    test("EventType.isCorrectionEvent returns true for 'EventModified'", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => window.EventType.isCorrectionEvent("EventModified"));
+      expect(result).toBe(true);
+    });
+
+    test("EventType.isCorrectionEvent returns true for all correction types", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => [
+        window.EventType.isCorrectionEvent("EventModified"),
+        window.EventType.isCorrectionEvent("EventDeleted"),
+        window.EventType.isCorrectionEvent("EventInserted"),
+        window.EventType.isCorrectionEvent("EventSwapped"),
+      ]);
+      expect(result).toEqual([true, true, true, true]);
+    });
+
+    test("EventType.isCorrectionEvent returns false for bout events", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => window.EventType.isCorrectionEvent("2R"));
+      expect(result).toBe(false);
+    });
+
+    test("EventType.isTimerEvent returns true for 'T_Started'", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => window.EventType.isTimerEvent("T_Started"));
+      expect(result).toBe(true);
+    });
+
+    test("EventType.isTimerEvent returns false for '2R'", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => window.EventType.isTimerEvent("2R"));
+      expect(result).toBe(false);
+    });
+
+    test("EventType.colorClass returns 'red' for 'AR'", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => window.EventType.colorClass("AR"));
+      expect(result).toBe("red");
+    });
+
+    test("EventType.colorClass returns 'blue' for 'PB'", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => window.EventType.colorClass("PB"));
+      expect(result).toBe("blue");
+    });
   });
 
   // ── Score ───────────────────────────────────────────────────────────────
