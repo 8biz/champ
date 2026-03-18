@@ -276,4 +276,248 @@ test.describe("CHAMP – Pure Namespaces", () => {
       expect(result).toEqual({ winner: 3, loser: 1 });
     });
   });
+
+  // ── Projection ──────────────────────────────────────────────────────────
+
+  test.describe("Projection", () => {
+    const noSwap = { inSwapMode: false, swapOriginIndex: null, cursorIndex: null };
+
+    test("Projection.compute returns raw bout events when no corrections", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate((swapState) => {
+        const events = [
+          { seq: 1, eventType: "2R", boutTime100ms: 100 },
+          { seq: 2, eventType: "1B", boutTime100ms: 200 }
+        ];
+        return window.Projection.compute(events, [], swapState, false);
+      }, noSwap);
+      expect(result).toHaveLength(2);
+      expect(result[0].eventType).toBe("2R");
+      expect(result[1].eventType).toBe("1B");
+    });
+
+    test("Projection.compute applies committed EventModified in effective mode", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate((swapState) => {
+        const events = [
+          { seq: 1, eventType: "2R", boutTime100ms: 100 },
+          { seq: 10, eventType: "EventModified", refSeq: 1, newEventType: "2B" }
+        ];
+        return window.Projection.compute(events, [], swapState, false);
+      }, noSwap);
+      expect(result).toHaveLength(1);
+      expect(result[0].eventType).toBe("2B");
+    });
+
+    test("Projection.compute removes committed EventDeleted events in effective mode", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate((swapState) => {
+        const events = [
+          { seq: 1, eventType: "2R", boutTime100ms: 100 },
+          { seq: 2, eventType: "1B", boutTime100ms: 200 },
+          { seq: 10, eventType: "EventDeleted", refSeq: 1 }
+        ];
+        return window.Projection.compute(events, [], swapState, false);
+      }, noSwap);
+      expect(result).toHaveLength(1);
+      expect(result[0].eventType).toBe("1B");
+    });
+
+    test("Projection.compute annotates pending-deleted events in annotate mode", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate((swapState) => {
+        const events = [
+          { seq: 1, eventType: "2R", boutTime100ms: 100 }
+        ];
+        const correctionBuffer = [{ deleted: true, refSeq: 1 }];
+        return window.Projection.compute(events, correctionBuffer, swapState, true);
+      }, noSwap);
+      expect(result).toHaveLength(1);
+      expect(result[0].pendingDeleted).toBe(true);
+      expect(result[0].eventType).toBe("2R");
+    });
+
+    test("Projection.compute applies pending EventModified in effective mode", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate((swapState) => {
+        const events = [
+          { seq: 1, eventType: "4R", boutTime100ms: 100 }
+        ];
+        const correctionBuffer = [{ refSeq: 1, newEventType: "2R" }];
+        return window.Projection.compute(events, correctionBuffer, swapState, false);
+      }, noSwap);
+      expect(result).toHaveLength(1);
+      expect(result[0].eventType).toBe("2R");
+    });
+
+    test("Projection.applyEventTypeSwap exchanges types between two entries", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => {
+        const arr = [
+          { seq: 1, eventType: "2R", boutTime100ms: 100 },
+          { seq: 2, eventType: "1B", boutTime100ms: 200 }
+        ];
+        window.Projection.applyEventTypeSwap(arr, 1, 2);
+        return arr;
+      });
+      expect(result[0].eventType).toBe("1B");
+      expect(result[1].eventType).toBe("2R");
+    });
+
+    test("Projection.applyEventTypeSwap sets originalEventType when annotate=true", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => {
+        const arr = [
+          { seq: 1, eventType: "2R", boutTime100ms: 100 },
+          { seq: 2, eventType: "1B", boutTime100ms: 200 }
+        ];
+        window.Projection.applyEventTypeSwap(arr, 1, 2, true);
+        return arr;
+      });
+      expect(result[0].originalEventType).toBe("2R");
+      expect(result[1].originalEventType).toBe("1B");
+    });
+
+    test("Projection.compute parity: matches effective events used by Score.calculate", async ({ page }) => {
+      await page.goto(BASE_URL);
+      // Build a scenario with a committed modify and verify Projection.compute
+      // produces the same result as the live getEffectiveBoutEvents path.
+      const result = await page.evaluate((swapState) => {
+        const events = [
+          { seq: 1, eventType: "2R", boutTime100ms: 100 },
+          { seq: 2, eventType: "4R", boutTime100ms: 200 },
+          { seq: 10, eventType: "EventModified", refSeq: 2, newEventType: "4B" }
+        ];
+        const projected = window.Projection.compute(events, [], swapState, false);
+        const scores = window.Score.calculate(projected);
+        return scores;
+      }, noSwap);
+      expect(result.red).toBe(2);   // only seq=1 (2R) counts for red
+      expect(result.blue).toBe(4);  // seq=2 was modified to 4B
+    });
+  });
+
+  // ── ExportBuilder ────────────────────────────────────────────────────────
+
+  test.describe("ExportBuilder", () => {
+    test("ExportBuilder.parseInfo parses key:value pairs", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() =>
+        window.ExportBuilder.parseInfo("name:Müller; club:TSV")
+      );
+      expect(result.name).toBe("Müller");
+      expect(result.club).toBe("TSV");
+    });
+
+    test("ExportBuilder.parseInfo anonymises $-prefixed keys", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() =>
+        window.ExportBuilder.parseInfo("$hidden:SecretValue")
+      );
+      expect(result.anonym1).toBe("SecretValue");
+      expect(result["$hidden"]).toBeUndefined();
+    });
+
+    test("ExportBuilder.parseInfo omits $$-prefixed hidden pairs", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() =>
+        window.ExportBuilder.parseInfo("$$secret:ignored; name:Visible")
+      );
+      expect(result.name).toBe("Visible");
+      expect(result["$$secret"]).toBeUndefined();
+    });
+
+    test("ExportBuilder.parseInfo returns empty object for empty string", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() =>
+        window.ExportBuilder.parseInfo("")
+      );
+      expect(result).toEqual({});
+    });
+
+    test("ExportBuilder.getSystemMetadata returns expected fields", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => window.ExportBuilder.getSystemMetadata());
+      expect(result).toHaveProperty("userAgent");
+      expect(result).toHaveProperty("timestamp");
+      expect(result.viewport).toHaveProperty("width");
+      expect(result.viewport).toHaveProperty("height");
+      expect(result).toHaveProperty("timezone");
+    });
+
+    test("ExportBuilder.build returns valid export schema structure", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => {
+        const ctx = {
+          effectiveEvents: [{ seq: 1, eventType: "2R", boutTime100ms: 100 }],
+          scores: { red: 2, blue: 0 },
+          statistics: { corrections: 0, red: {}, blue: {} },
+          boutInfo: "Test Bout",
+          style: "Freestyle",
+          rulesetName: "Default",
+          ruleset: null,
+          redInfo: "name:Red",
+          blueInfo: "name:Blue",
+          events: [{ seq: 1, eventType: "2R", boutTime100ms: 100 }],
+          completed: false,
+          winner: null,
+          victoryType: null,
+          victoryDescription: null,
+          classificationPoints: null,
+          createdAt: "2025-01-01T10:00:00.000Z",
+          completedAt: null,
+        };
+        return window.ExportBuilder.build(ctx);
+      });
+      expect(result.$schema).toBe("./export-v1.schema.json");
+      expect(result.exportVersion).toBe("1.0");
+      expect(result.bout.header.info).toBe("Test Bout");
+      expect(result.bout.summary.scores.red).toBe(2);
+      expect(result.bout.summary.timeline).toHaveLength(1);
+      expect(result.bout.summary.timeline[0].eventType).toBe("2R");
+    });
+
+    test("ExportBuilder.build excludes virtual pending events from timeline", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => {
+        const ctx = {
+          // Virtual events have string seqs (pi- / tm- prefixes)
+          effectiveEvents: [
+            { seq: 1, eventType: "2R", boutTime100ms: 100 },
+            { seq: "pi-2", eventType: "1B", boutTime100ms: 200 }
+          ],
+          scores: { red: 2, blue: 0 },
+          statistics: { corrections: 0, red: {}, blue: {} },
+          boutInfo: "", style: "Freestyle", rulesetName: "Default",
+          ruleset: null, redInfo: "", blueInfo: "",
+          events: [],
+          completed: false, winner: null, victoryType: null,
+          victoryDescription: null, classificationPoints: null,
+          createdAt: null, completedAt: null,
+        };
+        return window.ExportBuilder.build(ctx);
+      });
+      expect(result.bout.summary.timeline).toHaveLength(1);
+      expect(result.bout.summary.timeline[0].seq).toBe(1);
+    });
+
+    test("ExportBuilder.build computes winner from scores when completed and no explicit winner", async ({ page }) => {
+      await page.goto(BASE_URL);
+      const result = await page.evaluate(() => {
+        const ctx = {
+          effectiveEvents: [],
+          scores: { red: 5, blue: 3 },
+          statistics: { corrections: 0, red: {}, blue: {} },
+          boutInfo: "", style: "Freestyle", rulesetName: "Default",
+          ruleset: null, redInfo: "", blueInfo: "",
+          events: [],
+          completed: true, winner: null, victoryType: null,
+          victoryDescription: null, classificationPoints: null,
+          createdAt: null, completedAt: null,
+        };
+        return window.ExportBuilder.build(ctx);
+      });
+      expect(result.bout.summary.winner).toBe("red");
+    });
+  });
 });
