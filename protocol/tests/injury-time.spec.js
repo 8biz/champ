@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { BASE_URL, releaseScoresheet } from "./helpers.js";
+import { BASE_URL, releaseScoresheet, getAppState, generateExport, getInjuryTimerState } from "./helpers.js";
 
 // ── Injury Time ─────────────────────────────────────────────────────────────
 
@@ -14,12 +14,10 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     await page.keyboard.press("r");
     await page.keyboard.press(",");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.IR.running).toBe(true);
 
-    const log = await page.evaluate(() =>
-      window.exportHelper.generate().bout.events
-    );
+    const log = await generateExport(page).then(d => d.bout.events);
     const started = log.find(e => e.eventType === 'T_IR_Started');
     expect(started).toBeTruthy();
   });
@@ -31,7 +29,7 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     await page.keyboard.press(",");
     await page.keyboard.press("r");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.IR.running).toBe(true);
   });
 
@@ -44,10 +42,10 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     await page.keyboard.press("r");
     await page.keyboard.press(",");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.IR.running).toBe(false);
 
-    const log = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const log = await generateExport(page).then(d => d.bout.events);
     const stopped = log.find(e => e.eventType === 'T_IR_Stopped');
     expect(stopped).toBeTruthy();
   });
@@ -61,10 +59,10 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     await page.keyboard.press("b");
     await page.keyboard.press(",");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.IB.running).toBe(true);
 
-    const log = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const log = await generateExport(page).then(d => d.bout.events);
     expect(log.find(e => e.eventType === 'T_IB_Started')).toBeTruthy();
   });
 
@@ -77,10 +75,10 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     await page.keyboard.press("r");
     await page.keyboard.press(".");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.BR.running).toBe(true);
 
-    const log = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const log = await generateExport(page).then(d => d.bout.events);
     expect(log.find(e => e.eventType === 'T_BR_Started')).toBeTruthy();
   });
 
@@ -91,7 +89,7 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     await page.keyboard.press(".");
     await page.keyboard.press("r");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.BR.running).toBe(true);
   });
 
@@ -104,10 +102,10 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     await page.keyboard.press("b");
     await page.keyboard.press(".");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.BB.running).toBe(true);
 
-    const log = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const log = await generateExport(page).then(d => d.bout.events);
     expect(log.find(e => e.eventType === 'T_BB_Started')).toBeTruthy();
   });
 
@@ -119,14 +117,14 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
 
     // Start bout timer
     await page.keyboard.press(" ");
-    const stateAfterStart = await page.evaluate(() => window.testHelper.getState());
+    const stateAfterStart = await getAppState(page);
     expect(stateAfterStart.timerRunning).toBe(true);
 
     // Try to start injury timer
     await page.keyboard.press("r");
     await page.keyboard.press(",");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.IR.running).toBe(false);
 
     // Stop bout timer
@@ -140,12 +138,12 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     // Start injury timer
     await page.keyboard.press("r");
     await page.keyboard.press(",");
-    const stateAfterInjury = await page.evaluate(() => window.testHelper.getState());
+    const stateAfterInjury = await getAppState(page);
     expect(stateAfterInjury.injuryTimers.IR.running).toBe(true);
 
     // Try to start bout timer
     await page.keyboard.press(" ");
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.timerRunning).toBe(false);
 
     // Cleanup
@@ -160,14 +158,14 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     // Start IR
     await page.keyboard.press("r");
     await page.keyboard.press(",");
-    const stateIR = await page.evaluate(() => window.testHelper.getState());
+    const stateIR = await getAppState(page);
     expect(stateIR.injuryTimers.IR.running).toBe(true);
 
     // Start BR (should stop IR)
     await page.keyboard.press("r");
     await page.keyboard.press(".");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.IR.running).toBe(false);
     expect(state.injuryTimers.BR.running).toBe(true);
 
@@ -188,7 +186,7 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     await page.keyboard.press("b");
     await page.keyboard.press(",");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.IR.running).toBe(true);
     expect(state.injuryTimers.IB.running).toBe(true);
 
@@ -215,10 +213,10 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     // Wait long enough for auto-stop
     await page.waitForTimeout(500);
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.IR.running).toBe(false);
 
-    const log = await page.evaluate(() => window.exportHelper.generate().bout.events);
+    const log = await generateExport(page).then(d => d.bout.events);
     expect(log.find(e => e.eventType === 'T_IR_Stopped')).toBeTruthy();
   });
 
@@ -235,7 +233,7 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
 
     await page.waitForTimeout(500);
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.BR.running).toBe(false);
   });
 
@@ -295,7 +293,7 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
 
     await page.locator("#injury-time-red").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.IR.running).toBe(true);
 
     // Cleanup
@@ -308,7 +306,7 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
 
     await page.locator("#blood-time-red").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.BR.running).toBe(true);
 
     // Cleanup
@@ -321,7 +319,7 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
 
     await page.locator("#injury-time-blue").click();
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.IB.running).toBe(true);
 
     // Cleanup
@@ -341,7 +339,7 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     await page.keyboard.press("r");
     await page.keyboard.press(",");
 
-    const exportData = await page.evaluate(() => window.exportHelper.generate());
+    const exportData = await generateExport(page);
     const redStats = exportData.bout.summary.statistics.red;
     expect(redStats.injuryTime100ms).toBeGreaterThan(0);
   });
@@ -355,7 +353,7 @@ test.describe("CHAMP Protocol - Injury Timers", () => {
     await page.keyboard.press("r");
     await page.keyboard.press(",");
 
-    const state = await page.evaluate(() => window.testHelper.getState());
+    const state = await getAppState(page);
     expect(state.injuryTimers.IR.running).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { BASE_URL, releaseScoresheet } from "./helpers.js";
+import { BASE_URL, releaseScoresheet, toggleTimer } from "./helpers.js";
 
 // ── Timer (Real Timer) ──────────────────────────────────────────────────────
 
@@ -32,11 +32,12 @@ test.describe("CHAMP Protocol - Timer", () => {
     await expect(page.locator("#bout-time-display")).toHaveText(stoppedTime);
   });
 
-  test("Hidden test hooks work correctly", async ({ page }) => {
+  test("Timer starts running and stops when toggled", async ({ page }) => {
     await page.goto(BASE_URL);
+    await releaseScoresheet(page);
     await expect(page.locator("#bout-time-display")).toHaveText("3:00");
 
-    await page.locator("#start").click({ force: true });
+    await toggleTimer(page);
     await page.waitForTimeout(1200);
 
     const timeAfterStart = await page.locator("#bout-time-display").textContent();
@@ -44,7 +45,7 @@ test.describe("CHAMP Protocol - Timer", () => {
     expect(min * 60 + sec).toBeLessThan(180);
     expect(min * 60 + sec).toBeGreaterThan(176);
 
-    await page.locator("#stop").click({ force: true });
+    await toggleTimer(page);
     const stoppedTime = await page.locator("#bout-time-display").textContent();
     await page.waitForTimeout(1200);
     await expect(page.locator("#bout-time-display")).toHaveText(stoppedTime);
