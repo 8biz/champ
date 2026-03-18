@@ -977,6 +977,305 @@
     };
 
     // ===================================================================
+    // PURE NAMESPACES
+    // ===================================================================
+
+    /** Formatting helpers for time values. */
+    const Fmt = {
+      /** Format a 100ms-unit time value as "M:SS.f". */
+      time100ms(time100ms) {
+        const totalSeconds = Math.floor(time100ms / 10);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        const fraction = Math.floor((time100ms % 10));
+        return `${minutes}:${seconds.toString().padStart(2, "0")}.${fraction}`;
+      },
+      /** Format a 100ms-unit time value as "M:SS" (no fraction). */
+      mmss(time100ms) {
+        const totalSeconds = Math.floor(time100ms / 10);
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
+      }
+    };
+
+    /** Event-type metadata and parsing helpers. */
+    const EventType = {
+      /**
+       * Parse a technical-point event type (e.g. '1R', '2B', '4R', '5B').
+       * Returns { points: number, side: 'R'|'B' } or null.
+       */
+      parsePoint(eventType) {
+        const m = eventType.match(/^([1245])(R|B)$/);
+        return m ? { points: parseInt(m[1], 10), side: m[2] } : null;
+      },
+      /**
+       * Parse a passivity event type ('PR' or 'PB').
+       * Returns { side: 'R'|'B' } or null.
+       */
+      parsePassivity(eventType) {
+        const m = eventType.match(/^P(R|B)$/);
+        return m ? { side: m[1] } : null;
+      },
+      /**
+       * Parse a caution event type (e.g. '0R1B', '0B2R').
+       * Returns { cautionedSide: 'R'|'B', points: number, recipientSide: 'R'|'B' } or null.
+       */
+      parseCaution(eventType) {
+        const m = eventType.match(/^0(R|B)([12])(R|B)$/);
+        return m ? { cautionedSide: m[1], points: parseInt(m[2], 10), recipientSide: m[3] } : null;
+      },
+      /**
+       * Returns true for raw storable bout events: events with a boutTime100ms
+       * that are not timer or meta events (T_*, ScoresheetReleased, ScoresheetCompleted,
+       * EventModified, EventDeleted, EventInserted, EventSwapped).
+       */
+      isRawBout(e) {
+        return (
+          e.boutTime100ms !== undefined &&
+          !e.eventType.startsWith('T_') &&
+          e.eventType !== 'ScoresheetReleased' &&
+          e.eventType !== 'ScoresheetCompleted' &&
+          e.eventType !== 'EventModified' &&
+          e.eventType !== 'EventDeleted' &&
+          e.eventType !== 'EventInserted' &&
+          e.eventType !== 'EventSwapped'
+        );
+      },
+      /** Returns the main color class ('red', 'blue', 'next') for an event type string. */
+      colorClass(type) {
+        const ptMatch = type.match(/^[1245PA](R|B)$/); // includes PR/PB and AR/AB
+        if (ptMatch) return ptMatch[1] === 'R' ? 'red' : 'blue';
+        const cautionMatch = type.match(/^0([RB])/);
+        if (cautionMatch) return cautionMatch[1] === 'R' ? 'red' : 'blue';
+        return 'next';
+      }
+    };
+
+    /** Score and statistics calculation. */
+    const Score = {
+      /**
+       * Calculate technical scores (red and blue) from a list of effective events.
+       * @param {object[]} events  Effective bout events.
+       * @returns {{ red: number, blue: number }}
+       */
+      calculate(events) {
+        const scores = { red: 0, blue: 0 };
+        events.forEach(e => {
+          const pt = EventType.parsePoint(e.eventType);
+          if (pt) {
+            const side = pt.side === 'R' ? 'red' : 'blue';
+            scores[side] += pt.points;
+          }
+          const caution = EventType.parseCaution(e.eventType);
+          if (caution) {
+            const recipient = caution.recipientSide === 'R' ? 'red' : 'blue';
+            scores[recipient] += caution.points;
+          }
+        });
+        return scores;
+      },
+      /**
+       * Calculate bout statistics from a list of effective events.
+       * Pass an injuryTimers snapshot to include elapsed injury/blood time in the result.
+       * @param {object[]} events  Effective bout events.
+       * @param {object|null} [injuryTimers]  Snapshot of appState.injuryTimers, or null.
+       * @returns {object}
+       */
+      statistics(events, injuryTimers = null) {
+        const stats = {
+          red: {
+            technicalPoints: { "1": 0, "2": 0, "4": 0, "5": 0 },
+            passivity: 0,
+            cautions: 0,
+            injuryTime100ms: 0,
+            bloodTime100ms: 0
+          },
+          blue: {
+            technicalPoints: { "1": 0, "2": 0, "4": 0, "5": 0 },
+            passivity: 0,
+            cautions: 0,
+            injuryTime100ms: 0,
+            bloodTime100ms: 0
+          },
+          totalEvents: events.length,
+          corrections: 0
+        };
+        events.forEach(e => {
+          const pt = EventType.parsePoint(e.eventType);
+          if (pt) {
+            const side = pt.side === 'R' ? 'red' : 'blue';
+            stats[side].technicalPoints[String(pt.points)]++;
+          }
+          // Passivity — AR/AB (activity time) count as passivity for the respective side
+          if (e.eventType === 'PR' || e.eventType === 'AR') stats.red.passivity++;
+          if (e.eventType === 'PB' || e.eventType === 'AB') stats.blue.passivity++;
+          const caution = EventType.parseCaution(e.eventType);
+          if (caution) {
+            if (caution.cautionedSide === 'R') stats.red.cautions++;
+            else stats.blue.cautions++;
+          }
+          if (e.eventType.startsWith('Event') || e.eventType.includes('_Modified')) {
+            stats.corrections++;
+          }
+        });
+        if (injuryTimers) {
+          stats.red.injuryTime100ms  = injuryTimers.IR.time100ms;
+          stats.blue.injuryTime100ms = injuryTimers.IB.time100ms;
+          stats.red.bloodTime100ms   = injuryTimers.BR.time100ms;
+          stats.blue.bloodTime100ms  = injuryTimers.BB.time100ms;
+        }
+        return stats;
+      }
+    };
+
+    /** Ruleset loading, validation, and victory-condition logic. */
+    const Ruleset = (() => {
+      let _cache = undefined;
+
+      function load() {
+        if (_cache !== undefined) return _cache;
+        const el = document.getElementById('default-ruleset');
+        if (!el) { _cache = null; return null; }
+        try {
+          _cache = JSON.parse(el.textContent);
+        } catch (e) {
+          console.error('Failed to parse embedded ruleset:', e);
+          _cache = null;
+        }
+        return _cache;
+      }
+
+      function validate(r) {
+        const errors = [];
+        if (!r) { errors.push('ruleset missing'); return { valid: false, errors }; }
+        if (!r.metadata || typeof r.metadata.name !== 'string') errors.push('metadata.name required');
+        if (!Array.isArray(r.periodTimesInSeconds)) errors.push('periodTimesInSeconds array required');
+        if (typeof r.periodTimeCountingDirection !== 'string') errors.push('periodTimeCountingDirection required');
+        if (typeof r.periodBreakTimeInSeconds !== 'number') errors.push('periodBreakTimeInSeconds required');
+        if (!Array.isArray(r.victoryTypes)) errors.push('victoryTypes array required');
+        if (Array.isArray(r.victoryTypes)) {
+          const typesSeen = new Set();
+          r.victoryTypes.forEach((vt, i) => {
+            if (typeof vt.type !== 'string') {
+              errors.push(`victoryTypes[${i}].type required`);
+            } else {
+              if (typesSeen.has(vt.type)) errors.push(`victoryTypes[${i}].type "${vt.type}" is not unique`);
+              typesSeen.add(vt.type);
+            }
+            const cp = vt.classificationPoints;
+            if (!cp || typeof cp !== 'object' || Array.isArray(cp)) {
+              errors.push(`victoryTypes[${i}].classificationPoints must be an object {winner, loser}`);
+            } else {
+              if (cp.winner === undefined) errors.push(`victoryTypes[${i}].classificationPoints.winner required`);
+              if (cp.loser === undefined) errors.push(`victoryTypes[${i}].classificationPoints.loser required`);
+            }
+            if (vt.condition && typeof vt.condition === 'object') {
+              Object.values(vt.condition).forEach(op => {
+                if (typeof op !== 'object') errors.push(`victoryTypes[${i}].condition entries must be objects`);
+              });
+            }
+          });
+        }
+        return { valid: errors.length === 0, errors };
+      }
+
+      function evalOperator(value, op) {
+        if (op.gte !== undefined && !(value >= op.gte)) return false;
+        if (op.lte !== undefined && !(value <= op.lte)) return false;
+        if (op.gt !== undefined && !(value > op.gt)) return false;
+        if (op.lt !== undefined && !(value < op.lt)) return false;
+        if (op.eq !== undefined && !(value === op.eq)) return false;
+        return true;
+      }
+
+      function evaluateCondition(condition, context) {
+        if (!condition) return true;
+        for (const key in condition) {
+          const op = condition[key];
+          const value = context[key];
+          if (value === undefined) return false;
+          if (!evalOperator(value, op)) return false;
+        }
+        return true;
+      }
+
+      function findMatchingVictoryTypes(ruleset, context) {
+        if (!ruleset || !Array.isArray(ruleset.victoryTypes)) return [];
+        return ruleset.victoryTypes.filter(vt => {
+          if (!vt.condition) return true;
+          return evaluateCondition(vt.condition, context);
+        });
+      }
+
+      function resolveClassificationPoints(classificationPoints, context) {
+        function resolveValue(v) {
+          if (typeof v === 'number') return v;
+          if (Array.isArray(v)) {
+            for (const entry of v) {
+              const [points, opts] = entry;
+              if (evaluateCondition(opts.when, context)) return points;
+            }
+            return 0;
+          }
+          return 0;
+        }
+        return {
+          winner: resolveValue(classificationPoints.winner),
+          loser: resolveValue(classificationPoints.loser)
+        };
+      }
+
+      function getLastAwardSide(events) {
+        for (let i = events.length - 1; i >= 0; i--) {
+          const e = events[i];
+          const pointMatch = e.eventType.match(/^([1245])(R|B)$/);
+          if (pointMatch) return pointMatch[2] === 'R' ? 'red' : 'blue';
+          const cautionMatch = e.eventType.match(/^0([RB])([12])([RB])$/);
+          if (cautionMatch) return cautionMatch[3] === 'R' ? 'red' : 'blue';
+        }
+        return null;
+      }
+
+      function findTiebreakWinner(events) {
+        const stats = Score.statistics(events);
+        const diff5 = stats.red.technicalPoints["5"] - stats.blue.technicalPoints["5"];
+        if (diff5 !== 0) return diff5 > 0 ? 'red' : 'blue';
+        const diff4 = stats.red.technicalPoints["4"] - stats.blue.technicalPoints["4"];
+        if (diff4 !== 0) return diff4 > 0 ? 'red' : 'blue';
+        const diff2 = stats.red.technicalPoints["2"] - stats.blue.technicalPoints["2"];
+        if (diff2 !== 0) return diff2 > 0 ? 'red' : 'blue';
+        return getLastAwardSide(events);
+      }
+
+      function getBoutContext(winnerSide, events) {
+        const scores = Score.calculate(events);
+        const stats = Score.statistics(events);
+        const context = {
+          scoreDifference: Math.abs(scores.red - scores.blue),
+          scoreRed: scores.red,
+          scoreBlue: scores.blue,
+          cautionCount: stats.red.cautions + stats.blue.cautions,
+          passivityCount: stats.red.passivity + stats.blue.passivity
+        };
+        if (winnerSide === 'red' || winnerSide === 'blue') {
+          const loserSide = winnerSide === 'red' ? 'blue' : 'red';
+          context.award5Difference = stats[winnerSide].technicalPoints["5"] - stats[loserSide].technicalPoints["5"];
+          context.award4Difference = stats[winnerSide].technicalPoints["4"] - stats[loserSide].technicalPoints["4"];
+          context.award2Difference = stats[winnerSide].technicalPoints["2"] - stats[loserSide].technicalPoints["2"];
+          context.lastAward = getLastAwardSide(events) === winnerSide ? 1 : 0;
+        }
+        return context;
+      }
+
+      return {
+        load, validate, evalOperator, evaluateCondition,
+        findMatchingVictoryTypes, resolveClassificationPoints,
+        getLastAwardSide, findTiebreakWinner, getBoutContext
+      };
+    })();
+
+    // ===================================================================
     // TIMER LOGIC
     // ===================================================================
     const boutTimeDisplay = document.getElementById("bout-time-display");
@@ -997,70 +1296,6 @@
       appState.timerIntervalId = null;
       appState.timerRunning = false;
     }
-
-    function formatTime100ms(time100ms) {
-      const totalSeconds = Math.floor(time100ms / 10);
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = totalSeconds % 60;
-      const fraction = Math.floor((time100ms % 10));
-      return `${minutes}:${seconds.toString().padStart(2, "0")}.${fraction}`;
-    }
-
-    /** Format a 100ms-unit time value as "M:SS" (no fraction). */
-    function formatMMSS(time100ms) {
-      const totalSeconds = Math.floor(time100ms / 10);
-      const m = Math.floor(totalSeconds / 60);
-      const s = totalSeconds % 60;
-      return `${m}:${s.toString().padStart(2, '0')}`;
-    }
-
-    // --- Shared event-type helpers --------------------------------------
-
-    /**
-     * Parse a technical-point event type (e.g. '1R', '2B', '4R', '5B').
-     * Returns { points: number, side: 'R'|'B' } or null.
-     */
-    function parsePointEvent(eventType) {
-      const m = eventType.match(/^([1245])(R|B)$/);
-      return m ? { points: parseInt(m[1], 10), side: m[2] } : null;
-    }
-
-    /**
-     * Parse a passivity event type ('PR' or 'PB').
-     * Returns { side: 'R'|'B' } or null.
-     */
-    function parsePassivityEvent(eventType) {
-      const m = eventType.match(/^P(R|B)$/);
-      return m ? { side: m[1] } : null;
-    }
-
-    /**
-     * Parse a caution event type (e.g. '0R1B', '0B2R').
-     * Returns { cautionedSide: 'R'|'B', points: number, recipientSide: 'R'|'B' } or null.
-     */
-    function parseCautionEvent(eventType) {
-      const m = eventType.match(/^0(R|B)([12])(R|B)$/);
-      return m ? { cautionedSide: m[1], points: parseInt(m[2], 10), recipientSide: m[3] } : null;
-    }
-
-    /**
-     * Returns true for raw storable bout events: events with a boutTime100ms
-     * that are not timer or meta events (T_*, ScoresheetReleased, ScoresheetCompleted,
-     * EventModified, EventDeleted, EventInserted, EventSwapped).
-     */
-    function isRawBoutEvent(e) {
-      return (
-        e.boutTime100ms !== undefined &&
-        !e.eventType.startsWith('T_') &&
-        e.eventType !== 'ScoresheetReleased' &&
-        e.eventType !== 'ScoresheetCompleted' &&
-        e.eventType !== 'EventModified' &&
-        e.eventType !== 'EventDeleted' &&
-        e.eventType !== 'EventInserted' &&
-        e.eventType !== 'EventSwapped'
-      );
-    }
-
 
     function updateBoutTimeDisplay() {
       // Display minutes:seconds as the textual content (keeps compatibility
@@ -1114,7 +1349,7 @@
         if (appState.mode === 'Recording') {
           recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.boutTime100ms });
           // recordEvent() calls updateTimeline(), which re-renders expired timers
-          const ruleset = loadEmbeddedRuleset();
+          const ruleset = Ruleset.load();
           const nextPeriodIndex = appState.currentPeriodIndex + 1;
           if (ruleset && nextPeriodIndex < ruleset.periodTimesInSeconds.length) {
             appState.currentPeriodIndex = nextPeriodIndex;
@@ -1159,7 +1394,7 @@
       clearInterval(appState.timerIntervalId);
       appState.timerIntervalId = null;
       appState.breakTimerRunning = false;
-      const ruleset = loadEmbeddedRuleset();
+      const ruleset = Ruleset.load();
       const nextPeriodTime = ruleset.periodTimesInSeconds[appState.currentPeriodIndex] ?? 180;
       appState.periodTime100ms = nextPeriodTime * 10;
       boutTimeButton.classList.remove('break-mode');
@@ -1175,7 +1410,7 @@
     const INJURY_TIMER_IDS    = { IR: 'injury-time-red', IB: 'injury-time-blue', BR: 'blood-time-red', BB: 'blood-time-blue' };
 
     function getInjuryTimerMax(timerKey) {
-      const ruleset = loadEmbeddedRuleset();
+      const ruleset = Ruleset.load();
       if (!ruleset) return 1200; // 120s fallback
       if (timerKey === 'IR' || timerKey === 'IB') {
         return (ruleset.injuryTimeWithoutBloodInSeconds ?? 120) * 10;
@@ -1187,7 +1422,7 @@
       const el = document.getElementById(INJURY_TIMER_IDS[timerKey]);
       if (!el) return;
       const it = appState.injuryTimers[timerKey];
-      const ruleset = loadEmbeddedRuleset();
+      const ruleset = Ruleset.load();
       const direction = ruleset?.injuryTimeCountingDirection ?? 'Up';
       let displayTime;
       if (direction === 'Down') {
@@ -1195,7 +1430,7 @@
       } else {
         displayTime = it.time100ms;
       }
-      el.textContent = `${INJURY_TIMER_LABELS[timerKey]} ${formatMMSS(displayTime)}`;
+      el.textContent = `${INJURY_TIMER_LABELS[timerKey]} ${Fmt.mmss(displayTime)}`;
       el.classList.toggle('running', it.running);
     }
 
@@ -1262,7 +1497,7 @@
       const styleEl = document.getElementById('style-select');
       if (!styleEl) return null;
       const styleKey = styleEl.value.toLowerCase();
-      const ruleset = loadEmbeddedRuleset();
+      const ruleset = Ruleset.load();
       if (!ruleset) return null;
       return ruleset[styleKey] ?? null;
     }
@@ -1283,7 +1518,7 @@
         e => e.eventType === `P${sideKey}` || e.eventType === `A${sideKey}`
       ).length;
       // Evaluate condition including the new award being recorded
-      return evaluateCondition(conf.activityTimeCondition, { passivityCount: existingCount + 1 });
+      return Ruleset.evaluateCondition(conf.activityTimeCondition, { passivityCount: existingCount + 1 });
     }
 
     /**
@@ -1328,7 +1563,7 @@
       const direction = conf?.activityTimeCountingDirection ?? 'Down';
       const maxTime100ms = (conf?.activityTimeInSeconds ?? 30) * 10;
       const displayTime = direction === 'Down' ? at.time100ms : maxTime100ms - at.time100ms;
-      return formatTime100ms(displayTime);
+      return Fmt.time100ms(displayTime);
     }
 
     /**
@@ -1526,7 +1761,7 @@
 
       if (timerKey === 'completionBoutTime') {
         // Completion mode: modify the total elapsed bout time shown in the completion form
-        const ruleset = loadEmbeddedRuleset();
+        const ruleset = Ruleset.load();
         const maxSecs = ruleset
           ? ruleset.periodTimesInSeconds.reduce((a, b) => a + b, 0)
           : 360; // fallback: 2 × 3-minute periods
@@ -1540,7 +1775,7 @@
           return;
         }
         appState.boutTime100ms = newTime100ms;
-        document.getElementById('compl-bout-time').value = formatMMSS(newTime100ms);
+        document.getElementById('compl-bout-time').value = Fmt.mmss(newTime100ms);
         closeTimeModModal();
         return;
       }
@@ -1626,7 +1861,7 @@
         // Validate against ruleset-defined period length. If the entered
         // remaining time exceeds the configured period length, show an error
         // and keep the modal open so the user can correct the value.
-        const ruleset = loadEmbeddedRuleset();
+        const ruleset = Ruleset.load();
         const maxPeriodTime100ms = (ruleset?.periodTimesInSeconds?.[appState.currentPeriodIndex] ?? 180) * 10;
         if (newTime100ms > maxPeriodTime100ms) {
           input.classList.add('invalid');
@@ -1687,7 +1922,7 @@
       appState.events.push(event);
 
       // Delete activity timer when the wrestler whose timer is running scores points
-      const pt = parsePointEvent(event.eventType);
+      const pt = EventType.parsePoint(event.eventType);
       if (pt) {
         const timerKey = pt.side === 'R' ? 'AR' : 'AB';
         if (appState.activityTimers[timerKey].active) {
@@ -1715,7 +1950,7 @@
 
     function populateVictoryTypes() {
       const victoryTypeSelect = document.getElementById('compl-victory-type');
-      const ruleset = loadEmbeddedRuleset();
+      const ruleset = Ruleset.load();
       victoryTypeSelect.innerHTML = '<option value="-">-</option>';
       if (ruleset && Array.isArray(ruleset.victoryTypes)) {
         ruleset.victoryTypes.forEach(vt => {
@@ -1804,7 +2039,7 @@
       }
 
       // Pre-fill total bout time field with current elapsed time.
-      document.getElementById('compl-bout-time').value = formatMMSS(appState.boutTime100ms);
+      document.getElementById('compl-bout-time').value = Fmt.mmss(appState.boutTime100ms);
 
       applyState('Completing');
       console.log('Entering Completing state');
@@ -1876,8 +2111,8 @@
       try {
         const cp = JSON.parse(selectedOption.dataset.classificationPoints || 'null');
         if (cp) {
-          const context = getBoutContext(winner !== '-' ? winner : undefined);
-          const resolved = resolveClassificationPoints(cp, context);
+          const context = Ruleset.getBoutContext(winner !== '-' ? winner : undefined, getEffectiveBoutEvents());
+          const resolved = Ruleset.resolveClassificationPoints(cp, context);
           winnerPts = resolved.winner;
           loserPts = resolved.loser;
         }
@@ -1899,27 +2134,27 @@
     }
 
     function autoUpdateCompletionForm() {
-      const ruleset = loadEmbeddedRuleset();
+      const ruleset = Ruleset.load();
       if (!ruleset) return;
 
-      const scores = calculateScores(getEffectiveBoutEvents());
+      const scores = Score.calculate(getEffectiveBoutEvents());
 
       // Determine winner from scores; apply tie-breaking when equal
       let winner = '-';
       if (scores.red > scores.blue) winner = 'red';
       else if (scores.blue > scores.red) winner = 'blue';
       else {
-        const tbWinner = findTiebreakWinner(getEffectiveBoutEvents());
+        const tbWinner = Ruleset.findTiebreakWinner(getEffectiveBoutEvents());
         if (tbWinner) winner = tbWinner;
       }
 
-      const context = getBoutContext(winner !== '-' ? winner : undefined);
+      const context = Ruleset.getBoutContext(winner !== '-' ? winner : undefined, getEffectiveBoutEvents());
 
       // 1. Find the first victory type whose top-level condition is met (skip types without conditions).
       // The ruleset array order determines priority when multiple conditions could match.
       let matchingVT = ruleset.victoryTypes.find(vt => {
         if (!vt.condition) return false;
-        return evaluateCondition(vt.condition, context);
+        return Ruleset.evaluateCondition(vt.condition, context);
       });
 
       // 2. If no top-level condition matched and there is a winner, check victory types whose
@@ -1930,7 +2165,7 @@
           if (vt.condition) return false; // already handled above
           const cp = vt.classificationPoints;
           if (!cp || !Array.isArray(cp.winner)) return false;
-          return resolveClassificationPoints(cp, context).winner > 0;
+          return Ruleset.resolveClassificationPoints(cp, context).winner > 0;
         });
       }
 
@@ -2025,7 +2260,7 @@
      *   - pending time-mod (tm-): { ..., isPendingInserted: true, isNewTimeModified: true }
      */
     function _computeBoutEventProjection(annotate) {
-      const rawBoutEvents = appState.events.filter(isRawBoutEvent);
+      const rawBoutEvents = appState.events.filter(e => EventType.isRawBout(e));
 
       // ── Build committed state maps ────────────────────────────────────────
       const committedDeletedSeqs = new Set();
@@ -2243,30 +2478,8 @@
       return _getOrComputeProjection(true);
     }
 
-    function calculateScores(events) {
-      const scores = { red: 0, blue: 0 };
-      
-      events.forEach(e => {
-        // Technical points: 1R, 2R, 4R, 5R, 1B, 2B, 4B, 5B
-        const pt = parsePointEvent(e.eventType);
-        if (pt) {
-          const side = pt.side === 'R' ? 'red' : 'blue';
-          scores[side] += pt.points;
-        }
-        
-        // Cautions award points to opponent: 0R1B, 0R2B, 0B1R, 0B2R
-        const caution = parseCautionEvent(e.eventType);
-        if (caution) {
-          const recipient = caution.recipientSide === 'R' ? 'red' : 'blue';
-          scores[recipient] += caution.points;
-        }
-      });
-      
-      return scores;
-    }
-
     function updateScores() {
-      const scores = calculateScores(getEffectiveBoutEvents());
+      const scores = Score.calculate(getEffectiveBoutEvents());
       scoreRedDisplay.textContent = scores.red;
       scoreBlueDisplay.textContent = scores.blue;
       autoUpdateCompletionForm();
@@ -2315,12 +2528,12 @@
 
         // Skip pending-deleted events when accumulating period/running scores
         if (!event.pendingDeleted) {
-          const pt = parsePointEvent(event.eventType);
+          const pt = EventType.parsePoint(event.eventType);
           if (pt) {
             if (pt.side === 'R') { runningRed += pt.points; periodRed += pt.points; }
             else { runningBlue += pt.points; periodBlue += pt.points; }
           }
-          const caution = parseCautionEvent(event.eventType);
+          const caution = EventType.parseCaution(event.eventType);
           if (caution) {
             if (caution.recipientSide === 'R') { runningRed += caution.points; periodRed += caution.points; }
             else { runningBlue += caution.points; periodBlue += caution.points; }
@@ -2370,15 +2583,6 @@
       }
     }
 
-    /** Returns the main color class ('red', 'blue', 'next') for an event type string. */
-    function eventColorClass(type) {
-      const ptMatch = type.match(/^[1245PA](R|B)$/); // includes PR/PB and AR/AB
-      if (ptMatch) return ptMatch[1] === 'R' ? 'red' : 'blue';
-      const cautionMatch = type.match(/^0([RB])/);
-      if (cautionMatch) return cautionMatch[1] === 'R' ? 'red' : 'blue';
-      return 'next';
-    }
-
     function createTimelineEntry(event, context, isCursor = false, isSwapOrigin = false) {
       const entry = document.createElement('div');
       entry.className = 'entry';
@@ -2396,7 +2600,7 @@
       
       if (event.originalEventType) {
         // Pending modification: two-line entry — old name (struck through) over new name
-        const newColorClass = eventColorClass(eventType);
+        const newColorClass = EventType.colorClass(eventType);
         boxHtml = `
           <div class="entry-box correction ${newColorClass}${cursorClass}">
             <div class="caution-row old">${event.originalEventType}</div>
@@ -2454,7 +2658,7 @@
       const timeModClass = (event.pendingTimeModified || event.isNewTimeModified) ? ' time-modified' : '';
       entry.innerHTML = `
         ${boxHtml}
-        <div class="entry-time${timeModClass}">${formatTime100ms(event.boutTime100ms)}</div>
+        <div class="entry-time${timeModClass}">${Fmt.time100ms(event.boutTime100ms)}</div>
       `;
       
       if (isSwapOrigin) entry.classList.add('swap-origin');
@@ -3674,163 +3878,27 @@
       });
     }
 
-    // --- Ruleset helper -------------------------------------------------
-    let _rulesetCache = undefined;
-    function loadEmbeddedRuleset() {
-      if (_rulesetCache !== undefined) return _rulesetCache;
-      const el = document.getElementById('default-ruleset');
-      if (!el) {
-        _rulesetCache = null;
-        return null;
-      }
-      try {
-        _rulesetCache = JSON.parse(el.textContent);
-      } catch (e) {
-        console.error('Failed to parse embedded ruleset:', e);
-        _rulesetCache = null;
-      }
-      return _rulesetCache;
-    }
-
-    function simpleValidateRuleset(r) {
-      const errors = [];
-      if (!r) { errors.push('ruleset missing'); return { valid: false, errors }; }
-      if (!r.metadata || typeof r.metadata.name !== 'string') errors.push('metadata.name required');
-      if (!Array.isArray(r.periodTimesInSeconds)) errors.push('periodTimesInSeconds array required');
-      if (typeof r.periodTimeCountingDirection !== 'string') errors.push('periodTimeCountingDirection required');
-      if (typeof r.periodBreakTimeInSeconds !== 'number') errors.push('periodBreakTimeInSeconds required');
-      if (!Array.isArray(r.victoryTypes)) errors.push('victoryTypes array required');
-      if (Array.isArray(r.victoryTypes)) {
-        const typesSeen = new Set();
-        r.victoryTypes.forEach((vt, i) => {
-          if (typeof vt.type !== 'string') {
-            errors.push(`victoryTypes[${i}].type required`);
-          } else {
-            if (typesSeen.has(vt.type)) errors.push(`victoryTypes[${i}].type "${vt.type}" is not unique`);
-            typesSeen.add(vt.type);
-          }
-          const cp = vt.classificationPoints;
-          if (!cp || typeof cp !== 'object' || Array.isArray(cp)) {
-            errors.push(`victoryTypes[${i}].classificationPoints must be an object {winner, loser}`);
-          } else {
-            if (cp.winner === undefined) errors.push(`victoryTypes[${i}].classificationPoints.winner required`);
-            if (cp.loser === undefined) errors.push(`victoryTypes[${i}].classificationPoints.loser required`);
-          }
-          if (vt.condition && typeof vt.condition === 'object') {
-            Object.values(vt.condition).forEach(op => {
-              if (typeof op !== 'object') errors.push(`victoryTypes[${i}].condition entries must be objects`);
-            });
-          }
-        });
-      }
-      return { valid: errors.length === 0, errors };
-    }
-
-    function evalOperator(value, op, target) {
-      if (op.gte !== undefined && !(value >= op.gte)) return false;
-      if (op.lte !== undefined && !(value <= op.lte)) return false;
-      if (op.gt !== undefined && !(value > op.gt)) return false;
-      if (op.lt !== undefined && !(value < op.lt)) return false;
-      if (op.eq !== undefined && !(value === op.eq)) return false;
-      return true;
-    }
-
-    function evaluateCondition(condition, context) {
-      if (!condition) return true;
-      // All named condition fields must be satisfied (AND)
-      for (const key in condition) {
-        const op = condition[key];
-        const value = context[key];
-        if (value === undefined) return false;
-        if (!evalOperator(value, op, key)) return false;
-      }
-      return true;
-    }
-
-    function findMatchingVictoryTypes(ruleset, context) {
-      if (!ruleset || !Array.isArray(ruleset.victoryTypes)) return [];
-      return ruleset.victoryTypes.filter(vt => {
-        if (!vt.condition) return true;
-        return evaluateCondition(vt.condition, context);
-      });
-    }
-
-    function resolveClassificationPoints(classificationPoints, context) {
-      function resolveValue(v) {
-        if (typeof v === 'number') return v;
-        if (Array.isArray(v)) {
-          for (const entry of v) {
-            const [points, opts] = entry;
-            if (evaluateCondition(opts.when, context)) return points;
-          }
-          return 0;
-        }
-        return 0;
-      }
-      return {
-        winner: resolveValue(classificationPoints.winner),
-        loser: resolveValue(classificationPoints.loser)
-      };
-    }
-
-    function getLastAwardSide(events) {
-      for (let i = events.length - 1; i >= 0; i--) {
-        const e = events[i];
-        const pointMatch = e.eventType.match(/^([1245])(R|B)$/);
-        if (pointMatch) return pointMatch[2] === 'R' ? 'red' : 'blue';
-        const cautionMatch = e.eventType.match(/^0([RB])([12])([RB])$/);
-        if (cautionMatch) return cautionMatch[3] === 'R' ? 'red' : 'blue';
-      }
-      return null;
-    }
-
-    function findTiebreakWinner(events) {
-      const stats = calculateStatistics(events);
-      const diff5 = stats.red.technicalPoints["5"] - stats.blue.technicalPoints["5"];
-      if (diff5 !== 0) return diff5 > 0 ? 'red' : 'blue';
-      const diff4 = stats.red.technicalPoints["4"] - stats.blue.technicalPoints["4"];
-      if (diff4 !== 0) return diff4 > 0 ? 'red' : 'blue';
-      const diff2 = stats.red.technicalPoints["2"] - stats.blue.technicalPoints["2"];
-      if (diff2 !== 0) return diff2 > 0 ? 'red' : 'blue';
-      return getLastAwardSide(events);
-    }
-
-    function getBoutContext(winnerSide) {
-      const effectiveEvents = getEffectiveBoutEvents();
-      const scores = calculateScores(effectiveEvents);
-      const stats = calculateStatistics(effectiveEvents);
-      const context = {
-        scoreDifference: Math.abs(scores.red - scores.blue),
-        scoreRed: scores.red,
-        scoreBlue: scores.blue,
-        cautionCount: stats.red.cautions + stats.blue.cautions,
-        passivityCount: stats.red.passivity + stats.blue.passivity
-      };
-      if (winnerSide === 'red' || winnerSide === 'blue') {
-        const loserSide = winnerSide === 'red' ? 'blue' : 'red';
-        context.award5Difference = stats[winnerSide].technicalPoints["5"] - stats[loserSide].technicalPoints["5"];
-        context.award4Difference = stats[winnerSide].technicalPoints["4"] - stats[loserSide].technicalPoints["4"];
-        context.award2Difference = stats[winnerSide].technicalPoints["2"] - stats[loserSide].technicalPoints["2"];
-        context.lastAward = getLastAwardSide(effectiveEvents) === winnerSide ? 1 : 0;
-      }
-      return context;
-    }
-
     // Expose helper
     window.rulesetHelper = {
-      load: loadEmbeddedRuleset,
-      validate: simpleValidateRuleset,
-      evaluateCondition,
-      findMatchingVictoryTypes,
-      resolveClassificationPoints,
-      getBoutContext,
-      getLastAwardSide,
-      findTiebreakWinner
+      load: Ruleset.load,
+      validate: Ruleset.validate,
+      evaluateCondition: Ruleset.evaluateCondition,
+      findMatchingVictoryTypes: Ruleset.findMatchingVictoryTypes,
+      resolveClassificationPoints: Ruleset.resolveClassificationPoints,
+      getBoutContext: (winnerSide) => Ruleset.getBoutContext(winnerSide, getEffectiveBoutEvents()),
+      getLastAwardSide: Ruleset.getLastAwardSide,
+      findTiebreakWinner: Ruleset.findTiebreakWinner
     };
 
+    // Expose pure namespaces for testing
+    window.Fmt = Fmt;
+    window.EventType = EventType;
+    window.Score = Score;
+    window.Ruleset = Ruleset;
+
     // Auto-load and validate at startup (logs result)
-    const _embeddedRuleset = loadEmbeddedRuleset();
-    const _valid = simpleValidateRuleset(_embeddedRuleset);
+    const _embeddedRuleset = Ruleset.load();
+    const _valid = Ruleset.validate(_embeddedRuleset);
     if (!_valid.valid) console.warn('Embedded ruleset validation warnings:', _valid.errors);
 
     // --- Export functionality --------------------------------------------
@@ -3879,62 +3947,8 @@
       return pairs;
     }
 
-    function calculateStatistics(events) {
-      const stats = {
-        red: {
-          technicalPoints: { "1": 0, "2": 0, "4": 0, "5": 0 },
-          passivity: 0,
-          cautions: 0,
-          injuryTime100ms: 0,
-          bloodTime100ms: 0
-        },
-        blue: {
-          technicalPoints: { "1": 0, "2": 0, "4": 0, "5": 0 },
-          passivity: 0,
-          cautions: 0,
-          injuryTime100ms: 0,
-          bloodTime100ms: 0
-        },
-        totalEvents: events.length,
-        corrections: 0
-      };
-
-      events.forEach(e => {
-        // Technical points
-        const pt = parsePointEvent(e.eventType);
-        if (pt) {
-          const side = pt.side === 'R' ? 'red' : 'blue';
-          stats[side].technicalPoints[String(pt.points)]++;
-        }
-        
-        // Passivity — AR/AB (activity time) count as passivity for the respective side
-        if (e.eventType === 'PR' || e.eventType === 'AR') stats.red.passivity++;
-        if (e.eventType === 'PB' || e.eventType === 'AB') stats.blue.passivity++;
-        
-        // Cautions
-        const caution = parseCautionEvent(e.eventType);
-        if (caution) {
-          if (caution.cautionedSide === 'R') stats.red.cautions++;
-          else stats.blue.cautions++;
-        }
-        
-        // Corrections
-        if (e.eventType.startsWith('Event') || e.eventType.includes('_Modified')) {
-          stats.corrections++;
-        }
-      });
-
-      // Injury/blood time: read elapsed time from the live injury timer state
-      stats.red.injuryTime100ms  = appState.injuryTimers.IR.time100ms;
-      stats.blue.injuryTime100ms = appState.injuryTimers.IB.time100ms;
-      stats.red.bloodTime100ms   = appState.injuryTimers.BR.time100ms;
-      stats.blue.bloodTime100ms  = appState.injuryTimers.BB.time100ms;
-
-      return stats;
-    }
-
     function generateExport() {
-      const ruleset = loadEmbeddedRuleset();
+      const ruleset = Ruleset.load();
       const boutInfo = document.getElementById('bout-info')?.value || '';
       const style = document.getElementById('style-select')?.value || 'Freestyle';
       const rulesetName = document.getElementById('ruleset-select')?.value || 'Default Ruleset';
@@ -3945,8 +3959,8 @@
       // EventDeleted, EventInserted, EventSwapped) are reflected in scores,
       // statistics, and the timeline — matching what the browser displays.
       const effectiveEvents = getEffectiveBoutEvents();
-      const scores = calculateScores(effectiveEvents);
-      const statistics = calculateStatistics(effectiveEvents);
+      const scores = Score.calculate(effectiveEvents);
+      const statistics = Score.statistics(effectiveEvents, appState.injuryTimers);
       // Count correction records from the raw event log:
       // - startsWith('Event'): EventModified, EventDeleted, EventInserted, EventSwapped
       // - includes('_Modified'): T_Modified, T_IR_Modified, etc. (timer adjustments)
@@ -4118,7 +4132,7 @@
       },
       triggerPeriodBreak: (breakSeconds) => {
         recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.boutTime100ms });
-        const ruleset = loadEmbeddedRuleset();
+        const ruleset = Ruleset.load();
         appState.currentPeriodIndex++;
         const seconds = breakSeconds !== undefined ? breakSeconds : ruleset.periodBreakTimeInSeconds;
         startPeriodBreak(seconds);
