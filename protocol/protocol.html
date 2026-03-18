@@ -1275,6 +1275,207 @@
       };
     })();
 
+    /**
+     * Event-projection helpers.
+     *
+     * All methods are pure with respect to their arguments (no hidden reads of
+     * appState) so they can be called from tests via window.Projection.
+     */
+    const Projection = {
+      /**
+       * Exchange the eventType of two entries in-place within a result array.
+       * @param {object[]} result  Array of event objects to mutate.
+       * @param {*} seq1  seq of the first event.
+       * @param {*} seq2  seq of the second event.
+       * @param {boolean} [annotate=false]  When true, also sets originalEventType.
+       */
+      applyEventTypeSwap(result, seq1, seq2, annotate = false) {
+        const idx1 = result.findIndex(e => e.seq === seq1);
+        const idx2 = result.findIndex(e => e.seq === seq2);
+        if (idx1 < 0 || idx2 < 0) return;
+        const type1 = result[idx1].eventType;
+        const type2 = result[idx2].eventType;
+        result[idx1] = { ...result[idx1], eventType: type2, ...(annotate ? { originalEventType: type1 } : {}) };
+        result[idx2] = { ...result[idx2], eventType: type1, ...(annotate ? { originalEventType: type2 } : {}) };
+      },
+
+      /**
+       * Apply the live swap preview to result in-place (during swap mode navigation).
+       * @param {object[]} result
+       * @param {boolean} annotate
+       * @param {{ inSwapMode: boolean, swapOriginIndex: number|null, cursorIndex: number|null }} swapState
+       */
+      applyLiveSwapPreview(result, annotate, swapState) {
+        const { inSwapMode, swapOriginIndex, cursorIndex } = swapState;
+        if (inSwapMode && swapOriginIndex !== null &&
+            cursorIndex !== null && cursorIndex !== swapOriginIndex) {
+          const cursorableResult = result.filter(e => e.eventType !== 'PeriodEnd');
+          const originEvent = cursorableResult[swapOriginIndex];
+          const targetEvent = cursorableResult[cursorIndex];
+          if (originEvent && targetEvent) {
+            Projection.applyEventTypeSwap(result, originEvent.seq, targetEvent.seq, annotate);
+          }
+        }
+      },
+
+      /**
+       * Unified bout-event projection engine.
+       *
+       * When annotate=false (effective mode) returns clean effective events:
+       *   - pending-deleted events are removed
+       *   - pending-modified types are applied silently
+       *   - pending-inserted / time-modified events appear as plain entries
+       *
+       * When annotate=true (rendering mode) keeps pending-deleted events and
+       * annotates all pending corrections for the timeline display.
+       *
+       * @param {object[]} events  Raw event log.
+       * @param {object[]} correctionBuffer  Pending correction entries.
+       * @param {{ inSwapMode: boolean, swapOriginIndex: number|null, cursorIndex: number|null }} swapState
+       * @param {boolean} annotate
+       * @returns {object[]}
+       */
+      compute(events, correctionBuffer, swapState, annotate) {
+        const rawBoutEvents = events.filter(e => EventType.isRawBout(e));
+
+        // ── Build committed state maps ──────────────────────────────────────
+        const committedDeletedSeqs = new Set();
+        const committedModifiedTypes = new Map();
+        events.forEach(e => {
+          if (e.eventType === 'EventModified' && e.refSeq !== undefined && e.newEventType) {
+            committedModifiedTypes.set(e.refSeq, e.newEventType);
+          }
+          if (e.eventType === 'EventDeleted' && e.refSeq !== undefined) {
+            committedDeletedSeqs.add(e.refSeq);
+          }
+        });
+
+        // ── Build pending state maps ────────────────────────────────────────
+        const pendingDeletedSeqs = new Set();
+        const pendingModifiedTypes = new Map();
+        const pendingTimeMods = annotate ? new Map() : null;
+        correctionBuffer.forEach(c => {
+          if (c.deleted) {
+            pendingDeletedSeqs.add(c.refSeq);
+          } else if (c.newEventType) {
+            pendingModifiedTypes.set(c.refSeq, c.newEventType);
+          } else if (c.timeModified) {
+            pendingDeletedSeqs.add(c.refSeq);
+            if (annotate) pendingTimeMods.set(c.refSeq, c);
+          }
+        });
+
+        // ── Base result from raw events ─────────────────────────────────────
+        const result = rawBoutEvents
+          .filter(e => !committedDeletedSeqs.has(e.seq))
+          .filter(e => annotate || !pendingDeletedSeqs.has(e.seq))
+          .map(e => {
+            const committedType = committedModifiedTypes.get(e.seq);
+            const currentType = committedType || e.eventType;
+            if (annotate) {
+              if (pendingDeletedSeqs.has(e.seq)) {
+                const isTimeMod = pendingTimeMods.has(e.seq);
+                return { ...e, eventType: currentType, pendingDeleted: true, ...(isTimeMod ? { pendingTimeModified: true } : {}) };
+              }
+              if (pendingModifiedTypes.has(e.seq)) {
+                return { ...e, eventType: pendingModifiedTypes.get(e.seq), originalEventType: currentType };
+              }
+              return { ...e, eventType: currentType };
+            } else {
+              const effectiveType = pendingModifiedTypes.get(e.seq) || currentType;
+              return { ...e, eventType: effectiveType };
+            }
+          });
+
+        // ── Apply committed EventInserted events ────────────────────────────
+        events
+          .filter(e => e.eventType === 'EventInserted')
+          .forEach(ins => {
+            if (committedDeletedSeqs.has(ins.seq)) return;
+            const committedType = committedModifiedTypes.get(ins.seq);
+            const currentType = committedType || ins.insertedEventType;
+            let insertedEvent;
+            if (annotate) {
+              if (pendingDeletedSeqs.has(ins.seq)) {
+                insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType, pendingDeleted: true };
+              } else if (pendingModifiedTypes.has(ins.seq)) {
+                insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: pendingModifiedTypes.get(ins.seq), originalEventType: currentType };
+              } else {
+                insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType };
+              }
+            } else {
+              if (pendingDeletedSeqs.has(ins.seq)) return;
+              const effectiveType = pendingModifiedTypes.get(ins.seq) || currentType;
+              insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: effectiveType };
+            }
+            const idx = result.findIndex(e => e.seq === ins.refSeq);
+            if (idx >= 0) {
+              result.splice(idx, 0, insertedEvent);
+            } else {
+              result.push(insertedEvent);
+            }
+          });
+
+        // ── Apply committed EventSwapped events ─────────────────────────────
+        events
+          .filter(e => e.eventType === 'EventSwapped')
+          .forEach(swap => Projection.applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2));
+
+        // ── Apply pending swaps (annotate in rendering mode) ─────────────────
+        correctionBuffer
+          .filter(c => c.swapped)
+          .forEach(swap => Projection.applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2, annotate));
+
+        // Rendering mode: preview before pending insertions.
+        if (annotate) {
+          Projection.applyLiveSwapPreview(result, annotate, swapState);
+        }
+
+        // ── Apply pending insertions from correctionBuffer ──────────────────
+        correctionBuffer
+          .filter(c => c.insertedEventType)
+          .forEach(ins => {
+            const insertedEvent = {
+              seq: `pi-${ins.insertBefore}`,
+              boutTime100ms: ins.boutTime100ms,
+              eventType: ins.insertedEventType,
+              ...(annotate ? { isPendingInserted: true } : {})
+            };
+            const idx = result.findIndex(e => e.seq === ins.insertBefore);
+            if (idx >= 0) {
+              result.splice(idx, 0, insertedEvent);
+            } else {
+              result.push(insertedEvent);
+            }
+          });
+
+        // Effective mode: preview after pending insertions.
+        if (!annotate) {
+          Projection.applyLiveSwapPreview(result, false, swapState);
+        }
+
+        // ── Apply pending time modifications ─────────────────────────────────
+        correctionBuffer
+          .filter(c => c.timeModified)
+          .forEach(c => {
+            const newEvent = {
+              seq: `tm-${c.refSeq}`,
+              boutTime100ms: c.newBoutTime100ms,
+              eventType: c.eventType,
+              ...(annotate ? { isPendingInserted: true, isNewTimeModified: true } : {})
+            };
+            const insertIdx = result.findIndex(e => e.boutTime100ms > c.newBoutTime100ms);
+            if (insertIdx >= 0) {
+              result.splice(insertIdx, 0, newEvent);
+            } else {
+              result.push(newEvent);
+            }
+          });
+
+        return result;
+      }
+    };
+
     // ===================================================================
     // TIMER LOGIC
     // ===================================================================
@@ -2209,22 +2410,9 @@
     const scoreRedDisplay = document.getElementById('score-red');
     const scoreBlueDisplay = document.getElementById('score-blue');
 
-    /**
-     * Exchange the eventType of two entries in-place within a result array.
-     * @param {object[]} result  Array of event objects to mutate.
-     * @param {*} seq1  seq of the first event.
-     * @param {*} seq2  seq of the second event.
-     * @param {boolean} annotate  When true, also sets originalEventType so the
-     *   timeline can render the two-line correction (struck-through old / new) display.
-     */
+    /** Delegates to Projection.applyEventTypeSwap (kept for internal call sites). */
     function applyEventTypeSwap(result, seq1, seq2, annotate = false) {
-      const idx1 = result.findIndex(e => e.seq === seq1);
-      const idx2 = result.findIndex(e => e.seq === seq2);
-      if (idx1 < 0 || idx2 < 0) return;
-      const type1 = result[idx1].eventType;
-      const type2 = result[idx2].eventType;
-      result[idx1] = { ...result[idx1], eventType: type2, ...(annotate ? { originalEventType: type1 } : {}) };
-      result[idx2] = { ...result[idx2], eventType: type1, ...(annotate ? { originalEventType: type2 } : {}) };
+      Projection.applyEventTypeSwap(result, seq1, seq2, annotate);
     }
 
     // ── Projection cache ────────────────────────────────────────────────────
@@ -2244,179 +2432,23 @@
       });
     }
 
-    /**
-     * Unified bout-event projection engine.
-     *
-     * When annotate=false (effective mode) returns clean effective events:
-     *   - pending-deleted events are removed
-     *   - pending-modified types are applied silently
-     *   - pending-inserted / time-modified events appear as plain entries
-     *
-     * When annotate=true (rendering mode) keeps pending-deleted events and
-     * annotates all pending corrections for the timeline display:
-     *   - pending-deleted:       { ...event, pendingDeleted: true [, pendingTimeModified: true] }
-     *   - pending-modified:      { ...event, eventType: newType, originalEventType: currentType }
-     *   - pending-inserted (pi-): { ..., isPendingInserted: true }
-     *   - pending time-mod (tm-): { ..., isPendingInserted: true, isNewTimeModified: true }
-     */
+    /** Delegates to Projection.compute, wiring appState into the required parameters. */
     function _computeBoutEventProjection(annotate) {
-      const rawBoutEvents = appState.events.filter(e => EventType.isRawBout(e));
-
-      // ── Build committed state maps ────────────────────────────────────────
-      const committedDeletedSeqs = new Set();
-      const committedModifiedTypes = new Map();
-      appState.events.forEach(e => {
-        if (e.eventType === 'EventModified' && e.refSeq !== undefined && e.newEventType) {
-          committedModifiedTypes.set(e.refSeq, e.newEventType);
-        }
-        if (e.eventType === 'EventDeleted' && e.refSeq !== undefined) {
-          committedDeletedSeqs.add(e.refSeq);
-        }
-      });
-
-      // ── Build pending state maps ──────────────────────────────────────────
-      const pendingDeletedSeqs = new Set();
-      const pendingModifiedTypes = new Map();
-      const pendingTimeMods = annotate ? new Map() : null;
-      appState.correctionBuffer.forEach(c => {
-        if (c.deleted) {
-          pendingDeletedSeqs.add(c.refSeq);
-        } else if (c.newEventType) {
-          pendingModifiedTypes.set(c.refSeq, c.newEventType);
-        } else if (c.timeModified) {
-          pendingDeletedSeqs.add(c.refSeq);
-          if (annotate) pendingTimeMods.set(c.refSeq, c);
-        }
-      });
-
-      // ── Base result from raw events ───────────────────────────────────────
-      // In effective mode, pre-filter pending-deleted events so the map never
-      // needs to return null for them.
-      const result = rawBoutEvents
-        .filter(e => !committedDeletedSeqs.has(e.seq))
-        .filter(e => annotate || !pendingDeletedSeqs.has(e.seq))
-        .map(e => {
-          const committedType = committedModifiedTypes.get(e.seq);
-          const currentType = committedType || e.eventType;
-          if (annotate) {
-            if (pendingDeletedSeqs.has(e.seq)) {
-              const isTimeMod = pendingTimeMods.has(e.seq);
-              return { ...e, eventType: currentType, pendingDeleted: true, ...(isTimeMod ? { pendingTimeModified: true } : {}) };
-            }
-            if (pendingModifiedTypes.has(e.seq)) {
-              return { ...e, eventType: pendingModifiedTypes.get(e.seq), originalEventType: currentType };
-            }
-            return { ...e, eventType: currentType };
-          } else {
-            const effectiveType = pendingModifiedTypes.get(e.seq) || currentType;
-            return { ...e, eventType: effectiveType };
-          }
-        });
-
-      // ── Apply committed EventInserted events ──────────────────────────────
-      appState.events
-        .filter(e => e.eventType === 'EventInserted')
-        .forEach(ins => {
-          if (committedDeletedSeqs.has(ins.seq)) return;
-          const committedType = committedModifiedTypes.get(ins.seq);
-          const currentType = committedType || ins.insertedEventType;
-          let insertedEvent;
-          if (annotate) {
-            if (pendingDeletedSeqs.has(ins.seq)) {
-              insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType, pendingDeleted: true };
-            } else if (pendingModifiedTypes.has(ins.seq)) {
-              insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: pendingModifiedTypes.get(ins.seq), originalEventType: currentType };
-            } else {
-              insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType };
-            }
-          } else {
-            if (pendingDeletedSeqs.has(ins.seq)) return;
-            const effectiveType = pendingModifiedTypes.get(ins.seq) || currentType;
-            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: effectiveType };
-          }
-          const idx = result.findIndex(e => e.seq === ins.refSeq);
-          if (idx >= 0) {
-            result.splice(idx, 0, insertedEvent);
-          } else {
-            result.push(insertedEvent);
-          }
-        });
-
-      // ── Apply committed EventSwapped events ───────────────────────────────
-      appState.events
-        .filter(e => e.eventType === 'EventSwapped')
-        .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2));
-
-      // ── Apply pending swaps (annotate in rendering mode) ──────────────────
-      appState.correctionBuffer
-        .filter(c => c.swapped)
-        .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2, annotate));
-
-      // ── Apply live swap preview ───────────────────────────────────────────
-      // Rendering mode: preview before pending insertions (matches original getBoutEventsForTimelineRendering order).
-      // Effective mode: preview after pending insertions (matches original getEffectiveBoutEvents order).
-      if (annotate) {
-        _applyLiveSwapPreview(result, annotate);
-      }
-
-      // ── Apply pending insertions from correctionBuffer ────────────────────
-      // Pending-inserted virtual events use a synthetic seq with the prefix 'pi-'
-      // (short for "pending insert") followed by the insertBefore seq value.
-      appState.correctionBuffer
-        .filter(c => c.insertedEventType)
-        .forEach(ins => {
-          const insertedEvent = {
-            seq: `pi-${ins.insertBefore}`,
-            boutTime100ms: ins.boutTime100ms,
-            eventType: ins.insertedEventType,
-            ...(annotate ? { isPendingInserted: true } : {})
-          };
-          const idx = result.findIndex(e => e.seq === ins.insertBefore);
-          if (idx >= 0) {
-            result.splice(idx, 0, insertedEvent);
-          } else {
-            result.push(insertedEvent);
-          }
-        });
-
-      // Effective mode: apply live swap preview after pending insertions.
-      if (!annotate) {
-        _applyLiveSwapPreview(result, false);
-      }
-
-      // ── Apply pending time modifications ──────────────────────────────────
-      // Insert a new virtual event at the correct chronological position.
-      appState.correctionBuffer
-        .filter(c => c.timeModified)
-        .forEach(c => {
-          const newEvent = {
-            seq: `tm-${c.refSeq}`,
-            boutTime100ms: c.newBoutTime100ms,
-            eventType: c.eventType,
-            ...(annotate ? { isPendingInserted: true, isNewTimeModified: true } : {})
-          };
-          const insertIdx = result.findIndex(e => e.boutTime100ms > c.newBoutTime100ms);
-          if (insertIdx >= 0) {
-            result.splice(insertIdx, 0, newEvent);
-          } else {
-            result.push(newEvent);
-          }
-        });
-
-      return result;
+      return Projection.compute(
+        appState.events,
+        appState.correctionBuffer,
+        { inSwapMode: appState.inSwapMode, swapOriginIndex: appState.swapOriginIndex, cursorIndex: appState.cursorIndex },
+        annotate
+      );
     }
 
-    /** Applies the live swap preview to result in-place (during swap mode navigation). */
+    /** Delegates to Projection.applyLiveSwapPreview, wiring appState into swapState. */
     function _applyLiveSwapPreview(result, annotate) {
-      if (appState.inSwapMode && appState.swapOriginIndex !== null &&
-          appState.cursorIndex !== null && appState.cursorIndex !== appState.swapOriginIndex) {
-        const cursorableResult = result.filter(e => e.eventType !== 'PeriodEnd');
-        const originEvent = cursorableResult[appState.swapOriginIndex];
-        const targetEvent = cursorableResult[appState.cursorIndex];
-        if (originEvent && targetEvent) {
-          applyEventTypeSwap(result, originEvent.seq, targetEvent.seq, annotate);
-        }
-      }
+      Projection.applyLiveSwapPreview(result, annotate, {
+        inSwapMode: appState.inSwapMode,
+        swapOriginIndex: appState.swapOriginIndex,
+        cursorIndex: appState.cursorIndex
+      });
     }
 
     /**
@@ -3895,69 +3927,198 @@
     window.EventType = EventType;
     window.Score = Score;
     window.Ruleset = Ruleset;
+    window.Projection = Projection;
 
     // Auto-load and validate at startup (logs result)
     const _embeddedRuleset = Ruleset.load();
     const _valid = Ruleset.validate(_embeddedRuleset);
     if (!_valid.valid) console.warn('Embedded ruleset validation warnings:', _valid.errors);
 
-    // --- Export functionality --------------------------------------------
-    function getSystemMetadata() {
-      return {
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        language: navigator.language,
-        languages: Array.from(navigator.languages || [navigator.language]),
-        viewport: {
-          width: window.innerWidth,
-          height: window.innerHeight
-        },
-        timestamp: new Date().toISOString(),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        timezoneOffset: new Date().getTimezoneOffset()
-      };
-    }
+    /**
+     * Export-assembly helpers.
+     *
+     * parseInfo and build are pure with respect to their arguments and can be
+     * called from tests via window.ExportBuilder.  getSystemMetadata reads
+     * browser APIs and is included here for co-location.
+     */
+    const ExportBuilder = {
+      /** Collect system / browser metadata. */
+      getSystemMetadata() {
+        return {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          language: navigator.language,
+          languages: Array.from(navigator.languages || [navigator.language]),
+          viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight
+          },
+          timestamp: new Date().toISOString(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          timezoneOffset: new Date().getTimezoneOffset()
+        };
+      },
 
-    function parseInfo(infoString) {
-      // Parse key-value pairs from info string (spec: key:value; separator)
-      const pairs = {};
-      const segments = infoString.split(';').map(s => s.trim());
-      let anonCounter = 1;
-      
-      segments.forEach(seg => {
-        if (!seg) return;
-        const colonIdx = seg.indexOf(':');
-        if (colonIdx === -1) {
-          pairs[`$anonym${anonCounter++}`] = seg;
-        } else {
-          let key = seg.substring(0, colonIdx).trim();
-          const value = seg.substring(colonIdx + 1).trim();
-          
-          if (key.startsWith('$$')) {
-            // Hidden pair - don't include in parsedInfo
-            return;
-          }
-          if (key.startsWith('$')) {
-            pairs[`anonym${anonCounter++}`] = value;
+      /**
+       * Parse key-value pairs from an info string (spec: key:value; separator).
+       * @param {string} infoString
+       * @returns {object}
+       */
+      parseInfo(infoString) {
+        const pairs = {};
+        const segments = infoString.split(';').map(s => s.trim());
+        let anonCounter = 1;
+
+        segments.forEach(seg => {
+          if (!seg) return;
+          const colonIdx = seg.indexOf(':');
+          if (colonIdx === -1) {
+            pairs[`$anonym${anonCounter++}`] = seg;
           } else {
-            pairs[key.toLowerCase()] = value;
+            const key = seg.substring(0, colonIdx).trim();
+            const value = seg.substring(colonIdx + 1).trim();
+
+            if (key.startsWith('$$')) {
+              // Hidden pair - don't include in parsedInfo
+              return;
+            }
+            if (key.startsWith('$')) {
+              pairs[`anonym${anonCounter++}`] = value;
+            } else {
+              pairs[key.toLowerCase()] = value;
+            }
+          }
+        });
+        return pairs;
+      },
+
+      /**
+       * Assemble the complete export data structure from an explicit context object.
+       *
+       * @param {object} ctx
+       * @param {object[]} ctx.effectiveEvents   Already-projected effective events.
+       * @param {{ red: number, blue: number }} ctx.scores
+       * @param {object} ctx.statistics          Score.statistics result (with corrections count added).
+       * @param {string} ctx.boutInfo
+       * @param {string} ctx.style
+       * @param {string} ctx.rulesetName
+       * @param {object|null} ctx.ruleset        Loaded ruleset object.
+       * @param {string} ctx.redInfo
+       * @param {string} ctx.blueInfo
+       * @param {object[]} ctx.events            Raw event log.
+       * @param {boolean} ctx.completed
+       * @param {string|null} ctx.winner
+       * @param {string|null} ctx.victoryType
+       * @param {string|null} ctx.victoryDescription
+       * @param {number[]|null} ctx.classificationPoints
+       * @param {string|null} ctx.createdAt
+       * @param {string|null} ctx.completedAt
+       * @returns {object}
+       */
+      build(ctx) {
+        // Calculate winner
+        let winner = 'none';
+        if (ctx.completed) {
+          if (ctx.winner && ctx.winner !== 'none') {
+            winner = ctx.winner;
+          } else if (ctx.scores.red > ctx.scores.blue) {
+            winner = 'red';
+          } else if (ctx.scores.blue > ctx.scores.red) {
+            winner = 'blue';
+          } else {
+            winner = 'draw';
           }
         }
-      });
-      return pairs;
-    }
 
+        // Calculate total bout time (sum of running periods)
+        let totalBoutTime100ms = 0;
+        let timerStartTime = 0;
+        ctx.events.forEach(e => {
+          if (e.eventType === 'T_Started') {
+            timerStartTime = e.boutTime100ms;
+          } else if (e.eventType === 'T_Stopped' && timerStartTime !== null) {
+            totalBoutTime100ms += (e.boutTime100ms - timerStartTime);
+            timerStartTime = null;
+          }
+        });
+
+        // Calculate real-time duration
+        let totalRealTime = 0;
+        if (ctx.createdAt && ctx.completedAt) {
+          totalRealTime = new Date(ctx.completedAt) - new Date(ctx.createdAt);
+        }
+
+        // Build timeline from effective events (corrections already applied);
+        // exclude virtual pending events (synthetic string seqs).
+        const timeline = ctx.effectiveEvents
+          .filter(e => typeof e.seq !== 'string')
+          .map(e => ({
+            seq: e.seq,
+            eventType: e.eventType,
+            boutTime100ms: e.boutTime100ms
+          }));
+
+        return {
+          "$schema": "./export-v1.schema.json",
+          "exportVersion": "1.0",
+          "metadata": {
+            "app": {
+              "name": "CHAMP Protocol",
+              "version": "1.0.0",
+              "build": "2025-01-15T10:30:00Z"
+            },
+            "system": ExportBuilder.getSystemMetadata()
+          },
+          "bout": {
+            "header": {
+              "createdAt": ctx.createdAt || new Date().toISOString(),
+              "info": ctx.boutInfo,
+              "style": ctx.style,
+              "ruleset": {
+                "reference": ctx.ruleset?.metadata?.name || ctx.rulesetName,
+                "embedded": ctx.ruleset
+              },
+              "wrestlers": {
+                "red": {
+                  "info": ctx.redInfo,
+                  "parsedInfo": ExportBuilder.parseInfo(ctx.redInfo)
+                },
+                "blue": {
+                  "info": ctx.blueInfo,
+                  "parsedInfo": ExportBuilder.parseInfo(ctx.blueInfo)
+                }
+              }
+            },
+            "summary": {
+              "completed": ctx.completed,
+              "completedAt": ctx.completedAt,
+              "duration": {
+                "totalBoutTime100ms": totalBoutTime100ms,
+                "totalRealTime": totalRealTime,
+                "periods": []
+              },
+              "scores": ctx.scores,
+              "winner": winner,
+              "victory": ctx.victoryType ? {
+                "type": ctx.victoryType,
+                "description": ctx.victoryDescription || "",
+                "classificationPoints": ctx.classificationPoints || [0, 0]
+              } : undefined,
+              "statistics": ctx.statistics,
+              "timeline": timeline,
+              "notes": ""
+            },
+            "events": ctx.events
+          }
+        };
+      }
+    };
+
+    window.ExportBuilder = ExportBuilder;
+
+    // --- Export functionality --------------------------------------------
     function generateExport() {
       const ruleset = Ruleset.load();
-      const boutInfo = document.getElementById('bout-info')?.value || '';
-      const style = document.getElementById('style-select')?.value || 'Freestyle';
-      const rulesetName = document.getElementById('ruleset-select')?.value || 'Default Ruleset';
-      const redInfo = document.getElementById('info-red')?.textContent || 'Rot';
-      const blueInfo = document.getElementById('info-blue')?.textContent || 'Blau';
-      
-      // Use effective events so that all committed corrections (EventModified,
-      // EventDeleted, EventInserted, EventSwapped) are reflected in scores,
-      // statistics, and the timeline — matching what the browser displays.
       const effectiveEvents = getEffectiveBoutEvents();
       const scores = Score.calculate(effectiveEvents);
       const statistics = Score.statistics(effectiveEvents, appState.injuryTimers);
@@ -3968,104 +4129,26 @@
       statistics.corrections = appState.events.filter(e =>
         e.eventType.startsWith('Event') || e.eventType.includes('_Modified')
       ).length;
-      
-      // Calculate winner
-      let winner = 'none';
-      if (appState.completed) {
-        if (appState.winner && appState.winner !== 'none') {
-          winner = appState.winner;
-        } else if (scores.red > scores.blue) {
-          winner = 'red';
-        } else if (scores.blue > scores.red) {
-          winner = 'blue';
-        } else {
-          winner = 'draw';
-        }
-      }
-      
-      // Calculate total bout time (sum of running periods)
-      let totalBoutTime100ms = 0;
-      let timerStartTime = 0;
-      appState.events.forEach(e => {
-        if (e.eventType === 'T_Started') {
-          timerStartTime = e.boutTime100ms;
-        } else if (e.eventType === 'T_Stopped' && timerStartTime !== null) {
-          totalBoutTime100ms += (e.boutTime100ms - timerStartTime);
-          timerStartTime = null;
-        }
+
+      return ExportBuilder.build({
+        effectiveEvents,
+        scores,
+        statistics,
+        boutInfo: document.getElementById('bout-info')?.value || '',
+        style: document.getElementById('style-select')?.value || 'Freestyle',
+        rulesetName: document.getElementById('ruleset-select')?.value || 'Default Ruleset',
+        redInfo: document.getElementById('info-red')?.textContent || 'Rot',
+        blueInfo: document.getElementById('info-blue')?.textContent || 'Blau',
+        events: appState.events,
+        completed: appState.completed,
+        winner: appState.winner,
+        victoryType: appState.victoryType,
+        victoryDescription: appState.victoryDescription,
+        classificationPoints: appState.classificationPoints,
+        createdAt: appState.createdAt,
+        completedAt: appState.completedAt,
+        ruleset,
       });
-      
-      // Calculate real time duration
-      let totalRealTime = 0;
-      if (appState.createdAt && appState.completedAt) {
-        totalRealTime = new Date(appState.completedAt) - new Date(appState.createdAt);
-      }
-      
-      // Build timeline from effective events (corrections already applied);
-      // exclude virtual pending events that only exist during an active correction session.
-      const timeline = effectiveEvents
-        .filter(e => !isVirtualEvent(e))
-        .map(e => ({
-          seq: e.seq,
-          eventType: e.eventType,
-          boutTime100ms: e.boutTime100ms
-        }));
-
-      const exportData = {
-        "$schema": "./export-v1.schema.json",
-        "exportVersion": "1.0",
-        "metadata": {
-          "app": {
-            "name": "CHAMP Protocol",
-            "version": "1.0.0",
-            "build": "2025-01-15T10:30:00Z"
-          },
-          "system": getSystemMetadata()
-        },
-        "bout": {
-          "header": {
-            "createdAt": appState.createdAt || new Date().toISOString(),
-            "info": boutInfo,
-            "style": style,
-            "ruleset": {
-              "reference": ruleset?.metadata?.name || rulesetName,
-              "embedded": ruleset
-            },
-            "wrestlers": {
-              "red": {
-                "info": redInfo,
-                "parsedInfo": parseInfo(redInfo)
-              },
-              "blue": {
-                "info": blueInfo,
-                "parsedInfo": parseInfo(blueInfo)
-              }
-            }
-          },
-          "summary": {
-            "completed": appState.completed,
-            "completedAt": appState.completedAt,
-            "duration": {
-              "totalBoutTime100ms": totalBoutTime100ms,
-              "totalRealTime": totalRealTime,
-              "periods": []
-            },
-            "scores": scores,
-            "winner": winner,
-            "victory": appState.victoryType ? {
-              "type": appState.victoryType,
-              "description": appState.victoryDescription || "",
-              "classificationPoints": appState.classificationPoints || [0, 0]
-            } : undefined,
-            "statistics": statistics,
-            "timeline": timeline,
-            "notes": ""
-          },
-          "events": appState.events
-        }
-      };
-
-      return exportData;
     }
 
     function downloadExport() {
