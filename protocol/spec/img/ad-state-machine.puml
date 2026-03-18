@@ -1,0 +1,97 @@
+@startuml ad-state-machine
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam state {
+  BackgroundColor #FFFFFF
+  BorderColor #333333
+}
+
+title Full Application State Machine — CHAMP Protocol
+
+[*] --> New : initializeApp()
+
+state New #E8F5E9 {
+  New : top-bar editable
+  New : event buttons disabled
+  New : completion form hidden
+}
+
+state Recording #FFF3E0 {
+  Recording : top-bar locked
+  Recording : event buttons enabled
+  Recording : timer available
+
+  state "Normal" as RN
+  state "Correction" as RC
+  state "Swap" as RS
+  state "Insert" as RI
+  state "TimeMod Modal" as RT
+
+  [*] --> RN
+  RN --> RC : ArrowLeft /\nright-click entry /\nlong-press entry
+  RN --> RN : Backspace\n(enter+delete+exit)
+  RN --> RT : TT key
+  RC --> RN : Enter (confirm)\nEscape (cancel)
+  RC --> RS : # key
+  RC --> RI : ## key
+  RC --> RT : T key / ctx-time
+  RS --> RC : Enter (confirm)\nEscape (cancel)
+  RS --> RI : # key\n(## sequence)
+  RI --> RC : Enter / Escape /\nevent type entered
+  RT --> RN : Enter / Escape\n(from normal)
+  RT --> RC : Enter / Escape\n(from correction)
+}
+
+state Completing #E3F2FD {
+  Completing : form enabled
+  Completing : event buttons enabled
+  Completing : timer stopped
+
+  state "Normal" as CN
+  state "Correction" as CC
+  state "Swap" as CS
+  state "Insert" as CI
+  state "TimeMod Modal" as CT
+
+  [*] --> CN
+  CN --> CC : ArrowLeft /\nright-click entry
+  CN --> CT : TT key
+  CC --> CN : Enter / Escape
+  CC --> CS : # key
+  CC --> CI : ## key
+  CC --> CT : T key
+  CS --> CC : Enter / Escape
+  CS --> CI : # key
+  CI --> CC : Enter / Escape /\nevent type
+  CT --> CN : confirm / cancel
+  CT --> CC : confirm / cancel\n(from correction)
+}
+
+state Completed #F3E5F5 {
+  Completed : all inputs locked
+  Completed : export available
+}
+
+state "Re-released" as Rereleased #FFF9C4 {
+  Rereleased : top-bar editable
+  Rereleased : form enabled
+}
+
+New --> Recording : releaseScoresheet()\n[F4]
+Recording --> Completing : startCompleting()\n[F4] — stops timer
+Completing --> Completed : completeScoresheet()\n[F4]
+Completed --> Rereleased : rereleaseScoresheet()\n[F4]
+Rereleased --> Completed : readFormAndComplete()\n[F4]
+
+note right of Recording
+  <b>Sub-modes tracked by boolean flags:</b>
+  • inCorrectionMode (boolean)
+  • inSwapMode (boolean, implies correction)
+  • inInsertMode (boolean, implies correction)
+  • isTimeModModalOpen() (DOM check)
+  
+  No formal state machine; flags are
+  set/cleared independently.
+end note
+
+@enduml

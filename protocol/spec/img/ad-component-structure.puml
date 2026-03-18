@@ -1,0 +1,128 @@
+@startuml ad-component-structure
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle rectangle
+
+title Logical Component Structure — Within Single File
+
+package "protocol.html" as FILE {
+
+  package "Markup & Styles" #E8F5E9 {
+    [HTML (~110 lines)] as HTML
+    [CSS (~740 lines)] as CSS
+    note bottom of HTML : Semantic HTML with\ngrid layout, ARIA roles
+  }
+
+  package "Data" #FFF9C4 {
+    [Embedded Ruleset JSON\n~50 lines] as RJSON
+  }
+
+  package "JavaScript (~3300 lines)" #E3F2FD {
+
+    component "appState" as STATE #FFE0B2 {
+    }
+
+    package "Timer Subsystem (~300 lines)" #FFFFFF {
+      [tick()] as TICK
+      [startTimer() / stopTimer()\ntoggleTimer()] as TMGR
+      [startInjuryTimer()\nstopInjuryTimer()\ntoggleInjuryTimer()] as INJ
+      [startActivityTimer()\ndeleteActivityTimer()] as ACT
+      [startPeriodBreak()\ntickBreak()\nendPeriodBreak()] as BRK
+    }
+
+    package "Time Modification (~200 lines)" #FFFFFF {
+      [openTimeModModal()\nconfirmTimeModChange()\ncloseTimeModModal()] as TMOD
+    }
+
+    package "Event Recording (~30 lines)" #FFFFFF {
+      [recordEvent()] as REC
+    }
+
+    package "State Management (~300 lines)" #FFFFFF {
+      [applyState()] as APPLY
+      [releaseScoresheet()] as REL
+      [startCompleting()] as SC
+      [completeScoresheet()] as COMP
+      [autoUpdateCompletionForm()] as AUTO
+      [handleReleaseCompleteAction()] as HRCA
+    }
+
+    package "Score & Projection (~350 lines)" #FFFFFF {
+      [getEffectiveBoutEvents()\n~120 lines] as EFF
+      [getBoutEventsForTimeline\nRendering() ~135 lines] as EFFR
+      [calculateScores()] as CALC
+      [getCursorableEvents()] as CUR
+    }
+
+    package "Timeline Rendering (~250 lines)" #FFFFFF {
+      [updateTimeline()] as TL
+      [createTimelineEntry()] as CTE
+      [createInsertModeEntry()] as CIE
+      [updateNextEventDisplay()] as NED
+    }
+
+    package "Keyboard Input (~200 lines)" #FFFFFF {
+      [keydown handler] as KD
+      [processKeySequence()] as PKS
+      [isValidContinuation()] as IVC
+    }
+
+    package "Correction Mode (~550 lines)" #FFFFFF {
+      [enterCorrectionMode()\nexitCorrectionMode()] as CORR
+      [handleCorrectionModeKey()] as HCMK
+      [handleSwapModeKey()] as HSMK
+      [handleInsertModeKey()] as HIMK
+      [modifyCurrentEvent()\ndeleteCurrentEvent()] as MOD
+      [Event type modifiers:\nmodifyEventColor()\nmodifyEventPoints()\nmodifyEventToPassivity()\nmodifyEventToCaution()] as MODS
+    }
+
+    package "Context Menu (~120 lines)" #FFFFFF {
+      [showContextMenu()\nhideContextMenu()\ninitializeContextMenu()] as CTX
+    }
+
+    package "Ruleset Engine (~150 lines)" #FFFFFF {
+      [loadEmbeddedRuleset()] as LOAD
+      [evaluateCondition()\nresolveClassificationPoints()] as EVAL
+      [getBoutContext()\nfindTiebreakWinner()] as BCTX
+    }
+
+    package "Export (~200 lines)" #FFFFFF {
+      [generateExport()] as EXP
+      [calculateStatistics()] as STATS
+      [downloadExport()] as DL
+    }
+
+    package "Test Surface (~50 lines)" #FFFFFF {
+      [window.testHelper] as TH
+      [window.exportHelper] as EH
+      [window.rulesetHelper] as RH
+    }
+
+    package "Initialization (~80 lines)" #FFFFFF {
+      [initializeApp()] as INIT
+      [initializeEventButtons()] as IEB
+      [initializeTimelineInteraction()] as ITI
+    }
+  }
+}
+
+' Key dependencies
+STATE <-- TICK : reads/writes timers
+STATE <-- REC : appends events
+STATE <-- CORR : correctionBuffer
+STATE <-- APPLY : sets mode
+EFF --> STATE : reads events +\ncorrectionBuffer
+EFFR --> STATE : reads events +\ncorrectionBuffer
+CALC <-- EFF : effective events
+TL --> EFF : gets events
+TL --> EFFR : gets annotated events
+REC --> TL : triggers render
+REC --> CALC : triggers score update
+LOAD --> RJSON : JSON.parse()
+KD --> PKS : delegates
+PKS --> REC : records events
+HCMK --> MOD : modifies buffer
+EXP --> EFF : reads events
+TH --> STATE : exposes internals
+
+@enduml

@@ -1,0 +1,69 @@
+@startuml ad-timer-flow
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Timer Subsystem Flow
+
+actor User
+participant "keydown / click" as INPUT
+participant "toggleTimer()" as TT
+participant "tick()" as TICK
+participant "appState" as STATE
+participant "updateBoutTime\nDisplay()" as BTD
+participant "startPeriodBreak()" as SPB
+participant "toggleInjuryTimer()" as TIT
+participant "startActivity\nTimer()" as SAT
+participant "recordEvent()" as REC
+participant "DOM" as DOM
+
+== Start Bout Timer (Space key) ==
+User -> INPUT : Space
+INPUT -> TT : toggleTimer()
+TT -> STATE : timerRunning = true
+TT -> STATE : timerIntervalId = setInterval(tick, 100)
+TT -> REC : {eventType:"T_Started"}
+TT -> DOM : boutTimeButton.classList\n.add("running")
+
+== Timer Tick (every 100ms) ==
+TICK -> STATE : boutTime100ms += 1
+TICK -> STATE : periodTime100ms -= 1\n(direction: Down)
+TICK -> BTD : updateBoutTimeDisplay()
+BTD -> DOM : bout-time-display.textContent
+
+alt Activity Timer Active
+  TICK -> STATE : activityTimers[key].time100ms -= 1
+  TICK -> DOM : update activity display
+  alt Activity Time Expired
+    TICK -> TICK : deleteActivityTimer(key)
+  end
+end
+
+alt Period Time Reaches Zero
+  TICK -> TICK : stopTimer()
+  TICK -> REC : {eventType:"PeriodEnd"}
+  alt More Periods Remaining
+    TICK -> STATE : currentPeriodIndex++
+    TICK -> SPB : startPeriodBreak(30)
+    SPB -> STATE : breakTimerRunning = true
+    SPB -> DOM : show break overlay
+  else Last Period
+    TICK -> TICK : startCompleting()
+  end
+end
+
+== Injury Timer ==
+User -> INPUT : "R," or ",R"
+INPUT -> TIT : toggleInjuryTimer("IR")
+TIT -> STATE : injuryTimers.IR.running = true
+TIT -> STATE : setInterval (100ms tick)
+TIT -> REC : {eventType: "T_IR_Started"}
+
+note over TICK
+  tick() is the heartbeat:
+  • advances bout time
+  • advances activity timers
+  • detects period end
+  All via direct appState mutation.
+end note
+
+@enduml

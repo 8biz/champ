@@ -1,0 +1,57 @@
+@startuml ad-event-recording-sequence
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Event Recording Flow — From User Input to DOM Update
+
+actor User
+participant "keydown\nhandler" as KD
+participant "processKey\nSequence()" as PKS
+participant "recordEvent()" as REC
+participant "appState" as STATE
+participant "updateScores()" as US
+participant "getEffective\nBoutEvents()" as EFF
+participant "calculateScores()" as CALC
+participant "autoUpdate\nCompletionForm()" as AUCF
+participant "updateTimeline()" as TL
+participant "DOM" as DOM
+
+User -> KD : keydown (e.g. "1", "R")
+KD -> KD : isValidContinuation(buffer, key)
+KD -> STATE : keyBuffer.push(key)
+
+KD -> PKS : processKeySequence(buffer)
+PKS -> PKS : match key pattern\n(e.g. /^[1245][RB]$/)
+PKS -> REC : {eventType:"1R",\nboutTime100ms}
+
+REC -> STATE : sequenceCounter++
+REC -> STATE : events.push({seq, timestamp, ...})
+note right: Append-only event log
+
+REC -> US : updateScores()
+
+US -> EFF : getEffectiveBoutEvents()
+note right of EFF : **Call #1**\nRe-filters all events +\napplies corrections
+EFF --> US : effective events
+US -> CALC : calculateScores(events)
+CALC --> US : {red: N, blue: M}
+US -> DOM : scoreRedDisplay.textContent
+
+US -> AUCF : autoUpdateCompletionForm()
+AUCF -> EFF : getEffectiveBoutEvents()
+note right of EFF : **Call #2**
+AUCF -> CALC : calculateScores(events)
+AUCF -> EFF : via getBoutContext()
+note right of EFF : **Call #3**
+AUCF -> DOM : update winner, victory type
+
+REC -> TL : updateTimeline()
+TL -> EFF : getEffectiveBoutEvents()
+note right of EFF : **Call #4**
+TL -> TL : getBoutEventsFor\nTimelineRendering()
+note right of TL : **Call #5**\n(80% duplicated logic)
+TL -> DOM : timeline.innerHTML = ""\n+ rebuild all entries
+
+KD -> STATE : keyBuffer = []
+
+@enduml
