@@ -12,6 +12,7 @@ application-level refactoring begins.
 | Date | Suite | Result |
 |------|-------|--------|
 | 2026-03-17 | 396 Playwright tests (`npm test`) | **396 passed, 0 failed** |
+| 2026-03-18 | 470 Playwright tests (`npm test`) | **470 passed, 0 failed** |
 
 Re-run `npm test` to verify the baseline at any time.
 
@@ -135,19 +136,14 @@ pipeline.  They exist to avoid slow real-time simulation.
 
 ### 3.3 Hidden DOM timer hooks (`#start` / `#stop`)
 
-**Status (Refactor-03): no longer used by the test suite.**
+**Status (Refactor-14): removed.**
 
-The `timer.spec.js` "Hidden test hooks work correctly" test has been removed.  The timer is
-now controlled exclusively via the `Space` key and the `toggleTimer` helper in `helpers.js`.
-
-The `#start` and `#stop` buttons remain in the application HTML (opacity 0, 10 × 10 px) but
-are considered legacy infrastructure — they are **not** part of the required test contract and
-may be removed in a future refactoring step without affecting test behaviour.
+The `#start` and `#stop` hidden buttons and the `testStartTimer` / `testStopTimer` functions have been deleted from the application. The timer is now controlled exclusively via the `Space` key and the `toggleTimer` helper in `helpers.js`.
 
 | Element | Former seam | Status |
 |---------|-------------|--------|
-| `#start` | Called `startTimer()` directly | Unused by tests |
-| `#stop` | Called `stopTimer()` directly | Unused by tests |
+| `#start` | Called `startTimer()` directly | **Removed (Refactor-14)** |
+| `#stop` | Called `stopTimer()` directly | **Removed (Refactor-14)** |
 
 ### 3.4 Direct `window.appState` access
 
@@ -178,9 +174,9 @@ functions; the risk is low unless the ruleset schema changes.
 | Priority | Item | Recommended action |
 |----------|------|--------------------|
 | ✅ DONE | `window.appState` direct access in `correction-mode.spec.js:830` | Dead code removed (Refactor-03) |
-| ✅ DONE | `#start` / `#stop` hidden DOM hooks | No longer used by tests; retained as legacy but not required (Refactor-03) |
+| ✅ DONE | `#start` / `#stop` hidden DOM hooks | Removed from HTML and JS (Refactor-14) |
+| ✅ DONE | `Object.defineProperties` compatibility shims on `appState` | Removed; all code uses domain sub-objects directly (Refactor-14) |
 | 🟠 MEDIUM | `window.testHelper.injectEvent()` and `triggerPeriodBreak()` bypass business logic | Document clearly that these are low-level shortcuts; add usage guard comments |
-| 🟡 LOW | All `getState()` field names mirror internal `appState` names | If `appState` fields are renamed, update `testHelper.getState()` to map old → new names transparently |
 | 🟡 LOW | Export object shape used as implicit contract | Add explicit schema tests to `ruleset.spec.js` / `uc001.spec.js` |
 
 ---
