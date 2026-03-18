@@ -871,11 +871,6 @@
     </div>
   </div>
 
-  <div style="position: fixed; top: 0; left: 0; opacity: 0; width: 0.625rem; height: 0.625rem;">
-    <button id="start" type="button">Start</button>
-    <button id="stop" type="button">Stop</button>
-  </div>
-
   <!-- Embedded default ruleset: protocol/rulesets/ruleset-default.json -->
   <script id="default-ruleset" type="application/json">
   {
@@ -989,41 +984,9 @@
     };
 
     // ===================================================================
-    // STATE COMPATIBILITY SHIMS
-    // Flat property names on appState delegate to domain sub-objects so
-    // existing code continues to work during the incremental migration.
-    // ===================================================================
-    Object.defineProperties(appState, {
-      // Timer domain
-      timerRunning:      { get() { return this.timers.running; },         set(v) { this.timers.running = v; },         enumerable: false, configurable: true },
-      timerIntervalId:   { get() { return this.timers.intervalId; },      set(v) { this.timers.intervalId = v; },      enumerable: false, configurable: true },
-      boutTime100ms:     { get() { return this.timers.boutTime100ms; },   set(v) { this.timers.boutTime100ms = v; },   enumerable: false, configurable: true },
-      periodTime100ms:   { get() { return this.timers.periodTime100ms; }, set(v) { this.timers.periodTime100ms = v; }, enumerable: false, configurable: true },
-      breakTimerRunning: { get() { return this.timers.breakRunning; },    set(v) { this.timers.breakRunning = v; },    enumerable: false, configurable: true },
-      breakTime100ms:    { get() { return this.timers.breakTime100ms; },  set(v) { this.timers.breakTime100ms = v; },  enumerable: false, configurable: true },
-      // Correction domain
-      inCorrectionMode:       { get() { return this.correction.active; },          set(v) { this.correction.active = v; },          enumerable: false, configurable: true },
-      inInsertMode:           { get() { return this.correction.insertMode; },      set(v) { this.correction.insertMode = v; },      enumerable: false, configurable: true },
-      inSwapMode:             { get() { return this.correction.swapMode; },        set(v) { this.correction.swapMode = v; },        enumerable: false, configurable: true },
-      swapOriginIndex:        { get() { return this.correction.swapOriginIndex; }, set(v) { this.correction.swapOriginIndex = v; }, enumerable: false, configurable: true },
-      cursorIndex:            { get() { return this.correction.cursorIndex; },     set(v) { this.correction.cursorIndex = v; },     enumerable: false, configurable: true },
-      correctionBuffer:       { get() { return this.correction.buffer; },          set(v) { this.correction.buffer = v; },          enumerable: false, configurable: true },
-      timeModTarget:          { get() { return this.correction.timeModTarget; },   set(v) { this.correction.timeModTarget = v; },   enumerable: false, configurable: true },
-      timeModCorrectionEvent: { get() { return this.correction.timeModEvent; },    set(v) { this.correction.timeModEvent = v; },    enumerable: false, configurable: true },
-      // Completion domain
-      completed:            { get() { return this.completion.done; },                  set(v) { this.completion.done = v; },                  enumerable: false, configurable: true },
-      completedAt:          { get() { return this.completion.at; },                    set(v) { this.completion.at = v; },                    enumerable: false, configurable: true },
-      winner:               { get() { return this.completion.winner; },                set(v) { this.completion.winner = v; },                enumerable: false, configurable: true },
-      victoryType:          { get() { return this.completion.victoryType; },           set(v) { this.completion.victoryType = v; },           enumerable: false, configurable: true },
-      victoryDescription:   { get() { return this.completion.victoryDescription; },    set(v) { this.completion.victoryDescription = v; },    enumerable: false, configurable: true },
-      classificationPoints: { get() { return this.completion.classificationPoints; },  set(v) { this.completion.classificationPoints = v; },  enumerable: false, configurable: true },
-      complBoutTime100ms:   { get() { return this.completion.boutTime100ms; },         set(v) { this.completion.boutTime100ms = v; },         enumerable: false, configurable: true }
-    });
-
-    // ===================================================================
     // STATE ACCESSOR HELPERS
-    // Domain-focused read helpers — prefer these in new code over direct
-    // flat appState property access.
+    // Primary domain accessors — use these to read timer, correction,
+    // and completion state from appState sub-objects.
     // ===================================================================
     /**
      * Returns the timer domain sub-object.
@@ -1667,42 +1630,26 @@
     // TIMER LOGIC
     // ===================================================================
     const boutTimeDisplay = document.getElementById("bout-time-display");
-    const startButton = document.getElementById("start");
-    const stopButton = document.getElementById("stop");
     const boutTimeButton = document.getElementById("bout-time-button");
-
-    // Test-only functions that bypass mode checks
-    function testStartTimer() {
-      if (appState.timerIntervalId !== null) return;
-      appState.timerRunning = true;
-      appState.timerIntervalId = setInterval(tick, 100);
-    }
-
-    function testStopTimer() {
-      if (appState.timerIntervalId === null) return;
-      clearInterval(appState.timerIntervalId);
-      appState.timerIntervalId = null;
-      appState.timerRunning = false;
-    }
 
     function updateBoutTimeDisplay() {
       // Display minutes:seconds as the textual content (keeps compatibility
       // with existing tests and assistive technologies) and expose the
       // 100ms digit through a data attribute that is rendered visually
       // as a superscript via CSS ::after.
-      const totalSeconds = Math.floor(appState.periodTime100ms / 10);
+      const totalSeconds = Math.floor(appState.timers.periodTime100ms / 10);
       const minutes = Math.floor(totalSeconds / 60);
       const seconds = totalSeconds % 60;
       boutTimeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, "0")}`;
-      const fraction = Math.floor(appState.periodTime100ms % 10);
+      const fraction = Math.floor(appState.timers.periodTime100ms % 10);
       boutTimeDisplay.dataset.fraction = String(fraction);
     }
 
     function tick() {
-      if (!appState.timerRunning) return;
+      if (!appState.timers.running) return;
       
-      appState.boutTime100ms++;
-      appState.periodTime100ms--;
+      appState.timers.boutTime100ms++;
+      appState.timers.periodTime100ms--;
       
       updateBoutTimeDisplay();
 
@@ -1722,7 +1669,7 @@
         }
       });
       
-      if (appState.periodTime100ms <= 0) {
+      if (appState.timers.periodTime100ms <= 0) {
         // Period over: delete any remaining activity timers before recording PeriodEnd
         ['AR', 'AB'].forEach(key => {
           const at = appState.activityTimers[key];
@@ -1735,7 +1682,7 @@
         });
         stopTimer();
         if (appState.mode === 'Recording') {
-          recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.boutTime100ms });
+          recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.timers.boutTime100ms });
           // recordEvent() calls updateTimeline(), which re-renders expired timers
           const ruleset = Ruleset.load();
           const nextPeriodIndex = appState.currentPeriodIndex + 1;
@@ -1753,38 +1700,38 @@
     }
 
     function updateBreakTimeDisplay() {
-      const totalSeconds = Math.floor(appState.breakTime100ms / 10);
+      const totalSeconds = Math.floor(appState.timers.breakTime100ms / 10);
       const minutes = Math.floor(totalSeconds / 60);
       const seconds = totalSeconds % 60;
       boutTimeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, "0")}`;
-      boutTimeDisplay.dataset.fraction = String(Math.floor(appState.breakTime100ms % 10));
+      boutTimeDisplay.dataset.fraction = String(Math.floor(appState.timers.breakTime100ms % 10));
     }
 
     function startPeriodBreak(breakSeconds) {
-      appState.breakTime100ms = breakSeconds * 10;
-      appState.breakTimerRunning = true;
+      appState.timers.breakTime100ms = breakSeconds * 10;
+      appState.timers.breakRunning = true;
       boutTimeButton.classList.add('break-mode');
       boutTimeButton.querySelector('.time-label').textContent = 'Kampfpause';
       boutTimeButton.querySelector('.time-note').textContent = '[Leertaste] → Abbruch';
       updateBreakTimeDisplay();
-      appState.timerIntervalId = setInterval(tickBreak, 100);
+      appState.timers.intervalId = setInterval(tickBreak, 100);
     }
 
     function tickBreak() {
-      appState.breakTime100ms--;
+      appState.timers.breakTime100ms--;
       updateBreakTimeDisplay();
-      if (appState.breakTime100ms <= 0) {
+      if (appState.timers.breakTime100ms <= 0) {
         endPeriodBreak();
       }
     }
 
     function endPeriodBreak() {
-      clearInterval(appState.timerIntervalId);
-      appState.timerIntervalId = null;
-      appState.breakTimerRunning = false;
+      clearInterval(appState.timers.intervalId);
+      appState.timers.intervalId = null;
+      appState.timers.breakRunning = false;
       const ruleset = Ruleset.load();
       const nextPeriodTime = ruleset.periodTimesInSeconds[appState.currentPeriodIndex] ?? 180;
-      appState.periodTime100ms = nextPeriodTime * 10;
+      appState.timers.periodTime100ms = nextPeriodTime * 10;
       boutTimeButton.classList.remove('break-mode');
       boutTimeButton.querySelector('.time-label').textContent = 'Kampfzeit';
       boutTimeButton.querySelector('.time-note').textContent = '[Leertaste]';
@@ -1833,7 +1780,7 @@
     }
 
     function startInjuryTimer(timerKey) {
-      if (appState.timerRunning) return;
+      if (appState.timers.running) return;
       const it = appState.injuryTimers[timerKey];
       if (it.running) return;
       // Stop the other injury timer for the same wrestler (only one at a time per side)
@@ -1846,7 +1793,7 @@
       it.running = true;
       it.intervalId = setInterval(() => tickInjuryTimer(timerKey), 100);
       if (appState.mode === 'Recording' || appState.mode === 'Completing') {
-        recordEvent({ eventType: `T_${timerKey}_Started`, boutTime100ms: appState.boutTime100ms });
+        recordEvent({ eventType: `T_${timerKey}_Started`, boutTime100ms: appState.timers.boutTime100ms });
       }
       updateInjuryTimerDisplay(timerKey);
     }
@@ -1858,7 +1805,7 @@
       it.intervalId = null;
       it.running = false;
       if (appState.mode === 'Recording' || appState.mode === 'Completing') {
-        recordEvent({ eventType: `T_${timerKey}_Stopped`, boutTime100ms: appState.boutTime100ms });
+        recordEvent({ eventType: `T_${timerKey}_Stopped`, boutTime100ms: appState.timers.boutTime100ms });
       }
       updateInjuryTimerDisplay(timerKey);
     }
@@ -1969,39 +1916,37 @@
 
     function startTimer() {
       if (appState.mode !== 'Recording') return;
-      if (appState.timerIntervalId !== null) return;
+      if (appState.timers.intervalId !== null) return;
       if (Object.values(appState.injuryTimers).some(it => it.running)) return;
       
-      appState.timerRunning = true;
-      appState.timerIntervalId = setInterval(tick, 100); // 100ms intervals
+      appState.timers.running = true;
+      appState.timers.intervalId = setInterval(tick, 100); // 100ms intervals
       boutTimeButton.classList.add('running');
-      recordEvent({ eventType: 'T_Started', boutTime100ms: appState.boutTime100ms });
+      recordEvent({ eventType: 'T_Started', boutTime100ms: appState.timers.boutTime100ms });
     }
 
     function stopTimer() {
-      if (appState.timerIntervalId === null) return;
+      if (appState.timers.intervalId === null) return;
       
-      clearInterval(appState.timerIntervalId);
-      appState.timerIntervalId = null;
-      appState.timerRunning = false;
+      clearInterval(appState.timers.intervalId);
+      appState.timers.intervalId = null;
+      appState.timers.running = false;
       boutTimeButton.classList.remove('running');
-      recordEvent({ eventType: 'T_Stopped', boutTime100ms: appState.boutTime100ms });
+      recordEvent({ eventType: 'T_Stopped', boutTime100ms: appState.timers.boutTime100ms });
     }
 
     function toggleTimer() {
       if (appState.mode !== 'Recording') return;
       
-      if (appState.timerRunning) {
+      if (appState.timers.running) {
         stopTimer();
       } else {
         startTimer();
       }
     }
 
-    startButton.addEventListener("click", testStartTimer);
-    stopButton.addEventListener("click", testStopTimer);
     boutTimeButton.addEventListener("click", () => {
-      if (appState.breakTimerRunning) {
+      if (appState.timers.breakRunning) {
         dispatch('T_Break_End');
       } else {
         dispatch('T_Toggle');
@@ -2061,11 +2006,11 @@
       }
 
       // For bout time only: require timer to be stopped to avoid race conditions.
-      if (!timerKey && appState.timerRunning) {
+      if (!timerKey && appState.timers.running) {
         return;
       }
 
-      appState.timeModTarget = timerKey;
+      appState.correction.timeModTarget = timerKey;
 
       const modal = document.getElementById('time-mod-modal');
       const input = document.getElementById('time-mod-input');
@@ -2076,13 +2021,13 @@
         // Completion mode: modify the total elapsed bout time
         title.textContent = 'Gesamtkampfzeit ändern';
         document.getElementById('time-mod-hint').textContent = 'Abgelaufene Kampfzeit eingeben (M:SS)';
-        const totalSeconds = Math.floor(appState.boutTime100ms / 10);
+        const totalSeconds = Math.floor(appState.timers.boutTime100ms / 10);
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
         input.value = `${minutes}:${seconds.toString().padStart(2, '0')}`;
       } else if (timerKey === 'correctionBoutTime') {
         // Correction mode: modify the bout time of the event at the cursor
-        const corrEvent = appState.timeModCorrectionEvent;
+        const corrEvent = appState.correction.timeModEvent;
         title.textContent = 'Ereigniszeit korrigieren [T]';
         document.getElementById('time-mod-hint').textContent = 'Abgelaufene Kampfzeit eingeben (M:SS)';
         const totalSeconds = Math.floor(corrEvent.boutTime100ms / 10);
@@ -2102,7 +2047,7 @@
         // Bout (period) time modification — pre-fill with remaining period time
         title.textContent = 'Kampfzeit ändern [TT]';
         document.getElementById('time-mod-hint').textContent = 'Verbleibende Zeit eingeben (M:SS)';
-        const totalSeconds = Math.floor(appState.periodTime100ms / 10);
+        const totalSeconds = Math.floor(appState.timers.periodTime100ms / 10);
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
         input.value = `${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -2160,11 +2105,11 @@
 
       // Compute cumulated boutTime by adjusting the current elapsed offset:
       // newBoutTime = boutTime + (oldRemainingPeriodTime - newRemainingPeriodTime)
-      const newBoutTime100ms = appState.boutTime100ms + appState.periodTime100ms - newTime100ms;
-      const oldBoutTime100ms = appState.boutTime100ms;
+      const newBoutTime100ms = appState.timers.boutTime100ms + appState.timers.periodTime100ms - newTime100ms;
+      const oldBoutTime100ms = appState.timers.boutTime100ms;
 
-      appState.boutTime100ms = newBoutTime100ms;
-      appState.periodTime100ms = newTime100ms;
+      appState.timers.boutTime100ms = newBoutTime100ms;
+      appState.timers.periodTime100ms = newTime100ms;
       updateBoutTimeDisplay();
 
       recordEvent({
@@ -2184,17 +2129,17 @@
         showTimeModError('Eingegebene Zeit überschreitet die maximale Kampfzeit.');
         return false;
       }
-      appState.boutTime100ms = newTime100ms;
+      appState.timers.boutTime100ms = newTime100ms;
       document.getElementById('compl-bout-time').value = Fmt.mmss(newTime100ms);
       return true;
     }
 
     function applyCorrectionBoutTimeMod(newTime100ms) {
-      const corrEvent = appState.timeModCorrectionEvent;
+      const corrEvent = appState.correction.timeModEvent;
       // No event at cursor — nothing to modify; return true so the modal closes cleanly.
       if (!corrEvent) return true;
 
-      if (newTime100ms > appState.boutTime100ms) {
+      if (newTime100ms > appState.timers.boutTime100ms) {
         showTimeModError('Eingegebene Zeit überschreitet die aktuelle Kampfzeit.');
         return false;
       }
@@ -2207,9 +2152,9 @@
       );
 
       // Remove any existing corrections for this event (superseded by time modification)
-      appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== corrEvent.seq);
+      appState.correction.buffer = appState.correction.buffer.filter(c => c.refSeq !== corrEvent.seq);
 
-      appState.correctionBuffer.push({
+      appState.correction.buffer.push({
         timeModified: true,
         refSeq: corrEvent.seq,
         oldBoutTime100ms: corrEvent.boutTime100ms,
@@ -2223,11 +2168,11 @@
       const newCursorableEvents = getCursorableEvents();
       const tmIdx = newCursorableEvents.findIndex(e => e.seq === tmSeq);
       if (tmIdx >= 0) {
-        appState.cursorIndex = tmIdx;
+        appState.correction.cursorIndex = tmIdx;
       } else if (newCursorableEvents.length === 0) {
-        appState.cursorIndex = null;
-      } else if (appState.cursorIndex !== null && appState.cursorIndex >= newCursorableEvents.length) {
-        appState.cursorIndex = newCursorableEvents.length - 1;
+        appState.correction.cursorIndex = null;
+      } else if (appState.correction.cursorIndex !== null && appState.correction.cursorIndex >= newCursorableEvents.length) {
+        appState.correction.cursorIndex = newCursorableEvents.length - 1;
       }
 
       updateTimeline();
@@ -2262,7 +2207,7 @@
       }
 
       const { newTime100ms } = parsed;
-      const timerKey = appState.timeModTarget;
+      const timerKey = appState.correction.timeModTarget;
       let success;
 
       if (timerKey === 'completionBoutTime') {
@@ -2360,7 +2305,7 @@
       }
 
       if (command === 'T_Break_End') {
-        if (!appState.breakTimerRunning) return false;
+        if (!appState.timers.breakRunning) return false;
         endPeriodBreak();
         return true;
       }
@@ -2390,25 +2335,25 @@
       // Passivity: may become activity time per ruleset
       if (command === 'PR') {
         if (shouldUseActivityTime('red')) {
-          const event = recordEvent({ eventType: 'AR', boutTime100ms: appState.boutTime100ms });
+          const event = recordEvent({ eventType: 'AR', boutTime100ms: appState.timers.boutTime100ms });
           startActivityTimer('AR', event.seq);
         } else {
-          recordEvent({ eventType: 'PR', boutTime100ms: appState.boutTime100ms });
+          recordEvent({ eventType: 'PR', boutTime100ms: appState.timers.boutTime100ms });
         }
         return true;
       }
       if (command === 'PB') {
         if (shouldUseActivityTime('blue')) {
-          const event = recordEvent({ eventType: 'AB', boutTime100ms: appState.boutTime100ms });
+          const event = recordEvent({ eventType: 'AB', boutTime100ms: appState.timers.boutTime100ms });
           startActivityTimer('AB', event.seq);
         } else {
-          recordEvent({ eventType: 'PB', boutTime100ms: appState.boutTime100ms });
+          recordEvent({ eventType: 'PB', boutTime100ms: appState.timers.boutTime100ms });
         }
         return true;
       }
 
       // All other bout events (points, cautions)
-      recordEvent({ eventType: command, boutTime100ms: appState.boutTime100ms });
+      recordEvent({ eventType: command, boutTime100ms: appState.timers.boutTime100ms });
       return true;
     }
 
@@ -2508,12 +2453,12 @@
       if (appState.mode !== 'Recording') return;
 
       // Stop timer if running
-      if (appState.timerRunning) {
+      if (appState.timers.running) {
         stopTimer();
       }
 
       // Pre-fill total bout time field with current elapsed time.
-      document.getElementById('compl-bout-time').value = Fmt.mmss(appState.boutTime100ms);
+      document.getElementById('compl-bout-time').value = Fmt.mmss(appState.timers.boutTime100ms);
 
       applyState('Completing');
       console.log('Entering Completing state');
@@ -2526,7 +2471,7 @@
       const blueInput = document.getElementById('compl-points-blue');
 
       // Total bout time is set via the time-mod modal; read from appState.
-      appState.complBoutTime100ms = appState.boutTime100ms;
+      appState.completion.boutTime100ms = appState.timers.boutTime100ms;
 
       const winner = winnerSelect.value === '-' ? 'none' : winnerSelect.value;
       const victoryType = victoryTypeSelect.value;
@@ -2545,12 +2490,12 @@
     function completeScoresheet(winner, victoryType, victoryDescription, classificationPoints) {
       if (appState.mode !== 'Completing' && appState.mode !== 'Re-released') return;
 
-      appState.completed = true;
-      appState.completedAt = new Date().toISOString();
-      appState.winner = winner;
-      appState.victoryType = victoryType;
-      appState.victoryDescription = victoryDescription;
-      appState.classificationPoints = classificationPoints;
+      appState.completion.done = true;
+      appState.completion.at = new Date().toISOString();
+      appState.completion.winner = winner;
+      appState.completion.victoryType = victoryType;
+      appState.completion.victoryDescription = victoryDescription;
+      appState.completion.classificationPoints = classificationPoints;
 
       recordEvent({
         eventType: 'ScoresheetCompleted',
@@ -2683,11 +2628,6 @@
     const scoreRedDisplay = document.getElementById('score-red');
     const scoreBlueDisplay = document.getElementById('score-blue');
 
-    /** Delegates to Projection.applyEventTypeSwap (kept for internal call sites). */
-    function applyEventTypeSwap(result, seq1, seq2, annotate = false) {
-      Projection.applyEventTypeSwap(result, seq1, seq2, annotate);
-    }
-
     // ── Projection cache ────────────────────────────────────────────────────
     // Keyed by a snapshot of the state that drives event projection so the
     // same computation is never run more than once per render cycle.
@@ -2698,10 +2638,10 @@
     function _getProjectionCacheKey() {
       return JSON.stringify({
         ev: appState.events,
-        buf: appState.correctionBuffer,
+        buf: appState.correction.buffer,
         swap: CorrectionSM.is('swap'),
-        swapOrigin: appState.swapOriginIndex,
-        cursor: appState.cursorIndex
+        swapOrigin: appState.correction.swapOriginIndex,
+        cursor: appState.correction.cursorIndex
       });
     }
 
@@ -2709,19 +2649,10 @@
     function _computeBoutEventProjection(annotate) {
       return Projection.compute(
         appState.events,
-        appState.correctionBuffer,
-        { inSwapMode: CorrectionSM.is('swap'), swapOriginIndex: appState.swapOriginIndex, cursorIndex: appState.cursorIndex },
+        appState.correction.buffer,
+        { inSwapMode: CorrectionSM.is('swap'), swapOriginIndex: appState.correction.swapOriginIndex, cursorIndex: appState.correction.cursorIndex },
         annotate
       );
-    }
-
-    /** Delegates to Projection.applyLiveSwapPreview, wiring appState into swapState. */
-    function _applyLiveSwapPreview(result, annotate) {
-      Projection.applyLiveSwapPreview(result, annotate, {
-        inSwapMode: CorrectionSM.is('swap'),
-        swapOriginIndex: appState.swapOriginIndex,
-        cursorIndex: appState.cursorIndex
-      });
     }
 
     /**
@@ -2800,18 +2731,18 @@
 
       // Determine the seq of the cursored event (for cursor ring rendering)
       let cursorSeq = null;
-      if (!CorrectionSM.is('idle') && appState.cursorIndex !== null) {
+      if (!CorrectionSM.is('idle') && appState.correction.cursorIndex !== null) {
         const cursorableEvents = effectiveBoutEvents.filter(isCursorableEvent);
-        const cursorEvent = cursorableEvents[appState.cursorIndex];
+        const cursorEvent = cursorableEvents[appState.correction.cursorIndex];
         if (cursorEvent) cursorSeq = cursorEvent.seq;
       }
 
       // Determine the seq of the swap origin event (for swap-mode visual)
       let swapOriginSeq = null;
-      if (CorrectionSM.is('swap') && appState.swapOriginIndex !== null &&
-          appState.cursorIndex !== appState.swapOriginIndex) {
+      if (CorrectionSM.is('swap') && appState.correction.swapOriginIndex !== null &&
+          appState.correction.cursorIndex !== appState.correction.swapOriginIndex) {
         const cursorableEvents = effectiveBoutEvents.filter(isCursorableEvent);
-        const swapOriginEvent = cursorableEvents[appState.swapOriginIndex];
+        const swapOriginEvent = cursorableEvents[appState.correction.swapOriginIndex];
         if (swapOriginEvent) swapOriginSeq = swapOriginEvent.seq;
       }
 
@@ -3087,7 +3018,7 @@
 
       // Space: abort period break if active, otherwise toggle timer (only in Recording mode)
       if (seq === ' ') {
-        if (appState.breakTimerRunning) return dispatch('T_Break_End');
+        if (appState.timers.breakRunning) return dispatch('T_Break_End');
         return dispatch('T_Toggle');
       }
       
@@ -3218,7 +3149,7 @@
       // Space: abort period break or toggle timer (only in Recording mode).
       // Works regardless of key buffer state; does not touch the buffer.
       if (key === ' ') {
-        if (appState.breakTimerRunning) {
+        if (appState.timers.breakRunning) {
           dispatch('T_Break_End');
           e.preventDefault();
         } else if (appState.mode === 'Recording') {
@@ -3329,10 +3260,10 @@
       const cursorableEvents = getCursorableEvents();
       if (cursorableEvents.length === 0) return;
       CorrectionSM.apply('cursor');
-      appState.cursorIndex = startAfterEnd ? cursorableEvents.length : cursorableEvents.length - 1;
+      appState.correction.cursorIndex = startAfterEnd ? cursorableEvents.length : cursorableEvents.length - 1;
       appState.keyBuffer = [];
       updateTimeline();
-      console.log('Entered correction mode, cursorIndex:', appState.cursorIndex);
+      console.log('Entered correction mode, cursorIndex:', appState.correction.cursorIndex);
     }
 
     /**
@@ -3340,25 +3271,25 @@
      * @param {boolean} confirm - true: write correction buffer to event log; false: discard
      */
     function exitCorrectionMode(confirm) {
-      if (confirm && appState.correctionBuffer.length > 0) {
+      if (confirm && appState.correction.buffer.length > 0) {
         // Collect seqs handled by timeModified so we skip redundant newEventType corrections
         const timeModifiedSeqs = new Set(
-          appState.correctionBuffer.filter(c => c.timeModified).map(c => c.refSeq)
+          appState.correction.buffer.filter(c => c.timeModified).map(c => c.refSeq)
         );
 
         // Write all pending corrections to the event log
-        appState.correctionBuffer.forEach(c => {
+        appState.correction.buffer.forEach(c => {
           if (c.deleted) {
-            recordEvent({ eventType: 'EventDeleted', boutTime100ms: appState.boutTime100ms, refSeq: c.refSeq });
+            recordEvent({ eventType: 'EventDeleted', boutTime100ms: appState.timers.boutTime100ms, refSeq: c.refSeq });
           } else if (c.newEventType && !timeModifiedSeqs.has(c.refSeq)) {
-            recordEvent({ eventType: 'EventModified', boutTime100ms: appState.boutTime100ms, refSeq: c.refSeq, newEventType: c.newEventType });
+            recordEvent({ eventType: 'EventModified', boutTime100ms: appState.timers.boutTime100ms, refSeq: c.refSeq, newEventType: c.newEventType });
           } else if (c.insertedEventType) {
             recordEvent({ eventType: 'EventInserted', boutTime100ms: c.boutTime100ms, refSeq: c.insertBefore, insertedEventType: c.insertedEventType });
           } else if (c.swapped) {
-            recordEvent({ eventType: 'EventSwapped', boutTime100ms: appState.boutTime100ms, refSeq1: c.refSeq1, refSeq2: c.refSeq2 });
+            recordEvent({ eventType: 'EventSwapped', boutTime100ms: appState.timers.boutTime100ms, refSeq1: c.refSeq1, refSeq2: c.refSeq2 });
           } else if (c.timeModified) {
             // Delete the original event
-            recordEvent({ eventType: 'EventDeleted', boutTime100ms: appState.boutTime100ms, refSeq: c.refSeq });
+            recordEvent({ eventType: 'EventDeleted', boutTime100ms: appState.timers.boutTime100ms, refSeq: c.refSeq });
             // Insert a new event at the correct chronological position
             recordEvent({
               eventType: 'EventInserted',
@@ -3369,12 +3300,12 @@
           }
         });
       }
-      appState.correctionBuffer = [];
+      appState.correction.buffer = [];
       if (CorrectionSM.is('swap')) setEventButtonsFrozen(false);
       CorrectionSM.apply('idle');
-      appState.swapOriginIndex = null;
-      appState.cursorIndex = null;
-      appState.timeModCorrectionEvent = null;
+      appState.correction.swapOriginIndex = null;
+      appState.correction.cursorIndex = null;
+      appState.correction.timeModEvent = null;
       appState.keyBuffer = [];
       hideContextMenu();
       updateTimeline();
@@ -3387,9 +3318,9 @@
     function moveCursor(direction) {
       const cursorableEvents = getCursorableEvents();
       if (cursorableEvents.length === 0) return;
-      const newIndex = (appState.cursorIndex ?? 0) + direction;
+      const newIndex = (appState.correction.cursorIndex ?? 0) + direction;
       if (newIndex < 0 || newIndex >= cursorableEvents.length) return; // clamp at bounds
-      appState.cursorIndex = newIndex;
+      appState.correction.cursorIndex = newIndex;
       appState.keyBuffer = [];
       updateTimeline();
       showContextMenuAtCursor();
@@ -3398,7 +3329,7 @@
     /** Apply a modification to the currently cursored event in the correction buffer. */
     function modifyCurrentEvent(modification) {
       const cursorableEvents = getCursorableEvents();
-      const event = cursorableEvents[appState.cursorIndex];
+      const event = cursorableEvents[appState.correction.cursorIndex];
       if (!event) return;
       // Pending-inserted and time-modified virtual events cannot be modified via this path
       if (isVirtualEvent(event)) return;
@@ -3417,8 +3348,8 @@
       if (!newEventType || newEventType === event.eventType) return; // no change
 
       // Replace any existing correction for this seq with the new one
-      appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
-      appState.correctionBuffer.push({ refSeq: event.seq, newEventType });
+      appState.correction.buffer = appState.correction.buffer.filter(c => c.refSeq !== event.seq);
+      appState.correction.buffer.push({ refSeq: event.seq, newEventType });
 
       updateTimeline();
       updateScores();
@@ -3428,21 +3359,21 @@
     /** Delete the currently cursored event (adds it to the correction buffer). */
     function deleteCurrentEvent() {
       const cursorableEvents = getCursorableEvents();
-      const event = cursorableEvents[appState.cursorIndex];
+      const event = cursorableEvents[appState.correction.cursorIndex];
       if (!event) return;
 
       // If cursor is on a pending-inserted event (seq starts with 'pi-'), cancel that pending insertion
       if (typeof event.seq === 'string' && event.seq.startsWith('pi-')) {
         const insertBeforeStr = event.seq.substring('pi-'.length);
-        appState.correctionBuffer = appState.correctionBuffer.filter(
+        appState.correction.buffer = appState.correction.buffer.filter(
           c => !(c.insertedEventType && String(c.insertBefore) === insertBeforeStr)
         );
         // Clamp cursor after removing the pi- event
         const newCursorableEvents = getCursorableEvents();
         if (newCursorableEvents.length === 0) {
-          appState.cursorIndex = null;
-        } else if (appState.cursorIndex !== null && appState.cursorIndex >= newCursorableEvents.length) {
-          appState.cursorIndex = newCursorableEvents.length - 1;
+          appState.correction.cursorIndex = null;
+        } else if (appState.correction.cursorIndex !== null && appState.correction.cursorIndex >= newCursorableEvents.length) {
+          appState.correction.cursorIndex = newCursorableEvents.length - 1;
         }
         updateTimeline();
         updateScores();
@@ -3454,18 +3385,18 @@
       // If cursor is on a time-modified virtual event (seq starts with 'tm-'), cancel that time modification
       if (typeof event.seq === 'string' && event.seq.startsWith('tm-')) {
         const origSeq = Number(event.seq.substring('tm-'.length));
-        appState.correctionBuffer = appState.correctionBuffer.filter(
+        appState.correction.buffer = appState.correction.buffer.filter(
           c => !(c.timeModified && c.refSeq === origSeq)
         );
         // Move cursor back to the original event (now restored)
         const newCursorableEvents = getCursorableEvents();
         const origIdx = newCursorableEvents.findIndex(e => e.seq === origSeq);
         if (origIdx >= 0) {
-          appState.cursorIndex = origIdx;
+          appState.correction.cursorIndex = origIdx;
         } else if (newCursorableEvents.length === 0) {
-          appState.cursorIndex = null;
-        } else if (appState.cursorIndex !== null && appState.cursorIndex >= newCursorableEvents.length) {
-          appState.cursorIndex = newCursorableEvents.length - 1;
+          appState.correction.cursorIndex = null;
+        } else if (appState.correction.cursorIndex !== null && appState.correction.cursorIndex >= newCursorableEvents.length) {
+          appState.correction.cursorIndex = newCursorableEvents.length - 1;
         }
         updateTimeline();
         updateScores();
@@ -3474,15 +3405,15 @@
         return;
       }
 
-      appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
-      appState.correctionBuffer.push({ refSeq: event.seq, deleted: true });
+      appState.correction.buffer = appState.correction.buffer.filter(c => c.refSeq !== event.seq);
+      appState.correction.buffer.push({ refSeq: event.seq, deleted: true });
 
       // Adjust cursor index; if no more cursorsable events remain, clear it (stay in correction mode)
       const newCursorableEvents = getCursorableEvents();
       if (newCursorableEvents.length === 0) {
-        appState.cursorIndex = null;
-      } else if (appState.cursorIndex >= newCursorableEvents.length) {
-        appState.cursorIndex = newCursorableEvents.length - 1;
+        appState.correction.cursorIndex = null;
+      } else if (appState.correction.cursorIndex >= newCursorableEvents.length) {
+        appState.correction.cursorIndex = newCursorableEvents.length - 1;
       }
 
       updateTimeline();
@@ -3497,16 +3428,16 @@
      * already at the leftmost position (nothing to the left to delete).
      */
     function performBackspaceDelete() {
-      const cursorBefore = appState.cursorIndex;
+      const cursorBefore = appState.correction.cursorIndex;
       moveCursor(-1);
-      if (appState.cursorIndex === cursorBefore) return; // cursor didn't move – nothing to delete
+      if (appState.correction.cursorIndex === cursorBefore) return; // cursor didn't move – nothing to delete
 
       const cursorableEvents = getCursorableEvents();
-      const event = cursorableEvents[appState.cursorIndex];
+      const event = cursorableEvents[appState.correction.cursorIndex];
       if (!event) return;
 
-      appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
-      appState.correctionBuffer.push({ refSeq: event.seq, deleted: true });
+      appState.correction.buffer = appState.correction.buffer.filter(c => c.refSeq !== event.seq);
+      appState.correction.buffer.push({ refSeq: event.seq, deleted: true });
 
       // Intentionally do NOT adjust cursorIndex here so successive Backspace presses
       // keep stepping left through the remaining events.
@@ -3525,7 +3456,7 @@
 
       // Space: abort period break or toggle timer (same as Normal mode)
       if (key === ' ') {
-        if (appState.breakTimerRunning) {
+        if (appState.timers.breakRunning) {
           dispatch('T_Break_End');
         } else if (appState.mode === 'Recording') {
           dispatch('T_Toggle');
@@ -3575,18 +3506,18 @@
 
       // '#' → enter swap mode; '##' → enter insert mode (second '#' handled in swap mode)
       if (key === '#') {
-        if (appState.cursorIndex !== null) {
+        if (appState.correction.cursorIndex !== null) {
           const cursorableEvts = getCursorableEvents();
-          const cursorEvt = cursorableEvts[appState.cursorIndex];
+          const cursorEvt = cursorableEvts[appState.correction.cursorIndex];
           // Cannot enter swap mode from a virtual pending event (pi- or tm-)
           if (cursorEvt && isVirtualEvent(cursorEvt)) return;
           CorrectionSM.apply('swap');
-          appState.swapOriginIndex = appState.cursorIndex;
+          appState.correction.swapOriginIndex = appState.correction.cursorIndex;
           appState.keyBuffer = [];
           setEventButtonsFrozen(true);
           updateTimeline();
           showContextMenuAtCursor();
-          console.log('Entered swap mode at index:', appState.cursorIndex);
+          console.log('Entered swap mode at index:', appState.correction.cursorIndex);
         }
         return;
       }
@@ -3615,9 +3546,9 @@
       if (upperKey === 'P') { modifyCurrentEvent({ type: 'passivity' }); return; }
 
       // T: open time-modification modal for the event at cursor position
-      if (upperKey === 'T' && appState.cursorIndex !== null) {
+      if (upperKey === 'T' && appState.correction.cursorIndex !== null) {
         const cursorableEvents = getCursorableEvents();
-        let event = cursorableEvents[appState.cursorIndex];
+        let event = cursorableEvents[appState.correction.cursorIndex];
         if (event) {
           // If cursor is on a time-modified virtual event (tm- seq), normalize to the original
           // seq so the confirmation logic correctly updates the existing correction.
@@ -3625,7 +3556,7 @@
             const origSeq = Number(event.seq.substring('tm-'.length));
             event = { seq: origSeq, boutTime100ms: event.boutTime100ms, eventType: event.eventType };
           }
-          appState.timeModCorrectionEvent = event;
+          appState.correction.timeModEvent = event;
           openTimeModModal('correctionBoutTime');
         }
         return;
@@ -3640,8 +3571,8 @@
     function handleSwapModeKey(key) {
       if (key === 'Escape') {
         // Cancel swap mode, return cursor to origin
-        appState.cursorIndex = appState.swapOriginIndex;
-        appState.swapOriginIndex = null;
+        appState.correction.cursorIndex = appState.correction.swapOriginIndex;
+        appState.correction.swapOriginIndex = null;
         CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
         setEventButtonsFrozen(false);
@@ -3655,16 +3586,16 @@
       if (key === 'Enter') {
         // Confirm swap if cursor moved from origin
         const cursorableEvents = getCursorableEvents();
-        const originEvent = cursorableEvents[appState.swapOriginIndex];
-        const targetEvent = cursorableEvents[appState.cursorIndex];
-        if (originEvent && targetEvent && appState.cursorIndex !== appState.swapOriginIndex) {
+        const originEvent = cursorableEvents[appState.correction.swapOriginIndex];
+        const targetEvent = cursorableEvents[appState.correction.cursorIndex];
+        if (originEvent && targetEvent && appState.correction.cursorIndex !== appState.correction.swapOriginIndex) {
           // Do not swap if either event is a virtual pending event (pi- or tm-)
           if (!isVirtualEvent(originEvent) && !isVirtualEvent(targetEvent)) {
-            appState.correctionBuffer.push({ swapped: true, refSeq1: originEvent.seq, refSeq2: targetEvent.seq });
+            appState.correction.buffer.push({ swapped: true, refSeq1: originEvent.seq, refSeq2: targetEvent.seq });
             updateScores();
           }
         }
-        appState.swapOriginIndex = null;
+        appState.correction.swapOriginIndex = null;
         CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
         setEventButtonsFrozen(false);
@@ -3676,7 +3607,7 @@
 
       // '#' in swap mode → exit swap mode and enter insert mode (so ## → insert mode works)
       if (key === '#') {
-        appState.swapOriginIndex = null;
+        appState.correction.swapOriginIndex = null;
         CorrectionSM.apply('insert');
         appState.keyBuffer = [];
         setEventButtonsFrozen(false);
@@ -3732,7 +3663,7 @@
       if (insertedEventType) {
         // Determine the bout time: use the cursor event's bout time
         const cursorableEvents = getCursorableEvents();
-        const cursorEvent = cursorableEvents[appState.cursorIndex];
+        const cursorEvent = cursorableEvents[appState.correction.cursorIndex];
         if (!cursorEvent) {
           CorrectionSM.apply('cursor');
           appState.keyBuffer = [];
@@ -3748,7 +3679,7 @@
           showContextMenuAtCursor();
           return;
         }
-        appState.correctionBuffer.push({
+        appState.correction.buffer.push({
           insertBefore: cursorEvent.seq,
           boutTime100ms: cursorEvent.boutTime100ms,
           insertedEventType
@@ -3889,9 +3820,9 @@
       // Sync insert-mode state so cancel item and disabled items are correct
       updateContextMenuInsertMode(CorrectionSM.is('insert'));
       // When cursor is on a virtual pending event (pi- or tm-), disable insert and swap actions
-      if (CorrectionSM.is('cursor') && appState.cursorIndex !== null) {
+      if (CorrectionSM.is('cursor') && appState.correction.cursorIndex !== null) {
         const cursorableEvts = getCursorableEvents();
-        const cursorEvt = cursorableEvts[appState.cursorIndex];
+        const cursorEvt = cursorableEvts[appState.correction.cursorIndex];
         if (cursorEvt && isVirtualEvent(cursorEvt)) {
           document.getElementById('ctx-insert').setAttribute('data-noop', '');
           document.getElementById('ctx-swap').setAttribute('data-noop', '');
@@ -3923,7 +3854,7 @@
       document.getElementById('ctx-insert').addEventListener('click', () => {
         if (CorrectionSM.is('insert')) return; // already in insert mode
         const cursorableEvts = getCursorableEvents();
-        const cursorEvt = appState.cursorIndex !== null ? cursorableEvts[appState.cursorIndex] : null;
+        const cursorEvt = appState.correction.cursorIndex !== null ? cursorableEvts[appState.correction.cursorIndex] : null;
         // Cannot enter insert mode from a virtual pending event (pi- or tm-)
         if (cursorEvt && isVirtualEvent(cursorEvt)) return;
         CorrectionSM.apply('insert');
@@ -3935,8 +3866,8 @@
       // ctx-insert-cancel: cancel event insert mode or swap mode
       document.getElementById('ctx-insert-cancel').addEventListener('click', () => {
         if (CorrectionSM.is('swap')) {
-          appState.cursorIndex = appState.swapOriginIndex;
-          appState.swapOriginIndex = null;
+          appState.correction.cursorIndex = appState.correction.swapOriginIndex;
+          appState.correction.swapOriginIndex = null;
           CorrectionSM.apply('cursor');
           setEventButtonsFrozen(false);
         } else {
@@ -3951,13 +3882,13 @@
       // Guard against swap state is intentional: data-noop only disables visually (no pointer-events:none),
       // so a click could still fire while in swap mode. The state guard ensures idempotency.
       document.getElementById('ctx-swap').addEventListener('click', () => {
-        if (CorrectionSM.is('swap') || appState.cursorIndex === null) return;
+        if (CorrectionSM.is('swap') || appState.correction.cursorIndex === null) return;
         const cursorableEvts = getCursorableEvents();
-        const cursorEvt = cursorableEvts[appState.cursorIndex];
+        const cursorEvt = cursorableEvts[appState.correction.cursorIndex];
         // Cannot enter swap mode from a virtual pending event (pi- or tm-)
         if (cursorEvt && isVirtualEvent(cursorEvt)) return;
         CorrectionSM.apply('swap');
-        appState.swapOriginIndex = appState.cursorIndex;
+        appState.correction.swapOriginIndex = appState.correction.cursorIndex;
         appState.keyBuffer = [];
         setEventButtonsFrozen(true);
         updateTimeline();
@@ -3966,9 +3897,9 @@
 
       // ctx-time: open time-modification modal for the event at cursor position (same as T key)
       document.getElementById('ctx-time').addEventListener('click', () => {
-        if (appState.cursorIndex === null) return;
+        if (appState.correction.cursorIndex === null) return;
         const cursorableEvents = getCursorableEvents();
-        let event = cursorableEvents[appState.cursorIndex];
+        let event = cursorableEvents[appState.correction.cursorIndex];
         if (event) {
           // If cursor is on a time-modified virtual event (tm- seq), normalize to the original
           // seq so the confirmation logic correctly updates the existing correction.
@@ -3976,7 +3907,7 @@
             const origSeq = Number(event.seq.substring('tm-'.length));
             event = { seq: origSeq, boutTime100ms: event.boutTime100ms, eventType: event.eventType };
           }
-          appState.timeModCorrectionEvent = event;
+          appState.correction.timeModEvent = event;
           openTimeModModal('correctionBoutTime');
         }
       });
@@ -4000,7 +3931,7 @@
         CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
       }
-      appState.cursorIndex = idx;
+      appState.correction.cursorIndex = idx;
       updateTimeline();
       console.log('Cursor set via click, cursorIndex:', idx);
     }
@@ -4030,17 +3961,17 @@
         if (clickedIdx === -1) return;
         // Perform swap if a different entry was clicked.
         // Null checks are defensive: swapOriginIndex could be out-of-bounds if events changed.
-        const originEvent = cursorableEvents[appState.swapOriginIndex];
+        const originEvent = cursorableEvents[appState.correction.swapOriginIndex];
         const targetEvent = cursorableEvents[clickedIdx];
-        if (originEvent && targetEvent && clickedIdx !== appState.swapOriginIndex) {
+        if (originEvent && targetEvent && clickedIdx !== appState.correction.swapOriginIndex) {
           // Do not swap if either event is a virtual pending event (pi- or tm-)
           if (!isVirtualEvent(originEvent) && !isVirtualEvent(targetEvent)) {
-            appState.correctionBuffer.push({ swapped: true, refSeq1: originEvent.seq, refSeq2: targetEvent.seq });
+            appState.correction.buffer.push({ swapped: true, refSeq1: originEvent.seq, refSeq2: targetEvent.seq });
             updateScores();
           }
         }
-        appState.cursorIndex = clickedIdx;
-        appState.swapOriginIndex = null;
+        appState.correction.cursorIndex = clickedIdx;
+        appState.correction.swapOriginIndex = null;
         CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
         setEventButtonsFrozen(false);
@@ -4054,15 +3985,15 @@
      * Used when an event button is clicked while in correction mode.
      */
     function applyButtonEventType(targetType) {
-      if (appState.cursorIndex === null) return;
+      if (appState.correction.cursorIndex === null) return;
       const cursorableEvents = getCursorableEvents();
-      const event = cursorableEvents[appState.cursorIndex];
+      const event = cursorableEvents[appState.correction.cursorIndex];
       if (!event) return;
       // Pending-inserted and time-modified virtual events cannot be modified via this path
       if (isVirtualEvent(event)) return;
       if (targetType === event.eventType) return; // no change
-      appState.correctionBuffer = appState.correctionBuffer.filter(c => c.refSeq !== event.seq);
-      appState.correctionBuffer.push({ refSeq: event.seq, newEventType: targetType });
+      appState.correction.buffer = appState.correction.buffer.filter(c => c.refSeq !== event.seq);
+      appState.correction.buffer.push({ refSeq: event.seq, newEventType: targetType });
       updateTimeline();
       updateScores();
       console.log('Event modified via button click:', event.seq, '->', targetType);
@@ -4074,9 +4005,9 @@
      * Exits insert mode after the insertion.
      */
     function applyButtonEventTypeAsInsert(insertedEventType) {
-      if (appState.cursorIndex === null) return;
+      if (appState.correction.cursorIndex === null) return;
       const cursorableEvents = getCursorableEvents();
-      const cursorEvent = cursorableEvents[appState.cursorIndex];
+      const cursorEvent = cursorableEvents[appState.correction.cursorIndex];
       if (!cursorEvent) {
         CorrectionSM.apply('cursor');
         appState.keyBuffer = [];
@@ -4092,7 +4023,7 @@
         showContextMenuAtCursor();
         return;
       }
-      appState.correctionBuffer.push({
+      appState.correction.buffer.push({
         insertBefore: cursorEvent.seq,
         boutTime100ms: cursorEvent.boutTime100ms,
         insertedEventType
@@ -4383,13 +4314,13 @@
         redInfo: document.getElementById('info-red')?.textContent || 'Rot',
         blueInfo: document.getElementById('info-blue')?.textContent || 'Blau',
         events: appState.events,
-        completed: appState.completed,
-        winner: appState.winner,
-        victoryType: appState.victoryType,
-        victoryDescription: appState.victoryDescription,
-        classificationPoints: appState.classificationPoints,
+        completed: appState.completion.done,
+        winner: appState.completion.winner,
+        victoryType: appState.completion.victoryType,
+        victoryDescription: appState.completion.victoryDescription,
+        classificationPoints: appState.completion.classificationPoints,
         createdAt: appState.createdAt,
-        completedAt: appState.completedAt,
+        completedAt: appState.completion.at,
         ruleset,
       });
     }
@@ -4461,7 +4392,7 @@
         updateActivityTimerDisplay(key);
       },
       triggerPeriodBreak: (breakSeconds) => {
-        recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.boutTime100ms });
+        recordEvent({ eventType: 'PeriodEnd', boutTime100ms: appState.timers.boutTime100ms });
         const ruleset = Ruleset.load();
         appState.currentPeriodIndex++;
         const seconds = breakSeconds !== undefined ? breakSeconds : ruleset.periodBreakTimeInSeconds;
