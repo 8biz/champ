@@ -2297,6 +2297,47 @@
       return event;
     }
 
+    /**
+     * Central dispatch for normal bout-event recording commands.
+     *
+     * Accepts a normalised event type (e.g. '1R', 'PR', '0R1B') and records
+     * the corresponding event against the current bout time.  Passivity
+     * commands may be promoted to activity-time events by the active ruleset.
+     *
+     * Returns true when the command was handled, false when the current mode
+     * is neither Recording nor Completing.
+     *
+     * @param {string} eventType  Normalised event type.
+     * @returns {boolean}
+     */
+    function dispatch(eventType) {
+      if (appState.mode !== 'Recording' && appState.mode !== 'Completing') return false;
+
+      // Passivity: may become activity time per ruleset
+      if (eventType === 'PR') {
+        if (shouldUseActivityTime('red')) {
+          const event = recordEvent({ eventType: 'AR', boutTime100ms: appState.boutTime100ms });
+          startActivityTimer('AR', event.seq);
+        } else {
+          recordEvent({ eventType: 'PR', boutTime100ms: appState.boutTime100ms });
+        }
+        return true;
+      }
+      if (eventType === 'PB') {
+        if (shouldUseActivityTime('blue')) {
+          const event = recordEvent({ eventType: 'AB', boutTime100ms: appState.boutTime100ms });
+          startActivityTimer('AB', event.seq);
+        } else {
+          recordEvent({ eventType: 'PB', boutTime100ms: appState.boutTime100ms });
+        }
+        return true;
+      }
+
+      // All other bout events (points, cautions)
+      recordEvent({ eventType, boutTime100ms: appState.boutTime100ms });
+      return true;
+    }
+
     // ===================================================================
     // STATE MANAGEMENT
     // ===================================================================
@@ -2983,52 +3024,28 @@
       
       // Technical points: R1, 1R, R2, 2R, R4, 4R, R5, 5R, B1, 1B, B2, 2B, B4, 4B, B5, 5B
       if (seq.match(/^[RB][1245]$/)) {
-        const points = seq[1];
-        const side = seq[0];
-        recordEvent({ eventType: `${points}${side}`, boutTime100ms: appState.boutTime100ms });
-        return true;
+        return dispatch(`${seq[1]}${seq[0]}`);
       }
       if (seq.match(/^[1245][RB]$/)) {
-        const points = seq[0];
-        const side = seq[1];
-        recordEvent({ eventType: `${points}${side}`, boutTime100ms: appState.boutTime100ms });
-        return true;
+        return dispatch(seq);
       }
-      
-      // Passivity: RP, PR, BP, PB — may become activity time (AR/AB) per ruleset
-      if (seq === 'RP' || seq === 'PR') {
-        if (shouldUseActivityTime('red')) {
-          const event = recordEvent({ eventType: 'AR', boutTime100ms: appState.boutTime100ms });
-          startActivityTimer('AR', event.seq);
-        } else {
-          recordEvent({ eventType: 'PR', boutTime100ms: appState.boutTime100ms });
-        }
-        return true;
-      }
-      if (seq === 'BP' || seq === 'PB') {
-        if (shouldUseActivityTime('blue')) {
-          const event = recordEvent({ eventType: 'AB', boutTime100ms: appState.boutTime100ms });
-          startActivityTimer('AB', event.seq);
-        } else {
-          recordEvent({ eventType: 'PB', boutTime100ms: appState.boutTime100ms });
-        }
-        return true;
-      }
-      
+
+      // Passivity: RP, PR, BP, PB — routed through dispatch for ruleset resolution
+      if (seq === 'RP' || seq === 'PR') return dispatch('PR');
+      if (seq === 'BP' || seq === 'PB') return dispatch('PB');
+
       // Cautions: R01, 0R1, R02, 0R2, B01, 0B1, B02, 0B2
       if (seq.match(/^[RB]0[12]$/)) {
         const cautionSide = seq[0];
         const points = seq[2];
         const pointSide = cautionSide === 'R' ? 'B' : 'R';
-        recordEvent({ eventType: `0${cautionSide}${points}${pointSide}`, boutTime100ms: appState.boutTime100ms });
-        return true;
+        return dispatch(`0${cautionSide}${points}${pointSide}`);
       }
       if (seq.match(/^0[RB][12]$/)) {
         const cautionSide = seq[1];
         const points = seq[2];
         const pointSide = cautionSide === 'R' ? 'B' : 'R';
-        recordEvent({ eventType: `0${cautionSide}${points}${pointSide}`, boutTime100ms: appState.boutTime100ms });
-        return true;
+        return dispatch(`0${cautionSide}${points}${pointSide}`);
       }
 
       // Injury time: R, / ,R → T_IR; B, / ,B → T_IB
@@ -4027,32 +4044,33 @@
 
         document.querySelectorAll(`#${containerId} .event-btn`).forEach(btn => {
           const label = btn.textContent.trim();
-          let keys;
           let eventType;
 
           // Caution button: 0R1, 0R2, 0B1, 0B2 (short form without trailing opponent letter)
           const cautionMatch = label.match(new RegExp(`^0${color}([12])$`));
           if (cautionMatch) {
-            keys = [color, '0', cautionMatch[1]];
             // Full internal event type includes the opponent letter: 0R1B, 0R2B, 0B1R, 0B2R
             eventType = `0${color}${cautionMatch[1]}${opponent}`;
           } else {
             // Regular point / passivity button: 1R, PR, 4B …
             const regularMatch = label.match(new RegExp(`^([0-9P]+)${color}$`));
             if (regularMatch) {
-              keys = [color, regularMatch[1]];
               eventType = label; // label is already the event type
             }
           }
 
-          if (keys) {
+          if (eventType) {
             btn.addEventListener('click', () => {
               if (CorrectionSM.is('insert')) {
                 applyButtonEventTypeAsInsert(eventType);
               } else if (CorrectionSM.is('cursor')) {
                 applyButtonEventType(eventType);
-              } else {
-                simulateKeySequence(keys);
+              } else if (dispatch(eventType)) {
+                // Clear any partial key buffer and refresh the next-event indicator,
+                // mirroring the same cleanup the keyboard handler performs after a
+                // completed sequence.
+                appState.keyBuffer = [];
+                updateNextEventDisplay();
               }
               btn.blur();
             });
@@ -4379,7 +4397,8 @@
         appState.currentPeriodIndex++;
         const seconds = breakSeconds !== undefined ? breakSeconds : ruleset.periodBreakTimeInSeconds;
         startPeriodBreak(seconds);
-      }
+      },
+      dispatch
     };
 
     // ===================================================================
