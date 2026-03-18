@@ -1992,55 +1992,113 @@
       result[idx2] = { ...result[idx2], eventType: type1, ...(annotate ? { originalEventType: type2 } : {}) };
     }
 
+    // ── Projection cache ────────────────────────────────────────────────────
+    // Keyed by a snapshot of the state that drives event projection so the
+    // same computation is never run more than once per render cycle.
+    // JSON.stringify is used for correctness; bout event logs are small
+    // (typically < 100 entries) so the serialisation cost is negligible.
+    let _projectionCache = null;
+
+    function _getProjectionCacheKey() {
+      return JSON.stringify({
+        ev: appState.events,
+        buf: appState.correctionBuffer,
+        swap: appState.inSwapMode,
+        swapOrigin: appState.swapOriginIndex,
+        cursor: appState.cursorIndex
+      });
+    }
+
     /**
-     * Returns the effective list of bout events, applying committed
-     * EventModified / EventDeleted / EventInserted corrections from appState.events and
-     * any pending corrections from appState.correctionBuffer.
+     * Unified bout-event projection engine.
+     *
+     * When annotate=false (effective mode) returns clean effective events:
+     *   - pending-deleted events are removed
+     *   - pending-modified types are applied silently
+     *   - pending-inserted / time-modified events appear as plain entries
+     *
+     * When annotate=true (rendering mode) keeps pending-deleted events and
+     * annotates all pending corrections for the timeline display:
+     *   - pending-deleted:       { ...event, pendingDeleted: true [, pendingTimeModified: true] }
+     *   - pending-modified:      { ...event, eventType: newType, originalEventType: currentType }
+     *   - pending-inserted (pi-): { ..., isPendingInserted: true }
+     *   - pending time-mod (tm-): { ..., isPendingInserted: true, isNewTimeModified: true }
      */
-    function getEffectiveBoutEvents() {
+    function _computeBoutEventProjection(annotate) {
       const rawBoutEvents = appState.events.filter(isRawBoutEvent);
 
-      const deletedSeqs = new Set();
-      const modifiedTypes = new Map();
-
+      // ── Build committed state maps ────────────────────────────────────────
+      const committedDeletedSeqs = new Set();
+      const committedModifiedTypes = new Map();
       appState.events.forEach(e => {
         if (e.eventType === 'EventModified' && e.refSeq !== undefined && e.newEventType) {
-          modifiedTypes.set(e.refSeq, e.newEventType);
+          committedModifiedTypes.set(e.refSeq, e.newEventType);
         }
         if (e.eventType === 'EventDeleted' && e.refSeq !== undefined) {
-          deletedSeqs.add(e.refSeq);
+          committedDeletedSeqs.add(e.refSeq);
         }
       });
 
+      // ── Build pending state maps ──────────────────────────────────────────
+      const pendingDeletedSeqs = new Set();
+      const pendingModifiedTypes = new Map();
+      const pendingTimeMods = annotate ? new Map() : null;
       appState.correctionBuffer.forEach(c => {
         if (c.deleted) {
-          deletedSeqs.add(c.refSeq);
+          pendingDeletedSeqs.add(c.refSeq);
         } else if (c.newEventType) {
-          modifiedTypes.set(c.refSeq, c.newEventType);
+          pendingModifiedTypes.set(c.refSeq, c.newEventType);
         } else if (c.timeModified) {
-          // Time modification: treat original event as deleted; new virtual event added below
-          deletedSeqs.add(c.refSeq);
+          pendingDeletedSeqs.add(c.refSeq);
+          if (annotate) pendingTimeMods.set(c.refSeq, c);
         }
       });
 
+      // ── Base result from raw events ───────────────────────────────────────
+      // In effective mode, pre-filter pending-deleted events so the map never
+      // needs to return null for them.
       const result = rawBoutEvents
-        .filter(e => !deletedSeqs.has(e.seq))
+        .filter(e => !committedDeletedSeqs.has(e.seq))
+        .filter(e => annotate || !pendingDeletedSeqs.has(e.seq))
         .map(e => {
-          const effectiveType = modifiedTypes.get(e.seq);
-          return effectiveType ? { ...e, eventType: effectiveType } : e;
+          const committedType = committedModifiedTypes.get(e.seq);
+          const currentType = committedType || e.eventType;
+          if (annotate) {
+            if (pendingDeletedSeqs.has(e.seq)) {
+              const isTimeMod = pendingTimeMods.has(e.seq);
+              return { ...e, eventType: currentType, pendingDeleted: true, ...(isTimeMod ? { pendingTimeModified: true } : {}) };
+            }
+            if (pendingModifiedTypes.has(e.seq)) {
+              return { ...e, eventType: pendingModifiedTypes.get(e.seq), originalEventType: currentType };
+            }
+            return { ...e, eventType: currentType };
+          } else {
+            const effectiveType = pendingModifiedTypes.get(e.seq) || currentType;
+            return { ...e, eventType: effectiveType };
+          }
         });
 
-      // Apply committed EventInserted events: insert virtual events at the right positions
+      // ── Apply committed EventInserted events ──────────────────────────────
       appState.events
         .filter(e => e.eventType === 'EventInserted')
         .forEach(ins => {
-          if (deletedSeqs.has(ins.seq)) return; // skip if itself deleted
-          const effectiveType = modifiedTypes.get(ins.seq) || ins.insertedEventType;
-          const insertedEvent = {
-            seq: ins.seq,
-            boutTime100ms: ins.boutTime100ms,
-            eventType: effectiveType
-          };
+          if (committedDeletedSeqs.has(ins.seq)) return;
+          const committedType = committedModifiedTypes.get(ins.seq);
+          const currentType = committedType || ins.insertedEventType;
+          let insertedEvent;
+          if (annotate) {
+            if (pendingDeletedSeqs.has(ins.seq)) {
+              insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType, pendingDeleted: true };
+            } else if (pendingModifiedTypes.has(ins.seq)) {
+              insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: pendingModifiedTypes.get(ins.seq), originalEventType: currentType };
+            } else {
+              insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType };
+            }
+          } else {
+            if (pendingDeletedSeqs.has(ins.seq)) return;
+            const effectiveType = pendingModifiedTypes.get(ins.seq) || currentType;
+            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: effectiveType };
+          }
           const idx = result.findIndex(e => e.seq === ins.refSeq);
           if (idx >= 0) {
             result.splice(idx, 0, insertedEvent);
@@ -2049,17 +2107,24 @@
           }
         });
 
-      // Apply committed EventSwapped events (exchange event types of the two referenced events)
+      // ── Apply committed EventSwapped events ───────────────────────────────
       appState.events
         .filter(e => e.eventType === 'EventSwapped')
         .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2));
 
-      // Apply pending swaps from correctionBuffer
+      // ── Apply pending swaps (annotate in rendering mode) ──────────────────
       appState.correctionBuffer
         .filter(c => c.swapped)
-        .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2));
+        .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2, annotate));
 
-      // Apply pending insertions from correctionBuffer so cursor can point to them.
+      // ── Apply live swap preview ───────────────────────────────────────────
+      // Rendering mode: preview before pending insertions (matches original getBoutEventsForTimelineRendering order).
+      // Effective mode: preview after pending insertions (matches original getEffectiveBoutEvents order).
+      if (annotate) {
+        _applyLiveSwapPreview(result, annotate);
+      }
+
+      // ── Apply pending insertions from correctionBuffer ────────────────────
       // Pending-inserted virtual events use a synthetic seq with the prefix 'pi-'
       // (short for "pending insert") followed by the insertBefore seq value.
       appState.correctionBuffer
@@ -2068,7 +2133,8 @@
           const insertedEvent = {
             seq: `pi-${ins.insertBefore}`,
             boutTime100ms: ins.boutTime100ms,
-            eventType: ins.insertedEventType
+            eventType: ins.insertedEventType,
+            ...(annotate ? { isPendingInserted: true } : {})
           };
           const idx = result.findIndex(e => e.seq === ins.insertBefore);
           if (idx >= 0) {
@@ -2078,26 +2144,21 @@
           }
         });
 
-      // Apply live swap preview (during swap mode navigation, before Enter is pressed)
-      if (appState.inSwapMode && appState.swapOriginIndex !== null &&
-          appState.cursorIndex !== null && appState.cursorIndex !== appState.swapOriginIndex) {
-        const cursorableResult = result.filter(e => e.eventType !== 'PeriodEnd');
-        const originEvent = cursorableResult[appState.swapOriginIndex];
-        const targetEvent = cursorableResult[appState.cursorIndex];
-        if (originEvent && targetEvent) {
-          applyEventTypeSwap(result, originEvent.seq, targetEvent.seq);
-        }
+      // Effective mode: apply live swap preview after pending insertions.
+      if (!annotate) {
+        _applyLiveSwapPreview(result, false);
       }
 
-      // Apply pending time modifications from correctionBuffer:
-      // insert a new virtual event at the correct chronological position.
+      // ── Apply pending time modifications ──────────────────────────────────
+      // Insert a new virtual event at the correct chronological position.
       appState.correctionBuffer
         .filter(c => c.timeModified)
         .forEach(c => {
           const newEvent = {
             seq: `tm-${c.refSeq}`,
             boutTime100ms: c.newBoutTime100ms,
-            eventType: c.eventType
+            eventType: c.eventType,
+            ...(annotate ? { isPendingInserted: true, isNewTimeModified: true } : {})
           };
           const insertIdx = result.findIndex(e => e.boutTime100ms > c.newBoutTime100ms);
           if (insertIdx >= 0) {
@@ -2108,6 +2169,51 @@
         });
 
       return result;
+    }
+
+    /** Applies the live swap preview to result in-place (during swap mode navigation). */
+    function _applyLiveSwapPreview(result, annotate) {
+      if (appState.inSwapMode && appState.swapOriginIndex !== null &&
+          appState.cursorIndex !== null && appState.cursorIndex !== appState.swapOriginIndex) {
+        const cursorableResult = result.filter(e => e.eventType !== 'PeriodEnd');
+        const originEvent = cursorableResult[appState.swapOriginIndex];
+        const targetEvent = cursorableResult[appState.cursorIndex];
+        if (originEvent && targetEvent) {
+          applyEventTypeSwap(result, originEvent.seq, targetEvent.seq, annotate);
+        }
+      }
+    }
+
+    /**
+     * Returns the cached projection for the given mode, computing it on first
+     * access per render cycle.  A key mismatch means state has changed, so both
+     * cached projections are discarded and recomputed lazily on next access.
+     */
+    function _getOrComputeProjection(annotate) {
+      const key = _getProjectionCacheKey();
+      // When the key changes, reset both projections so neither is stale.
+      if (!_projectionCache || _projectionCache.key !== key) {
+        _projectionCache = { key, effective: null, annotated: null };
+      }
+      if (annotate) {
+        if (!_projectionCache.annotated) {
+          _projectionCache.annotated = _computeBoutEventProjection(true);
+        }
+        return _projectionCache.annotated;
+      } else {
+        if (!_projectionCache.effective) {
+          _projectionCache.effective = _computeBoutEventProjection(false);
+        }
+        return _projectionCache.effective;
+      }
+    }
+
+    /**
+     * Returns the effective list of bout events, applying all committed and
+     * pending corrections.  Result is memoised for the current render cycle.
+     */
+    function getEffectiveBoutEvents() {
+      return _getOrComputeProjection(false);
     }
 
     /** Predicate for filtering cursorsable events: excludes PeriodEnd entries. */
@@ -2131,132 +2237,10 @@
      *   – pending-deleted:  { ...event, pendingDeleted: true }
      *   – pending-modified: { ...event, eventType: newType, originalEventType: currentType }
      *   – pending-inserted: { ..., isPendingInserted: true }
+     * Result is memoised for the current render cycle.
      */
     function getBoutEventsForTimelineRendering() {
-      const rawBoutEvents = appState.events.filter(isRawBoutEvent);
-
-      const committedDeletedSeqs = new Set();
-      const committedModifiedTypes = new Map();
-      appState.events.forEach(e => {
-        if (e.eventType === 'EventModified' && e.refSeq !== undefined && e.newEventType) {
-          committedModifiedTypes.set(e.refSeq, e.newEventType);
-        }
-        if (e.eventType === 'EventDeleted' && e.refSeq !== undefined) {
-          committedDeletedSeqs.add(e.refSeq);
-        }
-      });
-
-      const pendingDeletedSeqs = new Set();
-      const pendingModifiedTypes = new Map();
-      const pendingTimeMods = new Map(); // refSeq → correction object
-      appState.correctionBuffer.forEach(c => {
-        if (c.deleted) pendingDeletedSeqs.add(c.refSeq);
-        else if (c.newEventType) pendingModifiedTypes.set(c.refSeq, c.newEventType);
-        else if (c.timeModified) {
-          pendingDeletedSeqs.add(c.refSeq);
-          pendingTimeMods.set(c.refSeq, c);
-        }
-      });
-
-      const result = rawBoutEvents
-        .filter(e => !committedDeletedSeqs.has(e.seq))
-        .map(e => {
-          const committedType = committedModifiedTypes.get(e.seq);
-          const currentType = committedType || e.eventType;
-          if (pendingDeletedSeqs.has(e.seq)) {
-            // Mark whether it's a time-modification deletion (for time-highlight rendering)
-            const isTimeMod = pendingTimeMods.has(e.seq);
-            return { ...e, eventType: currentType, pendingDeleted: true, ...(isTimeMod ? { pendingTimeModified: true } : {}) };
-          }
-          if (pendingModifiedTypes.has(e.seq)) {
-            return { ...e, eventType: pendingModifiedTypes.get(e.seq), originalEventType: currentType };
-          }
-          return { ...e, eventType: currentType };
-        });
-
-      // Apply committed EventInserted events
-      appState.events
-        .filter(e => e.eventType === 'EventInserted')
-        .forEach(ins => {
-          if (committedDeletedSeqs.has(ins.seq)) return;
-          const committedType = committedModifiedTypes.get(ins.seq);
-          const currentType = committedType || ins.insertedEventType;
-          let insertedEvent;
-          if (pendingDeletedSeqs.has(ins.seq)) {
-            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType, pendingDeleted: true };
-          } else if (pendingModifiedTypes.has(ins.seq)) {
-            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: pendingModifiedTypes.get(ins.seq), originalEventType: currentType };
-          } else {
-            insertedEvent = { seq: ins.seq, boutTime100ms: ins.boutTime100ms, eventType: currentType };
-          }
-          const idx = result.findIndex(e => e.seq === ins.refSeq);
-          if (idx >= 0) {
-            result.splice(idx, 0, insertedEvent);
-          } else {
-            result.push(insertedEvent);
-          }
-        });
-
-      // Apply committed EventSwapped events (just exchange types, no annotation needed after confirmation)
-      appState.events
-        .filter(e => e.eventType === 'EventSwapped')
-        .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2));
-
-      // Apply pending swaps from correctionBuffer (annotate with originalEventType for two-line display)
-      appState.correctionBuffer
-        .filter(c => c.swapped)
-        .forEach(swap => applyEventTypeSwap(result, swap.refSeq1, swap.refSeq2, true));
-
-      // Apply live swap preview (during swap mode navigation, before Enter is pressed)
-      if (appState.inSwapMode && appState.swapOriginIndex !== null &&
-          appState.cursorIndex !== null && appState.cursorIndex !== appState.swapOriginIndex) {
-        const cursorableResult = result.filter(e => e.eventType !== 'PeriodEnd');
-        const originEvent = cursorableResult[appState.swapOriginIndex];
-        const targetEvent = cursorableResult[appState.cursorIndex];
-        if (originEvent && targetEvent) {
-          applyEventTypeSwap(result, originEvent.seq, targetEvent.seq, true);
-        }
-      }
-
-      // Apply pending insertions from correctionBuffer
-      appState.correctionBuffer
-        .filter(c => c.insertedEventType)
-        .forEach(ins => {
-          const insertedEvent = {
-            seq: `pi-${ins.insertBefore}`,
-            boutTime100ms: ins.boutTime100ms,
-            eventType: ins.insertedEventType,
-            isPendingInserted: true
-          };
-          const idx = result.findIndex(e => e.seq === ins.insertBefore);
-          if (idx >= 0) {
-            result.splice(idx, 0, insertedEvent);
-          } else {
-            result.push(insertedEvent);
-          }
-        });
-
-      // Apply pending time modifications from correctionBuffer:
-      // insert a new virtual pending-inserted event at the correct chronological position.
-      appState.correctionBuffer
-        .filter(c => c.timeModified)
-        .forEach(c => {
-          const newEvent = {
-            seq: `tm-${c.refSeq}`,
-            boutTime100ms: c.newBoutTime100ms,
-            eventType: c.eventType,
-            isPendingInserted: true,
-            isNewTimeModified: true
-          };
-          const insertIdx = result.findIndex(e => e.boutTime100ms > c.newBoutTime100ms);
-          if (insertIdx >= 0) {
-            result.splice(insertIdx, 0, newEvent);
-          } else {
-            result.push(newEvent);
-          }
-        });
-
-      return result;
+      return _getOrComputeProjection(true);
     }
 
     function calculateScores(events) {
