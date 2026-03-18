@@ -1,0 +1,148 @@
+@startuml ad-domain-model
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+title Current Domain Model — CHAMP Protocol (As-Is)
+
+package "Global State (appState)" <<Rectangle>> #F5F5F5 {
+
+  class appState <<God Object>> {
+    --Lifecycle--
+    mode: string
+    createdAt: string
+    completed: boolean
+    completedAt: string
+    --Timers--
+    timerRunning: boolean
+    timerIntervalId: number
+    boutTime100ms: number
+    periodTime100ms: number
+    currentPeriodIndex: number
+    breakTimerRunning: boolean
+    breakTime100ms: number
+    --Event Sourcing--
+    sequenceCounter: number
+    events: BoutEvent[]
+    --Input--
+    keyBuffer: string[]
+    --Correction--
+    inCorrectionMode: boolean
+    inInsertMode: boolean
+    inSwapMode: boolean
+    swapOriginIndex: number
+    cursorIndex: number
+    correctionBuffer: Correction[]
+    timeModTarget: string
+    timeModCorrectionEvent: object
+    --Completion--
+    winner: string
+    victoryType: string
+    victoryDescription: string
+    classificationPoints: number[]
+    complBoutTime100ms: number
+  }
+
+  class InjuryTimer <<Nested Object>> {
+    running: boolean
+    time100ms: number
+    intervalId: number
+  }
+
+  class ActivityTimer <<Nested Object>> {
+    active: boolean
+    time100ms: number
+    seq: number
+  }
+
+}
+
+class BoutEvent <<Plain Object>> {
+  seq: number
+  timestamp: string
+  eventType: string
+  boutTime100ms: number
+  ..optional..
+  refSeq: number
+  newEventType: string
+  insertedEventType: string
+  newTime: number
+}
+
+class Correction <<Plain Object>> {
+  refSeq: number
+  --Variants (union)--
+  newEventType: string
+  deleted: boolean
+  insertedEventType: string
+  insertBefore: number
+  swapped: boolean
+  refSeq1: number
+  refSeq2: number
+  timeModified: boolean
+  oldBoutTime100ms: number
+  newBoutTime100ms: number
+}
+
+class Ruleset <<Embedded JSON>> {
+  metadata: object
+  periodTimesInSeconds: number[]
+  periodTimeCountingDirection: string
+  periodBreakTimeInSeconds: number
+  injuryTimeWithoutBloodInSeconds: number
+  injuryTimeWithBloodInSeconds: number
+  freestyle: FreestyleConfig
+  victoryTypes: VictoryType[]
+}
+
+class VictoryType <<Nested>> {
+  type: string
+  description: string
+  classificationPoints: object
+  condition: object
+}
+
+enum EventTypes <<String Constants>> {
+  **Scoring**: 1R, 2R, 4R, 5R, 1B, 2B, 4B, 5B
+  **Passivity**: PR, PB
+  **Activity**: AR, AB
+  **Caution**: 0R1B, 0R2B, 0B1R, 0B2R
+  **Period**: PeriodEnd
+  **Timer**: T_Started, T_Stopped, T_Modified
+  **Injury**: T_IR_*, T_IB_*, T_BR_*, T_BB_*
+  **Lifecycle**: ScoresheetReleased, ScoresheetCompleted
+  **Correction**: EventModified, EventDeleted,
+  ..EventInserted, EventSwapped
+}
+
+enum ScoresheetMode <<String>> {
+  New
+  Recording
+  Completing
+  Completed
+  Re-released
+}
+
+appState "1" *-- "4" InjuryTimer : injuryTimers\n{IR, IB, BR, BB}
+appState "1" *-- "2" ActivityTimer : activityTimers\n{AR, AB}
+appState "1" *-- "0..*" BoutEvent : events[]
+appState "1" *-- "0..*" Correction : correctionBuffer[]
+appState ..> ScoresheetMode : mode
+BoutEvent ..> EventTypes : eventType
+Ruleset "1" *-- "1..*" VictoryType : victoryTypes[]
+
+note bottom of appState
+  All ~50 functions directly read/write
+  this single mutable object.
+  No encapsulation boundaries.
+end note
+
+note right of Correction
+  Heterogeneous union type:
+  the same object shape serves
+  6 different correction kinds,
+  distinguished by flag fields.
+end note
+
+@enduml

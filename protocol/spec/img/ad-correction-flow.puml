@@ -1,0 +1,81 @@
+@startuml ad-correction-flow
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title Correction Mode Flow — Buffered Corrections with Preview
+
+actor User
+participant "keydown\nhandler" as KD
+participant "handleCorrection\nModeKey()" as HCMK
+participant "correction\nBuffer[]" as BUF
+participant "getEffective\nBoutEvents()" as EFF
+participant "getBoutEvents\nForTimeline\nRendering()" as EFFR
+participant "updateTimeline()" as TL
+participant "exitCorrection\nMode()" as EXIT
+participant "recordEvent()" as REC
+participant "appState\n.events[]" as LOG
+
+== Enter Correction Mode ==
+User -> KD : ArrowLeft
+KD -> HCMK : enterCorrectionMode()
+HCMK -> EFF : getCursorableEvents()
+note right: cursor → last event
+HCMK -> TL : updateTimeline()
+TL -> EFFR : get annotated events
+note right of EFFR: Uses correctionBuffer\nfor pending annotations
+
+== Navigate ==
+User -> HCMK : ArrowLeft / ArrowRight
+HCMK -> HCMK : moveCursor(±1)
+HCMK -> TL : updateTimeline()
+
+== Modify Event (R/B/1-5/P/01/02) ==
+User -> HCMK : e.g. "R" key
+HCMK -> BUF : push({refSeq, newEventType})
+HCMK -> TL : updateTimeline()
+note right of TL: Shows old→new annotation\n(originalEventType set)
+
+== Delete Event ==
+User -> HCMK : Delete key
+HCMK -> BUF : push({refSeq, deleted:true})
+note right of BUF: Event marked pending-deleted\nin timeline preview
+
+== Swap Mode (# key) ==
+User -> HCMK : "#" key
+HCMK -> HCMK : inSwapMode=true\nswapOriginIndex=cursor
+User -> HCMK : ArrowLeft/Right
+note right: Live swap preview\nin getEffectiveBoutEvents()
+User -> HCMK : Enter
+HCMK -> BUF : push({swapped, refSeq1, refSeq2})
+
+== Insert Mode (## keys) ==
+User -> HCMK : "#" then "#"
+HCMK -> HCMK : inInsertMode=true
+User -> HCMK : event type keys\n(e.g. "2B")
+HCMK -> HCMK : resolveInsertEventType()
+HCMK -> BUF : push({insertBefore,\nboutTime100ms,\ninsertedEventType})
+
+== Time Modification (T key) ==
+User -> HCMK : "T" key
+HCMK -> HCMK : openTimeModModal(\n'correctionBoutTime')
+User -> HCMK : Enter in modal
+HCMK -> BUF : push({timeModified,\nrefSeq, newBoutTime100ms})
+
+== Confirm (Enter) ==
+User -> HCMK : Enter
+HCMK -> EXIT : exitCorrectionMode(true)
+loop each correction in buffer
+  EXIT -> REC : recordEvent(\nEventModified |\nEventDeleted |\nEventInserted |\nEventSwapped)
+  REC -> LOG : append
+end
+EXIT -> BUF : clear buffer
+EXIT -> TL : updateTimeline()
+
+== Cancel (Escape) ==
+User -> HCMK : Escape
+HCMK -> EXIT : exitCorrectionMode(false)
+EXIT -> BUF : discard buffer
+EXIT -> TL : updateTimeline()
+note right: All pending changes reverted
+
+@enduml
